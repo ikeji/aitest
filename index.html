@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>aitest index</title>
+<style>
+:root{--bg:#0f1117;--fg:#e6e8ef;--dim:#9aa3b5;--line:#2a2f3d;--card:#171a23;--ok:#3fb950;--ng:#f85149;--warn:#d29922;--todo:#e3b341}
+*{box-sizing:border-box}
+body{margin:0;padding:24px;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif}
+h1{font-size:20px;margin:0 0 4px}
+.meta{color:var(--dim);margin-bottom:16px}
+.summary{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 14px;min-width:140px}
+.card .k{color:var(--dim);font-size:12px}.card .v{font-size:18px;font-weight:600}
+.card ul{margin:4px 0 0;padding-left:16px;font-size:12px;color:var(--dim)}
+.wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;background:var(--card);border:1px solid var(--line);border-radius:8px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;vertical-align:top}
+th{cursor:pointer;user-select:none;color:var(--dim);font-weight:600;position:sticky;top:0;background:var(--card)}
+th.sorted-asc::after{content:" ▲"}th.sorted-desc::after{content:" ▼"}
+tr:hover td{background:#1d2130}
+td.notes{white-space:normal;min-width:200px;color:var(--dim)}
+small.sub{color:var(--dim);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}
+a{color:#79b8ff;text-decoration:none}a:hover{text-decoration:underline}
+.todo{color:var(--todo)}.missing{color:var(--ng)}.empty{color:var(--dim)}
+input#filter{margin:0 0 12px;padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--fg);width:320px}
+</style>
+</head>
+<body>
+<h1>aitest index</h1>
+<div class="meta">生成 2026-09-03 09:23 · <a href="IDEA.md">IDEA.md</a></div>
+<div class="summary"><div class="card"><div class="k">実行数</div><div class="v">7</div></div><div class="card"><div class="k">provider</div><ul><li>anthropic: 4</li><li>llama.cpp: 3</li></ul></div><div class="card"><div class="k">harness</div><ul><li>claude-code: 4</li><li>pi-agent: 3</li></ul></div></div>
+<input id="filter" type="search" placeholder="絞り込み (model, provider, harness ...)">
+<div class="wrap"><table><thead><tr><th>model</th><th>provider</th><th>harness</th><th>date</th><th>index.html</th><th>notes</th></tr></thead><tbody><tr><td><a href="fable51-202609022125/index.html"><b>claude-fable-5-1</b></a></td><td>anthropic</td><td>claude-code</td><td>2026-09-02 21:25</td><td data-sort="59926">58.5 KB</td><td class="notes"></td></tr><tr><td><a href="gemma4-202609022143/index.html"><b>gemma-4-26B-A4B-it</b></a><br><small class="sub">gemma-4-26B-A4B-it-GGUF/gemma-4-26B-A4B-it-UD-Q5_K_M.gguf</small></td><td>llama.cpp</td><td>pi-agent</td><td>2026-09-02 21:43</td><td data-sort="24722">24.1 KB</td><td class="notes"></td></tr><tr><td><a href="opus5-202609022218/index.html"><b>claude-opus-5</b></a></td><td>anthropic</td><td>claude-code</td><td>2026-09-02 22:18</td><td data-sort="64065">62.6 KB</td><td class="notes"></td></tr><tr><td><a href="qwen36-202609022233/index.html"><b>Qwen3.6-35B-A3B</b></a><br><small class="sub">Qwen3.6-35B-A3B-MTP-GGUF/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf</small></td><td>llama.cpp</td><td>pi-agent</td><td>2026-09-02 22:33</td><td data-sort="39886">39.0 KB</td><td class="notes"></td></tr><tr><td><a href="sonnet5-202609022244/index.html"><b>claude-sonnet-5</b></a></td><td>anthropic</td><td>claude-code</td><td>2026-09-02 22:44</td><td data-sort="51220">50.0 KB</td><td class="notes"></td></tr><tr><td><a href="qwen38-202609022255/index.html"><b>Qwen3.8-27B</b></a><br><small class="sub">Qwen3.8-27B-GGUF/Qwen3.8-27B-UD-IQ4_XS.gguf</small></td><td>llama.cpp</td><td>pi-agent</td><td>2026-09-02 22:55</td><td data-sort="60165">58.8 KB</td><td class="notes"></td></tr><tr><td><a href="haiku45-202609022307/index.html"><b>claude-haiku-4-5</b></a></td><td>anthropic</td><td>claude-code</td><td>2026-09-02 23:07</td><td data-sort="32932">32.2 KB</td><td class="notes"></td></tr></tbody></table></div>
+<script>
+(function(){
+  const table=document.querySelector('table');
+  const ths=[...table.querySelectorAll('th')];
+  const tbody=table.querySelector('tbody');
+  ths.forEach((th,i)=>th.addEventListener('click',()=>{
+    const asc=!th.classList.contains('sorted-asc');
+    ths.forEach(t=>t.classList.remove('sorted-asc','sorted-desc'));
+    th.classList.add(asc?'sorted-asc':'sorted-desc');
+    const rows=[...tbody.querySelectorAll('tr')];
+    rows.sort((a,b)=>{
+      const x=a.children[i].dataset.sort??a.children[i].textContent.trim();
+      const y=b.children[i].dataset.sort??b.children[i].textContent.trim();
+      const nx=parseFloat(x),ny=parseFloat(y);
+      const c=(!isNaN(nx)&&!isNaN(ny))?nx-ny:x.localeCompare(y,'ja');
+      return asc?c:-c;
+    });
+    rows.forEach(r=>tbody.appendChild(r));
+  }));
+  const f=document.getElementById('filter');
+  f.addEventListener('input',()=>{
+    const q=f.value.toLowerCase();
+    tbody.querySelectorAll('tr').forEach(r=>{r.style.display=r.textContent.toLowerCase().includes(q)?'':'none';});
+  });
+})();
+</script>
+</body>
+</html>
