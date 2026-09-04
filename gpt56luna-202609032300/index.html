@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NEON//BLOCKS — 爆発テトリス</title>
+<style>
+:root{--bg:#080b18;--panel:rgba(18,23,49,.82);--line:rgba(160,180,255,.18);--text:#eef3ff;--muted:#9aa8d0;--accent:#67f4ff;--pink:#ff5ccd;--gold:#ffe477}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% -10%,#25326d 0,#0e1330 31%,var(--bg) 72%);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;justify-content:center;overflow-x:hidden}body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.16;background-image:linear-gradient(rgba(255,255,255,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.06) 1px,transparent 1px);background-size:42px 42px;mask-image:linear-gradient(to bottom,#000,transparent 80%)}
+.app{width:min(1100px,100%);padding:28px 22px 34px}.brand{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}.logo{font-size:clamp(22px,4vw,36px);font-weight:900;letter-spacing:.12em;font-style:italic;text-shadow:0 0 16px var(--accent)}.logo span{color:var(--accent)}.tag{color:var(--muted);font-size:11px;letter-spacing:.18em;text-transform:uppercase}
+.layout{display:grid;grid-template-columns:220px minmax(280px,360px) 220px;gap:18px;align-items:start;justify-content:center}.panel,.stage-wrap{border:1px solid var(--line);background:var(--panel);box-shadow:0 16px 60px rgba(0,0,0,.32);backdrop-filter:blur(14px);border-radius:18px}.panel{padding:18px}.stage-wrap{padding:14px;position:relative}.stage-wrap:after{content:"";position:absolute;inset:6px;border-radius:14px;border:1px solid rgba(103,244,255,.14);pointer-events:none}.label{font-size:10px;color:var(--muted);letter-spacing:.18em;text-transform:uppercase;margin-bottom:9px}.value{font-size:27px;font-weight:800;line-height:1}.stat{padding-bottom:18px;margin-bottom:18px;border-bottom:1px solid var(--line)}.stat:last-child{border:0;margin:0;padding:0}.meter{height:7px;background:#0a0e21;border-radius:8px;overflow:hidden;margin-top:11px}.meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--pink));box-shadow:0 0 14px var(--accent);transition:width .3s}.mini{display:flex;justify-content:space-between;align-items:end;gap:12px}.mini strong{font-size:17px}.hint{font-size:11px;color:var(--muted);line-height:1.6;margin-top:20px}.kbd{display:inline-block;min-width:23px;padding:3px 5px;text-align:center;border:1px solid #465084;border-radius:5px;color:#dbe3ff;font-size:10px;margin:2px}
+#board{display:block;width:100%;height:auto;aspect-ratio:1/2;border-radius:10px;background:#090c1d;box-shadow:0 0 35px rgba(55,180,255,.14),inset 0 0 30px #000}.side-title{display:flex;justify-content:space-between;align-items:center}.nextbox{display:flex;justify-content:center;align-items:center;height:112px;margin:8px 0 20px;background:rgba(4,7,20,.55);border:1px solid var(--line);border-radius:12px}.btn{width:100%;border:1px solid rgba(103,244,255,.45);border-radius:10px;background:linear-gradient(135deg,rgba(103,244,255,.14),rgba(255,92,205,.12));color:var(--text);padding:12px;cursor:pointer;font-weight:800;letter-spacing:.1em}.btn:hover{border-color:var(--accent);box-shadow:0 0 20px rgba(103,244,255,.22)}.mode{color:var(--gold);font-size:12px;font-weight:800;letter-spacing:.1em}.footer{text-align:center;color:#68749c;font-size:11px;margin-top:18px}.toast{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0;z-index:3}.toast b{font-size:clamp(22px,6vw,42px);font-style:italic;text-transform:uppercase;text-shadow:0 0 12px currentColor,0 0 35px currentColor;transform:scale(.6);transition:.25s}.toast.show{opacity:1}.toast.show b{transform:scale(1)}
+@media(max-width:780px){.app{padding:16px 12px}.layout{grid-template-columns:1fr 1.55fr 1fr;gap:8px}.panel{padding:11px;border-radius:13px}.value{font-size:20px}.hint{display:none}.nextbox{height:78px}.logo{font-size:22px}.tag{font-size:8px}}
+@media(max-width:490px){.layout{grid-template-columns:78px minmax(0,1fr) 78px;gap:6px}.panel{padding:8px}.label{font-size:8px;letter-spacing:.08em}.stat{padding-bottom:12px;margin-bottom:12px}.value{font-size:17px}.nextbox{height:68px;margin-bottom:12px}.side-title .label{margin:0}.mode{font-size:9px}.stage-wrap{padding:8px}.footer{font-size:9px}}
+</style>
+</head>
+<body>
+<main class="app">
+ <header class="brand"><div class="logo">NEON<span>//</span>BLOCKS</div><div class="tag">爆発するほど、うまくなる。</div></header>
+ <section class="layout">
+  <aside class="panel">
+   <div class="stat"><div class="label">Score</div><div id="score" class="value">0</div></div>
+   <div class="stat"><div class="label">Level</div><div id="level" class="value">1</div><div class="meter"><i id="progress"></i></div></div>
+   <div class="stat mini"><div><div class="label">Lines</div><strong id="lines">0</strong></div><div><div class="label">Best</div><strong id="best">0</strong></div></div>
+   <div class="hint"><span class="kbd">←</span><span class="kbd">→</span> 移動<br><span class="kbd">↑</span> 回転　<span class="kbd">↓</span> 落下<br><span class="kbd">Space</span> ハードドロップ<br><span class="kbd">P</span> 一時停止</div>
+  </aside>
+  <div class="stage-wrap"><canvas id="board" width="300" height="600"></canvas><div id="toast" class="toast"><b id="toastText">TETRIS!</b></div></div>
+  <aside class="panel">
+   <div class="side-title"><div class="label">Next</div><div id="mode" class="mode">PHASE 01</div></div>
+   <div class="nextbox"><canvas id="next" width="150" height="100"></canvas></div>
+   <div class="label">Controls</div><button class="btn" id="pause">PAUSE <span class="kbd">P</span></button>
+   <div class="hint" style="margin-top:16px">10ラインごとに<br>エフェクトが進化します。</div>
+  </aside>
+ </section>
+ <div class="footer">AUDIO SYNTH ACTIVE · HIGH SCORE IS STORED LOCALLY</div>
+</main>
+<script>
+(() => {
+ const W=10,H=20, board=document.querySelector('#board'),ctx=board.getContext('2d'),nctx=document.querySelector('#next').getContext('2d');
+ const colors=['#69e8ff','#4d79ff','#ad63ff','#ff5ccd','#ffd65a','#63f29b','#ff745c'];
+ const shapes=[[[1,1,1,1]],[[1,0,0],[1,1,1]],[[0,0,1],[1,1,1]],[[1,1],[1,1]],[[0,1,1],[1,1,0]],[[0,1,0],[1,1,1]],[[1,1,0],[0,1,1]]];
+ let grid,cur,next,score=0,lines=0,level=1,drop=0,last=0,paused=false,over=false,particles=[],shake=0,audio;
+ const $=id=>document.getElementById(id); let best=+localStorage.getItem('neonblocks-best')||0; $('best').textContent=best;
+ function fresh(){grid=Array.from({length:H},()=>Array(W).fill(0));score=lines=0;level=1;over=paused=false;particles=[];next=piece();cur=piece();update();}
+ function piece(){let type=Math.floor(Math.random()*7),m=shapes[type].map(r=>r.slice());return {type,m,x:Math.floor((W-m[0].length)/2),y:0};}
+ function collide(p,dx=0,dy=0,mat=p.m){return mat.some((r,y)=>r.some((v,x)=>v&&(p.x+x+dx<0||p.x+x+dx>=W||p.y+y+dy>=H||(p.y+y+dy>=0&&grid[p.y+y+dy][p.x+x+dx]))));}
+ function rotate(){let m=cur.m.map((_,i)=>cur.m.map(r=>r[i]).reverse());for(const kick of [0,-1,1,-2,2])if(!collide(cur,kick,0,m)){cur.x+=kick;cur.m=m;beep(420,.035);return}}
+ function move(dx){if(!collide(cur,dx,0)){cur.x+=dx;beep(210,.018)}}
+ function dropPiece(){let d=0;while(!collide(cur,0,1)){cur.y++;d++}score+=d*2;lock();}
+ function lock(){cur.m.forEach((r,y)=>r.forEach((v,x)=>{if(v&&cur.y+y>=0)grid[cur.y+y][cur.x+x]=cur.type+1}));beep(130,.06);let cleared=[];for(let y=H-1;y>=0;y--)if(grid[y].every(Boolean))cleared.push(y);if(cleared.length){cleared.forEach(y=>burst(y));grid=grid.filter((_,y)=>!cleared.includes(y));while(grid.length<H)grid.unshift(Array(W).fill(0));let gain=[0,100,300,500,800][cleared.length]*level;score+=gain;lines+=cleared.length;level=Math.floor(lines/10)+1;toast(cleared.length===4?'TETRIS!':cleared.length===3?'TRIPLE!':cleared.length===2?'DOUBLE!':'LINE!');beep(300+cleared.length*130,.14)}cur=next;next=piece();if(collide(cur)){over=true;toast('GAME OVER');beep(70,.4)}update();}
+ function burst(row){for(let i=0;i<80;i++){let a=Math.random()*Math.PI*2,s=1+Math.random()*5;particles.push({x:(Math.random()*W)*board.width/W,y:(row+.5)*board.height/H,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,c:colors[Math.floor(Math.random()*7)]})}shake=10}
+ function toast(t){$('toastText').textContent=t;$('toast').classList.remove('show');void $('toast').offsetWidth;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),750)}
+ function update(){ $('score').textContent=score.toLocaleString();$('lines').textContent=lines;$('level').textContent=level;$('progress').style.width=(lines%10)*10+'%';$('mode').textContent='PHASE '+String(Math.ceil(level/1)).padStart(2,'0');if(score>best){best=score;localStorage.setItem('neonblocks-best',best);$('best').textContent=best}drawNext() }
+ function block(c,x,y,size,alpha=1){ctx.globalAlpha=alpha;ctx.fillStyle=c;ctx.fillRect(x+1,y+1,size-2,size-2);ctx.fillStyle='rgba(255,255,255,.28)';ctx.fillRect(x+3,y+3,size-6,3);ctx.fillStyle='rgba(0,0,0,.25)';ctx.fillRect(x+3,y+size-6,size-6,3);ctx.globalAlpha=1}
+ function draw(){let s=board.width/W;ctx.save();if(shake){ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);shake*=.82;if(shake<.2)shake=0}ctx.clearRect(-20,-20,board.width+40,board.height+40);ctx.fillStyle='#090c1d';ctx.fillRect(0,0,board.width,board.height);ctx.strokeStyle='rgba(120,150,255,.08)';ctx.lineWidth=1;for(let x=1;x<W;x++){ctx.beginPath();ctx.moveTo(x*s,0);ctx.lineTo(x*s,board.height);ctx.stroke()}for(let y=1;y<H;y++){ctx.beginPath();ctx.moveTo(0,y*s);ctx.lineTo(board.width,y*s);ctx.stroke()}grid.forEach((r,y)=>r.forEach((v,x)=>v&&block(colors[v-1],x*s,y*s,s)));if(cur&&!over)cur.m.forEach((r,y)=>r.forEach((v,x)=>v&&cur.y+y>=0&&block(colors[cur.type],(cur.x+x)*s,(cur.y+y)*s,s,.96)));particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.12;p.life-=.025;ctx.fillStyle=p.c;ctx.globalAlpha=Math.max(0,p.life);ctx.fillRect(p.x,p.y,3+3*p.life,3+3*p.life)});ctx.globalAlpha=1;ctx.restore();particles=particles.filter(p=>p.life>0)}
+ function drawNext(){let c=document.querySelector('#next'),x=nctx;x.clearRect(0,0,c.width,c.height);let m=next.m,s=22,ox=(c.width-m[0].length*s)/2,oy=(c.height-m.length*s)/2;m.forEach((r,y)=>r.forEach((v,i)=>v&&(()=>{x.fillStyle=colors[next.type];x.shadowBlur=10;x.shadowColor=colors[next.type];x.fillRect(ox+i*s+2,oy+y*s+2,s-4,s-4);x.shadowBlur=0})()))}
+ function beep(freq,dur){try{audio??=new (window.AudioContext||window.webkitAudioContext)();let o=audio.createOscillator(),g=audio.createGain();o.frequency.value=freq;o.type='square';g.gain.setValueAtTime(.035,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+dur);o.connect(g).connect(audio.destination);o.start();o.stop(audio.currentTime+dur)}catch(e){}}
+ function toggle(){if(over){fresh();return}paused=!paused;$('pause').innerHTML=paused?'RESUME <span class="kbd">P</span>':'PAUSE <span class="kbd">P</span>';toast(paused?'PAUSED':'GO!')}
+ addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','ArrowDown','ArrowUp',' '].includes(e.key))e.preventDefault();if(e.key.toLowerCase()==='p'){toggle();return}if(paused||over)return;if(e.key==='ArrowLeft')move(-1);if(e.key==='ArrowRight')move(1);if(e.key==='ArrowUp')rotate();if(e.key==='ArrowDown'){if(!collide(cur,0,1)){cur.y++;score++}}if(e.key===' ')dropPiece()});$('pause').onclick=toggle;
+ function frame(t){let dt=t-last;last=t;if(!paused&&!over){drop+=dt;if(drop>Math.max(90,780-(level-1)*65)){if(!collide(cur,0,1))cur.y++;else lock();drop=0}}draw();requestAnimationFrame(frame)}fresh();requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

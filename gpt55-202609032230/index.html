@@ -1,0 +1,1030 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>派手エフェクト・テトリス</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #08090d;
+      --panel: rgba(16, 18, 28, .86);
+      --line: rgba(255, 255, 255, .12);
+      --text: #f4f7fb;
+      --muted: #9aa4b5;
+      --cyan: #2ee8ff;
+      --yellow: #ffe25c;
+      --green: #64f26b;
+      --red: #ff5571;
+      --blue: #5792ff;
+      --orange: #ffac38;
+      --purple: #c06bff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 16% 12%, rgba(46, 232, 255, .16), transparent 27%),
+        radial-gradient(circle at 86% 74%, rgba(255, 172, 56, .12), transparent 28%),
+        linear-gradient(140deg, #08090d 0%, #151827 55%, #090b12 100%);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button {
+      border: 1px solid rgba(255, 255, 255, .14);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .08);
+      color: var(--text);
+      min-height: 36px;
+      padding: 0 12px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:hover { background: rgba(255, 255, 255, .14); }
+    button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+    .app {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: minmax(190px, 240px) minmax(300px, 52vh) minmax(190px, 240px);
+      gap: 18px;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 18px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, .38);
+      backdrop-filter: blur(18px);
+    }
+
+    .side {
+      display: grid;
+      gap: 12px;
+      align-content: center;
+    }
+
+    .metric, .preview, .controls, .status {
+      padding: 14px;
+    }
+
+    .metric {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 3px;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .value {
+      font-size: clamp(22px, 4vh, 38px);
+      font-weight: 900;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .preview {
+      display: grid;
+      gap: 10px;
+    }
+
+    .preview canvas {
+      display: block;
+      width: 100%;
+      aspect-ratio: 1 / .7;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, .28);
+    }
+
+    .board-shell {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: min(52vh, calc(100vw - 36px));
+      max-width: 560px;
+      min-width: 300px;
+      aspect-ratio: 10 / 20;
+      border: 1px solid rgba(255, 255, 255, .2);
+      border-radius: 8px;
+      background: rgba(7, 8, 14, .72);
+      box-shadow:
+        0 0 0 1px rgba(46, 232, 255, .08) inset,
+        0 28px 90px rgba(0, 0, 0, .55);
+      overflow: hidden;
+    }
+
+    #game, #fx {
+      position: absolute;
+      inset: 0;
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    #fx { pointer-events: none; mix-blend-mode: screen; }
+
+    .topbar {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      z-index: 2;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .pill {
+      border: 1px solid rgba(255, 255, 255, .14);
+      border-radius: 999px;
+      background: rgba(0, 0, 0, .38);
+      padding: 6px 10px;
+      color: rgba(244, 247, 251, .84);
+      font-size: 12px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      display: grid;
+      place-items: center;
+      padding: 22px;
+      background: rgba(8, 9, 13, .62);
+      text-align: center;
+    }
+
+    .overlay[hidden] { display: none; }
+
+    .modal {
+      width: min(330px, 100%);
+      padding: 20px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(28px, 6vh, 56px);
+      line-height: .95;
+      letter-spacing: 0;
+    }
+
+    .modal p {
+      margin: 0 0 16px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .controls {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.65;
+    }
+
+    .controls b { color: var(--text); }
+
+    .status {
+      display: grid;
+      gap: 10px;
+    }
+
+    .combo {
+      color: var(--yellow);
+      font-size: 28px;
+      font-weight: 900;
+      min-height: 34px;
+      line-height: 1.1;
+    }
+
+    .flash {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background: transparent;
+    }
+
+    @media (max-width: 860px) {
+      body { overflow: auto; }
+      .app {
+        min-height: 100svh;
+        grid-template-columns: 1fr;
+        align-content: start;
+        padding: 12px;
+      }
+      .side {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: min(520px, 100%);
+        margin: 0 auto;
+      }
+      .controls, .status { display: none; }
+      .metric, .preview { padding: 10px; }
+      .board-shell {
+        width: min(86vw, 46vh);
+        min-width: 280px;
+        order: -1;
+        margin: 0 auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="flash" id="flash"></div>
+  <main class="app">
+    <aside class="side">
+      <section class="panel metric">
+        <span class="label">Score</span>
+        <span class="value" id="score">0</span>
+      </section>
+      <section class="panel metric">
+        <span class="label">Lines</span>
+        <span class="value" id="lines">0</span>
+      </section>
+      <section class="panel metric">
+        <span class="label">Level</span>
+        <span class="value" id="level">1</span>
+      </section>
+      <section class="panel preview">
+        <span class="label">Hold</span>
+        <canvas id="hold" width="160" height="112"></canvas>
+      </section>
+    </aside>
+
+    <section class="board-shell" id="shell" aria-label="Tetris game board">
+      <canvas id="game" width="360" height="720"></canvas>
+      <canvas id="fx" width="360" height="720"></canvas>
+      <div class="topbar">
+        <span class="pill" id="phase">Ready</span>
+        <span class="pill" id="effect">Spark</span>
+      </div>
+      <div class="overlay" id="overlay">
+        <div class="panel modal">
+          <h1>TETRIS FX</h1>
+          <p>現代テトリス操作と、ライン消去で切り替わる爆発エフェクト。</p>
+          <div class="buttons">
+            <button id="startBtn">Start</button>
+            <button id="soundBtn">Sound On</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="panel preview">
+        <span class="label">Next</span>
+        <canvas id="next" width="160" height="240"></canvas>
+      </section>
+      <section class="panel status">
+        <span class="label">Chain</span>
+        <span class="combo" id="combo"></span>
+        <span class="label">Last Clear</span>
+        <span class="value" id="clearName">-</span>
+      </section>
+      <section class="panel controls">
+        <b>Move</b> Arrow / A D<br>
+        <b>Soft</b> Down / S<br>
+        <b>Hard</b> Space<br>
+        <b>Rotate</b> Up / X, Z<br>
+        <b>Hold</b> C / Shift<br>
+        <b>Pause</b> P
+      </section>
+    </aside>
+  </main>
+
+  <script>
+    (() => {
+      const COLS = 10;
+      const ROWS = 20;
+      const HIDDEN = 2;
+      const TOTAL_ROWS = ROWS + HIDDEN;
+      const BLOCK = 36;
+      const COLORS = {
+        I: '#2ee8ff', O: '#ffe25c', T: '#c06bff', S: '#64f26b',
+        Z: '#ff5571', J: '#5792ff', L: '#ffac38'
+      };
+      const EFFECTS = ['Spark', 'Shockwave', 'Prism', 'Meteor', 'Aurora', 'Nova'];
+      const PIECES = {
+        I: [
+          [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+          [[0,0,1,0],[0,0,1,0],[0,0,1,0],[0,0,1,0]],
+          [[0,0,0,0],[0,0,0,0],[1,1,1,1],[0,0,0,0]],
+          [[0,1,0,0],[0,1,0,0],[0,1,0,0],[0,1,0,0]]
+        ],
+        O: [
+          [[0,1,1,0],[0,1,1,0],[0,0,0,0],[0,0,0,0]],
+          [[0,1,1,0],[0,1,1,0],[0,0,0,0],[0,0,0,0]],
+          [[0,1,1,0],[0,1,1,0],[0,0,0,0],[0,0,0,0]],
+          [[0,1,1,0],[0,1,1,0],[0,0,0,0],[0,0,0,0]]
+        ],
+        T: [
+          [[0,1,0],[1,1,1],[0,0,0]],
+          [[0,1,0],[0,1,1],[0,1,0]],
+          [[0,0,0],[1,1,1],[0,1,0]],
+          [[0,1,0],[1,1,0],[0,1,0]]
+        ],
+        S: [
+          [[0,1,1],[1,1,0],[0,0,0]],
+          [[0,1,0],[0,1,1],[0,0,1]],
+          [[0,0,0],[0,1,1],[1,1,0]],
+          [[1,0,0],[1,1,0],[0,1,0]]
+        ],
+        Z: [
+          [[1,1,0],[0,1,1],[0,0,0]],
+          [[0,0,1],[0,1,1],[0,1,0]],
+          [[0,0,0],[1,1,0],[0,1,1]],
+          [[0,1,0],[1,1,0],[1,0,0]]
+        ],
+        J: [
+          [[1,0,0],[1,1,1],[0,0,0]],
+          [[0,1,1],[0,1,0],[0,1,0]],
+          [[0,0,0],[1,1,1],[0,0,1]],
+          [[0,1,0],[0,1,0],[1,1,0]]
+        ],
+        L: [
+          [[0,0,1],[1,1,1],[0,0,0]],
+          [[0,1,0],[0,1,0],[0,1,1]],
+          [[0,0,0],[1,1,1],[1,0,0]],
+          [[1,1,0],[0,1,0],[0,1,0]]
+        ]
+      };
+      const KICKS = {
+        normal: {
+          '0>1': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+          '1>0': [[0,0],[1,0],[1,-1],[0,2],[1,2]],
+          '1>2': [[0,0],[1,0],[1,-1],[0,2],[1,2]],
+          '2>1': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+          '2>3': [[0,0],[1,0],[1,1],[0,-2],[1,-2]],
+          '3>2': [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+          '3>0': [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+          '0>3': [[0,0],[1,0],[1,1],[0,-2],[1,-2]]
+        },
+        I: {
+          '0>1': [[0,0],[-2,0],[1,0],[-2,-1],[1,2]],
+          '1>0': [[0,0],[2,0],[-1,0],[2,1],[-1,-2]],
+          '1>2': [[0,0],[-1,0],[2,0],[-1,2],[2,-1]],
+          '2>1': [[0,0],[1,0],[-2,0],[1,-2],[-2,1]],
+          '2>3': [[0,0],[2,0],[-1,0],[2,1],[-1,-2]],
+          '3>2': [[0,0],[-2,0],[1,0],[-2,-1],[1,2]],
+          '3>0': [[0,0],[1,0],[-2,0],[1,-2],[-2,1]],
+          '0>3': [[0,0],[-1,0],[2,0],[-1,2],[2,-1]]
+        }
+      };
+
+      const game = document.getElementById('game');
+      const fxCanvas = document.getElementById('fx');
+      const holdCanvas = document.getElementById('hold');
+      const nextCanvas = document.getElementById('next');
+      const shell = document.getElementById('shell');
+      const g = game.getContext('2d');
+      const fx = fxCanvas.getContext('2d');
+      const holdCtx = holdCanvas.getContext('2d');
+      const nextCtx = nextCanvas.getContext('2d');
+      const ui = {
+        score: document.getElementById('score'),
+        lines: document.getElementById('lines'),
+        level: document.getElementById('level'),
+        combo: document.getElementById('combo'),
+        clearName: document.getElementById('clearName'),
+        phase: document.getElementById('phase'),
+        effect: document.getElementById('effect'),
+        overlay: document.getElementById('overlay'),
+        startBtn: document.getElementById('startBtn'),
+        soundBtn: document.getElementById('soundBtn'),
+        flash: document.getElementById('flash')
+      };
+
+      let board, active, queue, hold, canHold, score, lines, level, combo;
+      let running = false;
+      let paused = false;
+      let over = false;
+      let lastTime = 0;
+      let dropTimer = 0;
+      let lockTimer = 0;
+      let lastMoveRotate = false;
+      let particles = [];
+      let rings = [];
+      let shake = 0;
+      let flash = 0;
+      let keys = new Set();
+      let repeat = {};
+      let audio;
+      let soundOn = false;
+      let animating = false;
+
+      function emptyBoard() {
+        return Array.from({ length: TOTAL_ROWS }, () => Array(COLS).fill(null));
+      }
+
+      function refillQueue() {
+        const bag = Object.keys(PIECES);
+        for (let i = bag.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [bag[i], bag[j]] = [bag[j], bag[i]];
+        }
+        queue.push(...bag);
+      }
+
+      function nextPiece() {
+        while (queue.length < 7) refillQueue();
+        const type = queue.shift();
+        active = { type, x: type === 'O' ? 3 : 3, y: 0, r: 0 };
+        canHold = true;
+        lastMoveRotate = false;
+        lockTimer = 0;
+        if (collides(active.x, active.y, active.r)) endGame();
+      }
+
+      function start() {
+        board = emptyBoard();
+        queue = [];
+        hold = null;
+        score = 0;
+        lines = 0;
+        level = 1;
+        combo = -1;
+        particles = [];
+        rings = [];
+        shake = 0;
+        flash = 0;
+        running = true;
+        paused = false;
+        over = false;
+        dropTimer = 0;
+        refillQueue();
+        nextPiece();
+        ui.overlay.hidden = true;
+        ui.phase.textContent = 'Playing';
+        startAudio();
+        updateUI();
+        startLoop();
+      }
+
+      function endGame() {
+        running = false;
+        over = true;
+        ui.phase.textContent = 'Game Over';
+        ui.overlay.hidden = false;
+        ui.startBtn.textContent = 'Restart';
+        boom(game.width / 2, game.height / 2, 90, '#ff5571', true);
+        sound('gameover');
+      }
+
+      function collides(x, y, r, type = active.type) {
+        const shape = PIECES[type][r];
+        for (let py = 0; py < shape.length; py++) {
+          for (let px = 0; px < shape[py].length; px++) {
+            if (!shape[py][px]) continue;
+            const bx = x + px;
+            const by = y + py;
+            if (bx < 0 || bx >= COLS || by >= TOTAL_ROWS) return true;
+            if (by >= 0 && board[by][bx]) return true;
+          }
+        }
+        return false;
+      }
+
+      function forCells(piece, fn) {
+        const shape = PIECES[piece.type][piece.r];
+        for (let py = 0; py < shape.length; py++) {
+          for (let px = 0; px < shape[py].length; px++) {
+            if (shape[py][px]) fn(piece.x + px, piece.y + py);
+          }
+        }
+      }
+
+      function move(dx) {
+        if (!running || paused) return;
+        if (!collides(active.x + dx, active.y, active.r)) {
+          active.x += dx;
+          lastMoveRotate = false;
+          lockTimer = 0;
+          sound('move');
+        }
+      }
+
+      function softDrop() {
+        if (!running || paused) return;
+        if (!collides(active.x, active.y + 1, active.r)) {
+          active.y++;
+          score++;
+          dropTimer = 0;
+        } else {
+          lockTimer += 36;
+        }
+      }
+
+      function hardDrop() {
+        if (!running || paused) return;
+        let distance = 0;
+        while (!collides(active.x, active.y + 1, active.r)) {
+          active.y++;
+          distance++;
+        }
+        score += distance * 2;
+        lock();
+        sound('hard');
+      }
+
+      function rotate(dir) {
+        if (!running || paused || active.type === 'O') return;
+        const from = active.r;
+        const to = (active.r + dir + 4) % 4;
+        const table = active.type === 'I' ? KICKS.I : KICKS.normal;
+        const tests = table[`${from}>${to}`] || [[0, 0]];
+        for (const [kx, ky] of tests) {
+          if (!collides(active.x + kx, active.y - ky, to)) {
+            active.x += kx;
+            active.y -= ky;
+            active.r = to;
+            lastMoveRotate = active.type === 'T';
+            lockTimer = 0;
+            sound('rotate');
+            return;
+          }
+        }
+      }
+
+      function holdPiece() {
+        if (!running || paused || !canHold) return;
+        const current = active.type;
+        if (hold) {
+          active = { type: hold, x: hold === 'O' ? 3 : 3, y: 0, r: 0 };
+          hold = current;
+        } else {
+          hold = current;
+          nextPiece();
+        }
+        canHold = false;
+        lockTimer = 0;
+        sound('hold');
+      }
+
+      function lock() {
+        forCells(active, (x, y) => {
+          if (y >= 0) board[y][x] = active.type;
+        });
+        const tspin = detectTSpin();
+        clearLines(tspin);
+        nextPiece();
+      }
+
+      function detectTSpin() {
+        if (active.type !== 'T' || !lastMoveRotate) return false;
+        const cx = active.x + 1;
+        const cy = active.y + 1;
+        const corners = [[cx - 1, cy - 1], [cx + 1, cy - 1], [cx - 1, cy + 1], [cx + 1, cy + 1]];
+        const blocked = corners.filter(([x, y]) => x < 0 || x >= COLS || y >= TOTAL_ROWS || (y >= 0 && board[y][x])).length;
+        return blocked >= 3;
+      }
+
+      function clearLines(tspin) {
+        const full = [];
+        for (let y = 0; y < TOTAL_ROWS; y++) {
+          if (board[y].every(Boolean)) full.push(y);
+        }
+        if (!full.length) {
+          combo = -1;
+          updateUI();
+          return;
+        }
+        for (const y of full) {
+          const row = board[y];
+          row.forEach((type, x) => {
+            const cx = (x + .5) * BLOCK;
+            const cy = (y - HIDDEN + .5) * BLOCK;
+            burst(cx, cy, COLORS[type], full.length, x);
+          });
+        }
+        board = board.filter((_, y) => !full.includes(y));
+        while (board.length < TOTAL_ROWS) board.unshift(Array(COLS).fill(null));
+        combo++;
+        const count = full.length;
+        const base = tspin ? [400, 800, 1200, 1600][count] : [0, 100, 300, 500, 800][count];
+        score += base * level + Math.max(0, combo) * 50 * level;
+        lines += count;
+        level = Math.floor(lines / 10) + 1;
+        const name = tspin ? `T-SPIN ${count ? ['','SINGLE','DOUBLE','TRIPLE'][count] : ''}` : ['','SINGLE','DOUBLE','TRIPLE','TETRIS'][count];
+        ui.clearName.textContent = name.trim();
+        shake = Math.max(shake, 8 + count * 5);
+        flash = Math.max(flash, .18 + count * .08);
+        rings.push({ x: game.width / 2, y: full[0] * BLOCK - HIDDEN * BLOCK, r: 10, life: 1, color: effectColor() });
+        if (count === 4 || tspin) boom(game.width / 2, game.height * .45, 140, effectColor(), true);
+        sound(tspin ? 'tspin' : count === 4 ? 'tetris' : 'clear');
+        updateUI();
+      }
+
+      function gravity() {
+        return Math.max(70, 920 * Math.pow(.82, level - 1));
+      }
+
+      function ghostY() {
+        let y = active.y;
+        while (!collides(active.x, y + 1, active.r)) y++;
+        return y;
+      }
+
+      function loop(time) {
+        animating = true;
+        const dt = Math.min(50, time - lastTime || 16);
+        lastTime = time;
+        handleRepeats(dt);
+        if (running && !paused) {
+          dropTimer += dt;
+          if (dropTimer >= gravity()) {
+            if (!collides(active.x, active.y + 1, active.r)) {
+              active.y++;
+              dropTimer = 0;
+            }
+          }
+          if (collides(active.x, active.y + 1, active.r)) {
+            lockTimer += dt;
+            if (lockTimer > 500) lock();
+          } else {
+            lockTimer = 0;
+          }
+        }
+        draw();
+        animateFx(dt);
+        if (running || particles.length || rings.length || flash > 0) {
+          requestAnimationFrame(loop);
+        } else {
+          animating = false;
+        }
+      }
+
+      function startLoop() {
+        if (!animating) requestAnimationFrame(loop);
+      }
+
+      function draw() {
+        const w = game.width;
+        const h = game.height;
+        g.save();
+        g.clearRect(0, 0, w, h);
+        if (shake > 0) {
+          g.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
+          shake *= .9;
+          if (shake < .4) shake = 0;
+        }
+        drawGrid();
+        for (let y = HIDDEN; y < TOTAL_ROWS; y++) {
+          for (let x = 0; x < COLS; x++) {
+            if (board[y][x]) block(g, x * BLOCK, (y - HIDDEN) * BLOCK, COLORS[board[y][x]], 1);
+          }
+        }
+        if (active) {
+          const gy = ghostY();
+          forCells({ ...active, y: gy }, (x, y) => {
+            if (y >= HIDDEN) ghostBlock(x * BLOCK, (y - HIDDEN) * BLOCK, COLORS[active.type]);
+          });
+          forCells(active, (x, y) => {
+            if (y >= HIDDEN) block(g, x * BLOCK, (y - HIDDEN) * BLOCK, COLORS[active.type], 1);
+          });
+        }
+        g.restore();
+        drawPreview(holdCtx, hold ? [hold] : []);
+        drawPreview(nextCtx, queue.slice(0, 5));
+      }
+
+      function drawGrid() {
+        g.fillStyle = 'rgba(0,0,0,.26)';
+        g.fillRect(0, 0, game.width, game.height);
+        g.strokeStyle = 'rgba(255,255,255,.045)';
+        g.lineWidth = 1;
+        for (let x = 1; x < COLS; x++) {
+          g.beginPath();
+          g.moveTo(x * BLOCK, 0);
+          g.lineTo(x * BLOCK, game.height);
+          g.stroke();
+        }
+        for (let y = 1; y < ROWS; y++) {
+          g.beginPath();
+          g.moveTo(0, y * BLOCK);
+          g.lineTo(game.width, y * BLOCK);
+          g.stroke();
+        }
+      }
+
+      function block(ctx, x, y, color, alpha) {
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        const grad = ctx.createLinearGradient(x, y, x + BLOCK, y + BLOCK);
+        grad.addColorStop(0, '#ffffff');
+        grad.addColorStop(.18, color);
+        grad.addColorStop(1, '#0b0d12');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x + 1, y + 1, BLOCK - 2, BLOCK - 2);
+        ctx.strokeStyle = 'rgba(255,255,255,.35)';
+        ctx.strokeRect(x + 2.5, y + 2.5, BLOCK - 5, BLOCK - 5);
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 14;
+        ctx.strokeStyle = color;
+        ctx.strokeRect(x + 5, y + 5, BLOCK - 10, BLOCK - 10);
+        ctx.restore();
+      }
+
+      function ghostBlock(x, y, color) {
+        g.save();
+        g.globalAlpha = .26;
+        g.strokeStyle = color;
+        g.lineWidth = 2;
+        g.strokeRect(x + 5, y + 5, BLOCK - 10, BLOCK - 10);
+        g.restore();
+      }
+
+      function drawPreview(ctx, list) {
+        const cw = ctx.canvas.width;
+        const ch = ctx.canvas.height;
+        ctx.clearRect(0, 0, cw, ch);
+        ctx.fillStyle = 'rgba(0,0,0,.2)';
+        ctx.fillRect(0, 0, cw, ch);
+        list.forEach((type, i) => {
+          const shape = PIECES[type][0];
+          const size = list.length > 1 ? 18 : 24;
+          const ox = (cw - shape[0].length * size) / 2;
+          const oy = 14 + i * 43;
+          shape.forEach((row, y) => row.forEach((v, x) => {
+            if (!v) return;
+            ctx.fillStyle = COLORS[type];
+            ctx.shadowColor = COLORS[type];
+            ctx.shadowBlur = 9;
+            ctx.fillRect(ox + x * size + 1, oy + y * size + 1, size - 2, size - 2);
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(255,255,255,.32)';
+            ctx.strokeRect(ox + x * size + 1.5, oy + y * size + 1.5, size - 3, size - 3);
+          }));
+        });
+      }
+
+      function effectColor() {
+        return ['#2ee8ff', '#ffe25c', '#ff5571', '#64f26b', '#c06bff', '#ffac38'][Math.floor(lines / 10) % EFFECTS.length];
+      }
+
+      function burst(x, y, color, count, column) {
+        const mode = Math.floor(lines / 10) % EFFECTS.length;
+        const total = 16 + count * 10;
+        for (let i = 0; i < total; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const speed = 1.4 + Math.random() * (4 + count);
+          const hue = mode === 2 ? `hsl(${(column * 31 + i * 17) % 360} 95% 62%)` : color;
+          particles.push({
+            x, y,
+            vx: Math.cos(a) * speed,
+            vy: Math.sin(a) * speed - (mode === 3 ? 2 : 0),
+            size: 2 + Math.random() * (mode === 4 ? 9 : 5),
+            life: .55 + Math.random() * .65,
+            max: 1,
+            color: hue,
+            spin: (Math.random() - .5) * .3,
+            mode
+          });
+        }
+      }
+
+      function boom(x, y, amount, color, wide) {
+        for (let i = 0; i < amount; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const speed = (wide ? 3 : 1) + Math.random() * 8;
+          particles.push({
+            x, y,
+            vx: Math.cos(a) * speed,
+            vy: Math.sin(a) * speed,
+            size: 2 + Math.random() * 8,
+            life: .7 + Math.random() * .9,
+            max: 1,
+            color,
+            spin: (Math.random() - .5) * .4,
+            mode: Math.floor(lines / 10) % EFFECTS.length
+          });
+        }
+        rings.push({ x, y, r: 6, life: 1, color });
+      }
+
+      function animateFx(dt) {
+        fx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+        if (flash > 0) {
+          flash = Math.max(0, flash - dt / 620);
+          ui.flash.style.background = `rgba(255,255,255,${flash})`;
+        } else {
+          ui.flash.style.background = 'transparent';
+        }
+        particles = particles.filter(p => {
+          p.life -= dt / 1000;
+          p.vy += p.mode === 4 ? -.015 : .08;
+          p.x += p.vx;
+          p.y += p.vy;
+          const a = Math.max(0, p.life);
+          fx.save();
+          fx.globalAlpha = a;
+          fx.translate(p.x, p.y);
+          fx.rotate(p.spin * performance.now() * .02);
+          fx.fillStyle = p.color;
+          fx.shadowColor = p.color;
+          fx.shadowBlur = p.mode === 1 ? 26 : 15;
+          if (p.mode === 3) {
+            fx.fillRect(-p.size * .5, -p.size * 2, p.size, p.size * 4);
+          } else {
+            fx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+          }
+          fx.restore();
+          return p.life > 0;
+        });
+        rings = rings.filter(r => {
+          r.life -= dt / 820;
+          r.r += dt * .35;
+          fx.save();
+          fx.globalAlpha = Math.max(0, r.life);
+          fx.strokeStyle = r.color;
+          fx.shadowColor = r.color;
+          fx.shadowBlur = 30;
+          fx.lineWidth = 5;
+          fx.beginPath();
+          fx.arc(r.x, r.y, r.r, 0, Math.PI * 2);
+          fx.stroke();
+          fx.restore();
+          return r.life > 0;
+        });
+      }
+
+      function handleRepeats(dt) {
+        if (paused || !running) return;
+        const left = keys.has('ArrowLeft') || keys.has('KeyA');
+        const right = keys.has('ArrowRight') || keys.has('KeyD');
+        const down = keys.has('ArrowDown') || keys.has('KeyS');
+        repeat.left = updateRepeat('left', left, dt, () => move(-1));
+        repeat.right = updateRepeat('right', right, dt, () => move(1));
+        if (down) softDrop();
+      }
+
+      function updateRepeat(name, pressed, dt, action) {
+        const state = repeat[name] || { held: false, t: 0, arr: 0 };
+        if (!pressed) return { held: false, t: 0, arr: 0 };
+        if (!state.held) {
+          action();
+          return { held: true, t: 0, arr: 0 };
+        }
+        state.t += dt;
+        if (state.t > 145) {
+          state.arr += dt;
+          while (state.arr > 34) {
+            action();
+            state.arr -= 34;
+          }
+        }
+        return state;
+      }
+
+      function updateUI() {
+        ui.score.textContent = score.toLocaleString();
+        ui.lines.textContent = lines;
+        ui.level.textContent = level;
+        ui.combo.textContent = combo > 0 ? `${combo} COMBO` : '';
+        ui.effect.textContent = EFFECTS[Math.floor(lines / 10) % EFFECTS.length];
+      }
+
+      function togglePause() {
+        if (!running || over) return;
+        paused = !paused;
+        ui.phase.textContent = paused ? 'Paused' : 'Playing';
+        ui.overlay.hidden = !paused;
+        ui.startBtn.textContent = paused ? 'Resume' : 'Start';
+      }
+
+      function ensureAudio() {
+        if (audio) return;
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const master = ctx.createGain();
+        const music = ctx.createGain();
+        master.gain.value = .26;
+        music.gain.value = .12;
+        music.connect(master);
+        master.connect(ctx.destination);
+        audio = { ctx, master, music, step: 0, next: 0 };
+      }
+
+      function startAudio() {
+        if (!soundOn) return;
+        ensureAudio();
+        audio.ctx.resume();
+        scheduleMusic();
+      }
+
+      function scheduleMusic() {
+        if (!soundOn || !running || !audio) return;
+        const ctx = audio.ctx;
+        const notes = [220, 277.18, 329.63, 440, 392, 329.63, 277.18, 246.94];
+        const tempo = Math.max(.12, .23 - level * .008);
+        while (audio.next < ctx.currentTime + .4) {
+          tone(notes[audio.step % notes.length], .055, 'square', audio.music, audio.next, .14);
+          tone(notes[(audio.step + 3) % notes.length] / 2, .08, 'triangle', audio.music, audio.next, .08);
+          audio.step++;
+          audio.next = Math.max(audio.next + tempo, ctx.currentTime);
+        }
+        setTimeout(scheduleMusic, 120);
+      }
+
+      function tone(freq, dur, type, dest, when, gainValue) {
+        const ctx = audio.ctx;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, when);
+        gain.gain.setValueAtTime(0, when);
+        gain.gain.linearRampToValueAtTime(gainValue, when + .01);
+        gain.gain.exponentialRampToValueAtTime(.001, when + dur);
+        osc.connect(gain);
+        gain.connect(dest || audio.master);
+        osc.start(when);
+        osc.stop(when + dur + .03);
+      }
+
+      function sound(kind) {
+        if (!soundOn) return;
+        ensureAudio();
+        const now = audio.ctx.currentTime;
+        const out = audio.master;
+        const map = {
+          move: [[320, .025, 'triangle', .06]],
+          rotate: [[470, .04, 'square', .07]],
+          hold: [[250, .06, 'sawtooth', .08], [500, .05, 'triangle', .05]],
+          hard: [[90, .08, 'sawtooth', .14]],
+          clear: [[620, .08, 'square', .11], [930, .08, 'square', .09]],
+          tetris: [[440, .08, 'square', .12], [660, .08, 'square', .12], [990, .16, 'square', .14]],
+          tspin: [[330, .06, 'sawtooth', .12], [740, .12, 'square', .14]],
+          gameover: [[220, .16, 'sawtooth', .14], [146.83, .28, 'triangle', .12]]
+        };
+        (map[kind] || []).forEach((n, i) => tone(n[0], n[1], n[2], out, now + i * .055, n[3]));
+      }
+
+      function resize() {
+        draw();
+      }
+
+      window.addEventListener('resize', resize);
+      window.addEventListener('keydown', e => {
+        if (['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'Space'].includes(e.code)) e.preventDefault();
+        if (e.repeat && !['ArrowLeft', 'ArrowRight', 'ArrowDown'].includes(e.code)) return;
+        keys.add(e.code);
+        if (e.code === 'Space') hardDrop();
+        if (e.code === 'ArrowUp' || e.code === 'KeyX') rotate(1);
+        if (e.code === 'KeyZ' || e.code === 'ControlLeft') rotate(-1);
+        if (e.code === 'KeyC' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') holdPiece();
+        if (e.code === 'KeyP') togglePause();
+      }, { passive: false });
+      window.addEventListener('keyup', e => keys.delete(e.code));
+
+      ui.startBtn.addEventListener('click', () => {
+        if (paused) {
+          togglePause();
+        } else {
+          start();
+        }
+      });
+      ui.soundBtn.addEventListener('click', () => {
+        soundOn = !soundOn;
+        ui.soundBtn.textContent = soundOn ? 'Sound Off' : 'Sound On';
+        if (soundOn) {
+          ensureAudio();
+          audio.ctx.resume();
+          sound('clear');
+          scheduleMusic();
+        } else if (audio) {
+          audio.ctx.suspend();
+        }
+      });
+
+      board = emptyBoard();
+      queue = [];
+      refillQueue();
+      updateUI();
+      draw();
+    })();
+  </script>
+</body>
+</html>

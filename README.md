@@ -21,6 +21,11 @@ python3 build_index.py
 | [claude-sonnet-5](sonnet5-202609022244/index.html) | anthropic | claude-code | 2026-09-02 22:44 |
 | [Qwen3.8-27B](qwen38-202609022255/index.html) | llama.cpp | pi-agent | 2026-09-02 22:55 |
 | [claude-haiku-4-5](haiku45-202609022307/index.html) | anthropic | claude-code | 2026-09-02 23:07 |
+| [minimax/minimax-m3:free](minimaxm3-202609032151/index.html) | openrouter | pi-agent | 2026-09-03 21:51 |
+| [gpt-5.4-mini](gpt54mini-202609032210/index.html) | openai | codex | 2026-09-03 22:10 |
+| [gpt-5.5](gpt55-202609032230/index.html) | openai | codex | 2026-09-03 22:30 |
+| [gpt-5.6-luna](gpt56luna-202609032300/index.html) | openai | codex | 2026-09-03 23:00 |
+| [gpt-5.6-terra](gpt56terra-202609032330/index.html) | openai | codex | 2026-09-03 23:30 |
 <!-- index:end -->
 
 `build_index.py` を実行してから commit / push する。
