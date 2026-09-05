@@ -175,7 +175,17 @@ def collect(root):
         if not has_env and not row["has_index"] and not row["has_idea"]:
             continue  # 無関係なディレクトリ
         rows.append(row)
-    rows.sort(key=lambda r: str(r.get("date") or ""))
+    def _num(v):
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return -1  # NA / 未採点は最後
+
+    rows.sort(key=lambda r: (
+        -TIER_ORDER.get(str(r.get("tier") or "").upper(), 0),
+        -_num(r.get("rules")), -_num(r.get("effects")), -_num(r.get("sound")),
+        str(r.get("date") or ""),
+    ))
     return rows
 
 
@@ -291,7 +301,7 @@ def count_by(rows, key):
 
 
 def render(rows, root):
-    head = "".join(f"<th>{esc(label)}</th>" for _, label in COLUMNS)
+    head = "".join(f'<th{" class=\"sorted-desc\"" if k == "tier" else ""}>{esc(label)}</th>' for k, label in COLUMNS)
     body = "".join("<tr>" + "".join(cell(k, r) for k, _ in COLUMNS) + "</tr>" for r in rows)
 
     def card(title, items):
