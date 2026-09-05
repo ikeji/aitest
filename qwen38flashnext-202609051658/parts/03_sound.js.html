@@ -1,0 +1,204 @@
+
+/* ================================ SOUND ==================================
+   100% synthesised (WebAudio).  BGM = Korobeiniki (public-domain folk tune)
+   with bass / pads / percussion layers whose density follows the theme.
+   ========================================================================== */
+const LET = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+const midi = n => { const m = /^([A-G])(#|b)?(-?\d)$/.exec(n); return LET[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + (parseInt(m[3], 10) + 1) * 12; };
+const fnote = n => 440 * Math.pow(2, (midi(n) - 69) / 12);
+
+/* lead melody — [note | 'R' = rest, length in beats] (32 beats) */
+const LEAD = [
+  ['E5', 1], ['B4', .5], ['C5', .5], ['D5', 1], ['C5', .5], ['B4', .5],
+  ['A4', 1], ['A4', .5], ['C5', .5], ['E5', 1], ['D5', .5], ['C5', .5],
+  ['B4', 1.5], ['C5', .5], ['D5', 1], ['E5', 1],
+  ['C5', 1], ['A4', 1], ['A4', 2],
+  ['D5', 1.5], ['F5', .5], ['A5', 1], ['G5', .5], ['F5', .5],
+  ['E5', 1.5], ['C5', .5], ['D5', 1], ['E5', 1],
+  ['C5', 1], ['A4', 1], ['A4', 2]
+];
+const CHORDS = ['Am', 'Am', 'E', 'Am', 'Dm', 'Am', 'Am', 'E'];
+const CH = {
+  Am: ['A2', 'A3', 'C4', 'E4'],
+  E: ['E2', 'E3', 'G#3', 'B3'],
+  Dm: ['D3', 'D3', 'A3', 'C4']
+};
+
+const Snd = (() => {
+  let ctx = null, master = null, sfxBus = null, musBus = null, noiseBuf = null;
+  let enabled = true, playing = false;
+  let evIdx = 0, beat = 0, nextAt = 0, dipUntil = 0;
+
+  function ensure() {
+    if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return true; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    ctx = new AC({ latencyHint: 'interactive' });
+    master = ctx.createGain(); master.gain.value = 0.95;
+    const lim = ctx.createDynamicsCompressor();
+    lim.threshold.value = -10; lim.knee.value = 8; lim.ratio.value = 8;
+    lim.attack.value = 0.003; lim.release.value = 0.18;
+    master.connect(lim); lim.connect(ctx.destination);
+    sfxBus = ctx.createGain(); sfxBus.gain.value = 0.6; sfxBus.connect(master);
+    musBus = ctx.createGain(); musBus.gain.value = 0.22; musBus.connect(master);
+    const len = (ctx.sampleRate * 1.4) | 0;
+    noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    return true;
+  }
+  const now = () => (ctx ? ctx.currentTime : 0);
+
+  function tone(o) {
+    if (!ctx || !enabled) return;
+    const t = Math.max(o.at || ctx.currentTime, ctx.currentTime + 0.0005);
+    const osc = ctx.createOscillator(); osc.type = o.type || 'square';
+    const g = ctx.createGain();
+    osc.connect(g); g.connect(o.dest || sfxBus);
+    const f0 = clamp(o.f || 440, 18, 18000);
+    osc.frequency.setValueAtTime(f0, t);
+    if (o.f1) osc.frequency.exponentialRampToValueAtTime(clamp(o.f1, 18, 18000), t + (o.fd || o.dur || .1));
+    const dur = o.dur || .12, v = (o.v === undefined ? .3 : o.v), a = o.a === undefined ? .004 : o.a;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(v, t + Math.min(a, dur * .4));
+    g.gain.exponentialRampToValueAtTime(0.0006, t + dur);
+    g.gain.linearRampToValueAtTime(0, t + dur + .012);
+    osc.start(t); osc.stop(t + dur + .06);
+  }
+
+  function noise(o) {
+    if (!ctx || !enabled) return;
+    const t = Math.max(o.at || ctx.currentTime, ctx.currentTime + 0.0005);
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+    const bq = ctx.createBiquadFilter();
+    bq.type = o.ftype || 'bandpass';
+    bq.frequency.setValueAtTime(clamp(o.f || 1200, 30, 18000), t);
+    if (o.f1) bq.frequency.exponentialRampToValueAtTime(clamp(o.f1, 30, 18000), t + (o.dur || .2));
+    bq.Q.value = o.q === undefined ? 1 : o.q;
+    const g = ctx.createGain();
+    src.connect(bq); bq.connect(g); g.connect(o.dest || sfxBus);
+    const dur = o.dur || .2, v = o.v === undefined ? .3 : o.v;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(v, t + (o.a === undefined ? .003 : o.a));
+    g.gain.exponentialRampToValueAtTime(0.0006, t + dur);
+    src.start(t, Math.random() * .4); src.stop(t + dur + .05);
+  }
+
+  function scheduleLead(ev, at, dur, bd, th, busy) {
+    if (ev[0] === 'R') return;
+    const f = fnote(ev[0]), vel = .19 + busy * .05;
+    tone({ f, dur: Math.min(dur * 1.4, bd * 1.5), v: vel, type: 'square', dest: musBus, at });
+    if (th.key === 'cosmos' || th.key === 'supernova') tone({ f: f * 2, dur: dur * .85, v: vel * .3, type: 'triangle', dest: musBus, at });
+    if (th.key === 'neon') tone({ f: f * .5, dur: dur * 1.1, v: vel * .35, type: 'sawtooth', dest: musBus, at });
+    if (th.key === 'inferno') tone({ f: f * 1.005, dur: dur * .6, v: vel * .22, type: 'square', dest: musBus, at });
+  }
+
+  function scheduleRhythm(at, beatPos, bd, th, busy) {
+    const b = ((Math.floor(beatPos / 4) % CHORDS.length) + CHORDS.length) % CHORDS.length;
+    const chord = CH[CHORDS[b]];
+    const pos = Math.round(beatPos) % 4;
+    const root = fnote(chord[0]) * (pos === 2 ? 1.5 : 1);
+    tone({ f: root, f1: root * .965, dur: bd * .55, v: .3, type: 'triangle', dest: musBus, at });
+    if (busy > .3) tone({ f: root * 2, dur: bd * .3, v: .06 + busy * .05, type: 'sawtooth', dest: musBus, at });
+    noise({ f: 8200, dur: .03, v: (pos % 2 === 0 ? .055 : .03) + busy * .018, ftype: 'highpass', q: 2.5, dest: musBus, at });
+    noise({ f: 7000, dur: .02, v: .022, ftype: 'highpass', q: 3, dest: musBus, at: at + bd * .5 });
+    if (busy > .18 && (pos === 0 || pos === 2)) tone({ f: 148, f1: 46, dur: .16, v: .22, type: 'sine', dest: musBus, at });
+    if (busy > .55 && pos === 3) noise({ f: 1900, f1: 800, dur: .12, v: .06, q: .8, dest: musBus, at });
+    if (th.key === 'voxel' || th.key === 'neon' || th.key === 'supernova') {
+      const seq = [1, 2, 3, 2];
+      for (let q = 0; q < 2; q++) {
+        const cn = chord[seq[(Math.round(beatPos) * 2 + q) % 4]];
+        tone({ f: fnote(cn) * 2, dur: bd * .2, v: .045, type: 'square', dest: musBus, at: at + q * bd * .5 });
+      }
+    }
+    if (pos === 0 && (th.key === 'cosmos' || th.key === 'storm' || th.key === 'sakura')) {
+      for (let c = 1; c < chord.length; c++) tone({ f: fnote(chord[c]) * 2, dur: bd * 3.4, v: .026, a: .12, type: 'sine', dest: musBus, at });
+    }
+  }
+
+  const S = {
+    init: ensure,
+    get ready() { return !!ctx; },
+    get enabled() { return enabled; },
+    toggleMute() {
+      enabled = !enabled;
+      if (ctx) { master.gain.setTargetAtTime(enabled ? 0.95 : 0.0001, ctx.currentTime, .02); }
+      if (enabled) { tone({ f: 880, dur: .06, v: .1, type: 'square' }); }
+      return enabled;
+    },
+    /* ---- sfx ---- */
+    move() { tone({ f: 300, f1: 240, dur: .035, v: .1, type: 'square' }); noise({ f: 2600, dur: .02, v: .03, q: 2 }); },
+    rot() { tone({ f: 520, f1: 790, dur: .06, v: .12, type: 'triangle' }); noise({ f: 3600, dur: .03, v: .025, q: 3 }); },
+    flip() { tone({ f: 470, f1: 940, dur: .09, v: .12, type: 'square' }); },
+    fail() { tone({ f: 152, f1: 96, dur: .09, v: .1, type: 'sawtooth' }); },
+    soft() { tone({ f: 210, f1: 168, dur: .022, v: .045, type: 'square' }); },
+    hold() { tone({ f: 440, f1: 665, dur: .09, v: .11, type: 'triangle' }); tone({ f: 880, dur: .13, v: .05, type: 'sine' }); },
+    lock(hype) {
+      noise({ f: 430, f1: 170, dur: .075, v: .08 + hype * .05, q: 1.2 });
+      tone({ f: 128, f1: 86, dur: .09, v: .07 + hype * .05, type: 'sine' });
+    },
+    clearFx(n, b2b) {
+      const t = now(), lift = [0, 0, 1.6, 2.6, 4][n] || 0;
+      noise({ f: 900 + n * 380, f1: 220, dur: .13 + n * .05, v: .1 + n * .025, q: .8, at: t });
+      tone({ f: 170, f1: 72, dur: .22 + n * .06, v: .1 + n * .02, type: 'sine', at: t });
+      tone({ f: 58, f1: 41, dur: .28, v: .09 + n * .02, type: 'sine', at: t });
+      const sc = [0, 4, 7, 11, 14];
+      for (let i = 0; i < 3 + n; i++) tone({ f: fnote('A5') * Math.pow(2, (sc[i % sc.length] + lift) / 12), dur: .1, v: .045, type: 'triangle', at: t + .03 + i * .045 });
+      if (b2b) tone({ f: fnote('E6'), dur: .5, v: .04, type: 'sine', at: t + .1 });
+    },
+    tetrisFx() {
+      const t = now();
+      noise({ f: 1400, f1: 130, dur: .55, v: .19, q: .6, at: t });
+      tone({ f: 118, f1: 40, dur: .55, v: .16, type: 'sine', at: t });
+      ['A4', 'E5', 'A5', 'C6'].forEach(n => tone({ f: fnote(n), dur: .9, v: .045, type: 'sawtooth', at: t + .02 }));
+      tone({ f: 700, f1: 1950, dur: .3, v: .055, type: 'triangle', at: t });
+    },
+    tspinFx(tri) {
+      const t = now();
+      tone({ f: 200, f1: 1500, dur: tri ? .42 : .26, v: .09, type: 'sawtooth', at: t });
+      tone({ f: 400, f1: 1900, dur: tri ? .4 : .24, v: .045, type: 'square', at: t + .02 });
+      noise({ f: 600, f1: 5200, dur: .3, v: .06, q: 1.4, at: t });
+      if (tri) [0, .06, .12].forEach((d, i) => tone({ f: fnote('C6') * (1 + i * .12), dur: .5, v: .045, type: 'triangle', at: t + .1 + d }));
+    },
+    perfectFx() {
+      const t = now();
+      ['C5', 'E5', 'G5', 'C6', 'E6', 'G6', 'C7'].forEach((n, i) => tone({ f: fnote(n), dur: 1.1, v: .055, type: 'triangle', at: t + i * .06 }));
+      noise({ f: 300, f1: 8000, dur: .8, v: .07, q: .7, at: t });
+    },
+    goalFx() {
+      const t = now();
+      ['A4', 'C5', 'E5', 'A5', 'C6', 'E6', 'A6'].forEach((n, i) => tone({ f: fnote(n), dur: .8, v: .06, type: 'square', at: t + i * .05 }));
+    },
+    levelUp() { tone({ f: fnote('A4'), f1: fnote('A5'), dur: .26, v: .08, type: 'triangle' }); },
+    combo(n) { tone({ f: fnote('E5') * Math.pow(2, Math.min(n, 14) / 12), dur: .1, v: .06, type: 'square' }); },
+    over() {
+      const t = now();
+      ['A4', 'G4', 'F4', 'E4', 'D4', 'A3'].forEach((n, i) => tone({ f: fnote(n), dur: .5, v: .08, type: 'sawtooth', at: t + i * .11 }));
+      noise({ f: 800, f1: 60, dur: 1.4, v: .09, q: .5, at: t });
+    },
+    pause(yes) { tone({ f: yes ? 620 : 420, f1: yes ? 300 : 720, dur: .12, v: .09, type: 'triangle' }); },
+    /* ---- music ---- */
+    startMusic() { playing = true; evIdx = 0; beat = 0; nextAt = ctx ? ctx.currentTime + .1 : 0; },
+    stopMusic() { playing = false; },
+    resetMusic() { playing = false; evIdx = 0; beat = 0; nextAt = 0; dipUntil = 0; },
+    dip(sec) { if (ctx) dipUntil = Math.max(dipUntil, ctx.currentTime + sec); },
+    musicTick(themeIdx, intensity) {
+      if (!ctx || !enabled || !playing) return;
+      const th = THEMES[clamp(themeIdx, 0, THEMES.length - 1)];
+      const bpm = 136 + themeIdx * 3 + intensity * 18;
+      const bd = 60 / bpm, t = ctx.currentTime;
+      if (nextAt < t) nextAt = t + .03;
+      musBus.gain.setTargetAtTime(t < dipUntil ? .05 : .22, t, .06);
+      let guard = 0;
+      while (nextAt < t + .3 && guard++ < 64) {
+        const ev = LEAD[evIdx % LEAD.length];
+        const dur = ev[1] * bd;
+        scheduleLead(ev, nextAt, dur, bd, th, intensity);
+        const first = Math.ceil(beat - 1e-6);
+        for (let bp = first; bp < beat + ev[1] - 1e-6; bp++) scheduleRhythm(nextAt + (bp - beat) * bd, bp, bd, th, intensity);
+        nextAt += dur; beat += ev[1]; evIdx++;
+      }
+    }
+  };
+  return S;
+})();

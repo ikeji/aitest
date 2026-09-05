@@ -1,0 +1,348 @@
+
+/* ============================ TEST AIDS =================================
+   Everything below is inert unless the URL carries a hash, so normal play is
+   unaffected. Three modes:
+     #autotest  greedy bot plays ~900 pieces through action(); every error and
+                the full session summary end up in <pre id="autotest"> + title
+     #vis       numerical layout / HUD / fx checks -> <pre id="visreport">
+     #shot      short opening for screenshots
+                                                                          */
+
+/* ---------- a shallow greedy player used by the harnesses --------------- */
+const fullRowsOf = g => {
+  const out = [];
+  for (let y = 0; y < HEIGHT; y++) {
+    let f = true;
+    for (let x = 0; x < COLS; x++) if (!g[idx(x, y)]) { f = false; break; }
+    if (f) out.push(y);
+  }
+  return out;
+};
+const collapseOf = (g, rows) => {
+  const set = {}; rows.forEach(y => set[y] = 1);
+  const out = new Array(HEIGHT * COLS).fill(null);
+  let wy = HEIGHT - 1;
+  for (let y = HEIGHT - 1; y >= 0; y--) {
+    if (set[y]) continue;
+    for (let x = 0; x < COLS; x++) out[idx(x, wy)] = g[idx(x, y)];
+    wy--;
+  }
+  return out;
+};
+const scoreBoard = g => {
+  const lines = fullRowsOf(g).length;
+  const h = [];
+  let holes = 0, agg = 0, bump = 0, well = 0, maxH = 0;
+  for (let x = 0; x < COLS; x++) {
+    let seen = false, colHoles = 0, top = -1;
+    for (let y = 0; y < HEIGHT; y++) {
+      if (g[idx(x, y)]) { if (!seen) { seen = true; top = y; } }
+      else if (seen) colHoles++;
+    }
+    h.push(seen ? HEIGHT - top : 0);
+    holes += colHoles;
+  }
+  for (let x = 0; x < COLS; x++) { agg += h[x]; if (h[x] > maxH) maxH = h[x]; }
+  for (let x = 0; x + 1 < COLS; x++) bump += Math.abs(h[x] - h[x + 1]);
+  for (let x = 0; x < COLS; x++) {
+    const l = x ? h[x - 1] : 1e3, r = x < COLS - 1 ? h[x + 1] : 1e3;
+    const d = Math.min(l, r) - h[x];
+    if (d > 0) well += Math.min(d, 4);
+  }
+  return lines * 4 - holes * 4 - agg * .2 - bump * .8 - maxH * .2 + well * .3;
+};
+const bestMove = () => {
+  const t = S.piece.t;
+  let best = null;
+  for (let r = 0; r < (t === 'O' ? 1 : 4); r++) {
+    for (let x = -2; x <= COLS + 1; x++) {
+      if (!fits(S.grid, t, r, x, 0)) continue;
+      let y = 0, guard = 0;
+      while (fits(S.grid, t, r, x, y + 1) && guard++ < 40) y++;
+      if (!fits(S.grid, t, r, x, y)) continue;
+      const g = S.grid.slice();
+      for (const [cx, cy] of SHAPES[t][r]) {
+        const X = x + cx, Y = y + cy;
+        if (Y >= 0 && Y < HEIGHT && X >= 0 && X < COLS) g[idx(X, Y)] = t;
+      }
+      const rows = fullRowsOf(g);
+      const sc = scoreBoard(rows.length ? collapseOf(g, rows) : g);
+      if (!best || sc > best.sc) best = { r, x, y, sc };
+    }
+  }
+  return best;
+};
+const botPiece = () => {
+  if (S.phase !== 'playing' || !S.piece) return false;
+  const m = bestMove();
+  if (!m) return false;
+  for (let i = 0; i < 4 && S.piece.r !== m.r; i++) {
+    const step = (m.r - S.piece.r + 4) % 4 <= 2 ? 1 : -1;
+    if (rotate(S, step) === false) break;
+  }
+  let guard = 0;
+  while (S.piece && S.piece.x !== m.x && guard++ < 20) if (!move(S, S.piece.x < m.x ? 1 : -1)) break;
+  action('hard');
+  return true;
+};
+
+/* run frames until the state machine is idle again */
+const settleFrames = (max = 300) => {
+  for (let i = 0; i < max && (S.phase !== 'playing' || S.clearing); i++) { update(1 / 60); drawFrame(); }
+};
+
+/* ---------- #shot ------------------------------------------------------- */
+if (location.hash.indexOf('shot') >= 0) {
+  window.addEventListener('load', () => setTimeout(() => {
+    startGame();
+    let n = 0;
+    const step = () => {
+      if (n++ < 46) { botPiece(); setTimeout(step, 55); }
+      else document.body.dataset.shot = 'ready';
+    };
+    step();
+  }, 120));
+}
+
+/* ---------- #vis -------------------------------------------------------- */
+if (location.hash.indexOf('vis') >= 0 && location.hash.indexOf('touch') >= 0)
+  document.body.classList.add('touch');
+if (location.hash.indexOf('vis') >= 0) {
+  const phone = window.innerWidth < 760;
+  const px = c => {
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let lit = 0, bright = 0, n = 0;
+    for (let i = 0; i < d.length; i += 4 * 11) {
+      const l = (d[i] + d[i + 1] + d[i + 2]) / 3;
+      n++;
+      if (l > 8) lit++;
+      if (l > 165) bright++;
+    }
+    return { size: c.width + 'x' + c.height, lit: +(lit / n * 100).toFixed(2), bright };
+  };
+  const vis = { fail: [], checks: {} };
+  const check = (k, ok, info) => { vis.checks[k] = (ok ? 'ok ' : 'FAIL ') + (info === undefined ? '' : info); if (!ok) vis.fail.push(k); };
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  /* run frames until the state machine is idle again */
+  const settle = async () => { settleFrames(); await sleep(0); };
+  const run = async () => {
+    try {
+      check('title-overlay-visible', !overlay.classList.contains('hidden'), appPhase);
+      check('canvas-sized', gameCv.width > 200 && gameCv.height > 300, gameCv.width + 'x' + gameCv.height);
+      check('cell-size-desktop', CELL >= 18, 'CELL=' + CELL);
+      check('board-aspect', GW === CELL * COLS && GH === CELL * ROWS, GW + 'x' + GH);
+      drawFrame();
+      check('bg-layer-painted', px(bgCv).lit > 0.2, JSON.stringify(px(bgCv)));
+      startGame();
+      for (let i = 0; i < 80; i++) { botPiece(); update(1 / 60); drawFrame(); }
+      check('overlay-hidden-while-playing', overlay.classList.contains('hidden'), appPhase);
+      check('playfield-content', px(gameCv).lit > 6, JSON.stringify(px(gameCv)));
+      check('next-preview-drawn', px(nextCv).lit > 3, JSON.stringify(px(nextCv)));
+      check('hold-canvas-sized', holdCv.width > 20 && holdCv.height > 20, holdCv.width + 'x' + holdCv.height);
+      check('hud-score', /[\d]/.test($('scoreV').textContent), $('scoreV').textContent);
+      check('hud-best', /[\d]/.test($('bestV').textContent), $('bestV').textContent);
+      check('hud-lines', /[\d]/.test($('linesV').textContent), $('linesV').textContent);
+      check('hud-level', /[\d]/.test($('levelV').textContent), $('levelV').textContent);
+      check('hud-time', /\d:/.test($('timeV').textContent), $('timeV').textContent);
+      check('hud-pps', /[\d]/.test($('ppsV').textContent), $('ppsV').textContent);
+      check('theme-label', $('theme').textContent.length > 2, $('theme').textContent);
+      check('next-theme-label', $('nextThemeV').textContent.length > 1, $('nextThemeV').textContent);
+      check('theme-bar', $('themeBarFill').style.width !== '', $('themeBarFill').style.width);
+
+      /* a clear has to light the fx layer up */
+      await settle();
+      S.grid = new Array(HEIGHT * COLS).fill(null);
+      for (const y of [HEIGHT - 2, HEIGHT - 1]) for (const x of [0, 1, 2, 3, 6, 7, 8, 9]) S.grid[idx(x, y)] = TYPES[x % 7];
+      spawn(S, 'O'); action('hard');
+      let peak = 0;
+      for (let f = 0; f < 45; f++) { update(1 / 60); drawFrame(); peak = Math.max(peak, px(fxCv).bright); }
+      check('fx-burst-bright', peak > 15, 'brightest fx frame: ' + peak);
+      check('perfect-counted', S.stats.perfect >= 1, S.stats.perfect);
+
+      pauseGame(true); update(1 / 60); drawFrame();
+      check('pause-overlay', !overlay.classList.contains('hidden') && /PAUSED/i.test(overlay.textContent), overlay.textContent.slice(0, 18));
+      pauseGame(false);
+      check('resume-hides-overlay', overlay.classList.contains('hidden'), appPhase);
+
+      if (phone) {
+        check('cell-size-phone', CELL >= 20, 'CELL=' + CELL);
+        check('phone-canvas-fits', Math.round(gameCv.width / DPR) + 4 <= window.innerWidth,
+          Math.round(gameCv.width / DPR) + ' css px of ' + window.innerWidth);
+        check('phone-canvas-height', Math.round(gameCv.height / DPR) + 4 <= window.innerHeight,
+          Math.round(gameCv.height / DPR) + ' css px of ' + window.innerHeight);
+        const rect = gameCv.getBoundingClientRect();
+        const tb = $('touch').getBoundingClientRect();
+        check('no-touch-bar-overlap', rect.bottom <= tb.top + 1 || !document.body.classList.contains('touch'),
+          'board bottom ' + Math.round(rect.bottom) + ' vs touch top ' + Math.round(tb.top));
+      } else {
+        check('cell-size-desktop-large', CELL >= (window.innerHeight >= 700 ? 28 : 18), 'CELL=' + CELL + ' at h=' + window.innerHeight);
+        check('board-fills-height', GH / window.innerHeight > .78, (GH / window.innerHeight).toFixed(2));
+      }
+      {
+        const lb = $('left').getBoundingClientRect(), rb = $('right').getBoundingClientRect();
+        check('rails-vertically-inside', lb.top >= -1 && lb.bottom <= window.innerHeight + 1 &&
+          rb.top >= -1 && rb.bottom <= window.innerHeight + 1,
+          'inner=' + window.innerHeight + ' left=' + Math.round(lb.top) + '..' + Math.round(lb.bottom) +
+          ' right=' + Math.round(rb.top) + '..' + Math.round(rb.bottom) +
+          ' kids=[' + Array.from(document.querySelectorAll('#left>*,#right>*')).map(e => e.id + ':' + Math.round(e.getBoundingClientRect().top) + '..' + Math.round(e.getBoundingClientRect().bottom)).join(' ') + ']');
+      }
+      check('rail-panels-visible', $('left').clientWidth > 50 && $('right').clientWidth > 50,
+        $('left').clientWidth + '/' + $('right').clientWidth);
+      check('touch-controls-present', !!$('touch'), 'touch buttons in DOM')
+      check('viewport-mode', true, phone ? 'phone ' + window.innerWidth + 'x' + window.innerHeight : 'desktop ' + window.innerWidth + 'x' + window.innerHeight);
+
+      /* --- the real keyboard path, driven by synthetic events --- */
+      const key = (code, frames) => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code, bubbles: true }));
+        for (let f = 0; f < (frames || 0); f++) { update(1 / 60); drawFrame(); }
+        window.dispatchEvent(new KeyboardEvent('keyup', { code, bubbles: true }));
+        update(1 / 60); drawFrame();
+      };
+      startGame(); settleFrames();
+      let x0 = S.piece.x;
+      key('ArrowRight', 14);
+      check('key-right-moves', S.piece.x > x0, x0 + ' -> ' + S.piece.x);
+      x0 = S.piece.x;
+      key('ArrowLeft', 14);
+      check('key-left-moves', S.piece.x < x0, x0 + ' -> ' + S.piece.x);
+      const r0 = S.piece.r;
+      key('KeyX');
+      check('key-x-rotates', S.piece.r !== r0 || S.piece.t === 'O', r0 + ' -> ' + S.piece.r);
+      const r1 = S.piece.r;
+      key('KeyZ');
+      check('key-z-rotates', S.piece.r !== r1 || S.piece.t === 'O', r1 + ' -> ' + S.piece.r);
+      key('KeyC');
+      check('key-c-hold', S.hold !== null, 'hold=' + S.hold);
+      const n0 = S.stats.pieces;
+      key('Space');
+      check('key-space-hard-drop', S.stats.pieces > n0, n0 + ' -> ' + S.stats.pieces);
+      check('stack-grew', S.stats.pieces === n0 + 1 && stackTop(S) < HEIGHT, 'stack top ' + stackTop(S));
+      key('KeyP');
+      check('key-p-pauses', appPhase === 'pause', appPhase);
+      key('KeyP');
+      check('key-p-resumes', appPhase === 'play', appPhase);
+      const en0 = Snd.enabled;
+      key('KeyM');
+      check('key-mute-toggles', Snd.enabled !== en0, 'enabled ' + en0 + ' -> ' + Snd.enabled);
+      key('KeyM');
+      check('key-unmute-toggles-back', Snd.enabled === en0, String(Snd.enabled));
+      key('KeyR'); settleFrames();
+      check('key-r-restarts', appPhase === 'play' && S.lines === 0, appPhase + '/' + S.lines);
+      /* --- overlay buttons through a real pointer event --- */
+      S.score = 12345;
+      endGame('vis drill');
+      for (let f = 0; f < 30; f++) { update(1 / 60); drawFrame(); }
+      await sleep(1200);                        /* the result card is deferred */
+      check('over-overlay', /GAME OVER/i.test(overlay.innerHTML), overlay.innerHTML.slice(0, 18).replace(/\s+/g, ' '));
+      check('over-results', /SCORE/.test(overlay.innerHTML) && /BEST/.test(overlay.innerHTML), 'results table');
+      check('over-best-record-flag', /BEST/.test(overlay.innerHTML), 'best shown');
+      const retry = overlay.querySelector('[data-btn="restart"]');
+      check('restart-button', !!retry, 'restart button in the card');
+      if (retry) retry.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      await sleep(60);
+      check('retry-button-restarts', appPhase === 'play', appPhase);
+      check('best-updated', best >= 12345, 'best=' + best);
+      check('best-persisted', /^\d+$/.test(String(localStorage.getItem('nbt.best'))), 'localStorage nbt.best=' + localStorage.getItem('nbt.best'));
+    } catch (e) {
+      vis.fail.push('exception'); vis.error = String(e && e.stack || e);
+    }
+    document.title = 'VIS ' + (vis.fail.length ? 'FAIL -> ' + vis.fail.join(', ') : 'PASS');
+    const pre = document.createElement('pre');
+    pre.id = 'visreport';
+    pre.style.cssText = 'position:fixed;left:0;top:0;z-index:99;font:11px monospace;background:#000;color:#8ff;padding:8px;white-space:pre-wrap';
+    pre.textContent = JSON.stringify(vis, null, 1);
+    document.body.appendChild(pre);
+  };
+  if (document.readyState === 'complete') setTimeout(run, 80);
+  else window.addEventListener('load', () => setTimeout(run, 80));
+}
+
+/* ---------- #autotest --------------------------------------------------- */
+if (location.hash.indexOf('autotest') >= 0) {
+  const rep = { ok: false, errors: [], warns: {}, actions: {}, frames: 0 };
+  const note = k => { rep.actions[k] = (rep.actions[k] || 0) + 1; };
+  const log = (...a) => { rep.errors.push(a.map(String).join(' ')); };
+  window.addEventListener('error', e => log('window.onerror: ' + (e.message || e)));
+  const oldErr = console.error, oldWarn = console.warn;
+  console.error = (...a) => { log('console.error: ' + a.join(' ')); oldErr.apply(console, a); };
+  console.warn = (...a) => { const k = a.map(String).join(' '); rep.warns[k] = (rep.warns[k] || 0) + 1; };
+
+  const run = () => {
+    try {
+      startGame();
+      const clearSizes = [];
+      let lastLines = 0, lastReported = 0, totalPieces = 0, over = 0, peak = 0;
+      const themes = {};
+      const LIMIT = 60 * 900;
+      for (let f = 0; f < LIMIT && totalPieces < 900; f++) {
+        if (botPiece()) note('piece');
+        update(1 / 60);
+        drawFrame();
+        rep.frames++;
+        themes[FX.theme] = (themes[FX.theme] || 0) + 1;
+        totalPieces += Math.max(0, S.stats.pieces - lastReported); lastReported = S.stats.pieces;
+        peak = Math.max(peak, S.lines);
+        if (S.lines !== lastLines) { clearSizes.push(S.lines - lastLines); lastLines = S.lines; }
+        if (appPhase === 'over') { over++; startGame(); lastReported = 0; lastLines = 0; }
+      }
+      pauseGame(true); update(1 / 60); drawFrame();
+      pauseGame(false); update(1 / 60); drawFrame();
+
+      settleFrames();
+      /* drill 1 — perfect clear: two rows missing exactly the O footprint */
+      const perfectBefore = S.stats.perfect;
+      S.grid = new Array(HEIGHT * COLS).fill(null);
+      for (const y of [HEIGHT - 2, HEIGHT - 1])
+        for (const x of [0, 1, 2, 3, 6, 7, 8, 9]) S.grid[idx(x, y)] = TYPES[x % 7];
+      spawn(S, 'O');
+      action('hard');
+      for (let f = 0; f < 120; f++) { update(1 / 60); drawFrame(); }
+      rep.perfectDrill = S.stats.perfect - perfectBefore;
+
+      settleFrames();
+      /* drill 2 — T-spin double: only the last wall-kick test fits */
+      const spinBefore = S.stats.tspin;
+      S.grid = new Array(HEIGHT * COLS).fill(null);
+      for (const x of [0, 1, 2, 3, 5, 6, 7, 8, 9]) S.grid[idx(x, HEIGHT - 1)] = 'L';
+      for (const x of [0, 1, 2, 3, 6, 7, 8, 9]) S.grid[idx(x, HEIGHT - 2)] = 'J';
+      for (const x of [0, 1, 2, 3, 5, 6, 8, 9]) S.grid[idx(x, HEIGHT - 3)] = 'S';
+      S.grid[idx(4, HEIGHT - 5)] = 'I';      /* blocks the first two kick tests */
+      spawn(S, 'T');
+      S.piece.x = 4; S.piece.y = HEIGHT - 5; /* exactly the unit-test setup */
+      rep.spinKick = rotate(S, 1);
+      action('hard');
+      for (let f = 0; f < 120; f++) { update(1 / 60); drawFrame(); }
+      rep.tspinDrill = S.stats.tspin - spinBefore;
+
+      action('hold'); update(1 / 60); drawFrame();
+      endGame('autotest');
+      for (let f = 0; f < 90; f++) { update(1 / 60); drawFrame(); }
+
+      rep.over = over;
+      rep.score = S.score; rep.lines = S.lines; rep.level = S.level; rep.peakLines = peak;
+      rep.stats = S.stats;
+      rep.themeTime = themes;
+      rep.clears = {
+        single: clearSizes.filter(n => n === 1).length,
+        double: clearSizes.filter(n => n === 2).length,
+        triple: clearSizes.filter(n => n === 3).length,
+        tetris: clearSizes.filter(n => n >= 4).length
+      };
+      rep.maxParticles = FX.count;
+      rep.totalPieces = totalPieces;
+      rep.best = best;
+      rep.ok = rep.errors.length === 0 && totalPieces > 800 && peak > 300 &&
+        Object.keys(themes).length >= 6 && rep.perfectDrill >= 1 && rep.tspinDrill >= 1;
+    } catch (e) {
+      log('EXCEPTION: ' + (e && e.stack ? e.stack : e));
+    }
+    document.title = 'AUTOTEST ' + (rep.ok ? 'PASS' : 'FAIL');
+    const pre = document.createElement('pre');
+    pre.id = 'autotest';
+    pre.style.cssText = 'position:fixed;left:0;top:0;z-index:99;font:11px monospace;background:#000;color:#8fff;padding:8px;max-height:100%;overflow:auto';
+    pre.textContent = JSON.stringify(rep, null, 1);
+    document.body.appendChild(pre);
+  };
+  if (document.readyState === 'complete' || document.readyState === 'interactive') setTimeout(run, 60);
+  else window.addEventListener('DOMContentLoaded', () => setTimeout(run, 60));
+}

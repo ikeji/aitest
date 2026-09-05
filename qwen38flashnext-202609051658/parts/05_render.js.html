@@ -1,0 +1,281 @@
+
+/* =============================== RENDER ================================= */
+const $ = id => document.getElementById(id);
+const bgCv = $('bg'), fxCv = $('fx'), gameCv = $('game');
+const bgc = bgCv.getContext('2d'), fxc = fxCv.getContext('2d'), gctx = gameCv.getContext('2d');
+const holdCv = $('holdCv'), nextCv = $('nextCv');
+const holdc = holdCv.getContext('2d'), nextc = nextCv.getContext('2d');
+const offCv = document.createElement('canvas'), offc = offCv.getContext('2d');
+const TOP_PAD = 6, BOT_PAD = 6;
+let DPR = 1, CELL = 30, PREVC = 18, GW = 300, GH = 600;
+const cellArt = {}, glowArt = {};
+/* a stray grid value must never take the frame down */
+const ck = t => (cellArt[t] ? t : 'I');
+
+function roundRect(c, x, y, w, h, r) {
+  r = Math.min(r, w * .5, h * .5);
+  c.beginPath();
+  c.moveTo(x + r, y); c.lineTo(x + w - r, y); c.quadraticCurveTo(x + w, y, x + w, y + r);
+  c.lineTo(x + w, y + h - r); c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  c.lineTo(x + r, y + h); c.quadraticCurveTo(x, y + h, x, y + h - r);
+  c.lineTo(x, y + r); c.quadraticCurveTo(x, y, x + r, y);
+  c.closePath();
+}
+
+function buildCellArt() {
+  const s = Math.max(6, Math.round(CELL * DPR));
+  for (const t of TYPES) {
+    const c = document.createElement('canvas'); c.width = c.height = s;
+    const x = c.getContext('2d'), hex = COL[t], pad = Math.max(1, s * .045), sz = s - pad * 2;
+    const g = x.createLinearGradient(0, 0, s * .55, s);
+    g.addColorStop(0, mixC(hex, '#ffffff', .55));
+    g.addColorStop(.42, hex);
+    g.addColorStop(1, mixC(hex, '#000000', .38));
+    roundRect(x, pad, pad, sz, sz, s * .17); x.fillStyle = g; x.fill();
+    x.strokeStyle = 'rgba(0,0,0,.42)'; x.lineWidth = Math.max(1, s * .05); x.stroke();
+    x.globalAlpha = .75; x.strokeStyle = 'rgba(255,255,255,.75)'; x.lineWidth = Math.max(1, s * .06);
+    x.beginPath(); x.moveTo(pad + sz * .16, pad + sz * .1); x.lineTo(pad + sz * .84, pad + sz * .1); x.stroke();
+    x.globalAlpha = .22;
+    x.beginPath(); x.moveTo(pad + sz * .1, pad + sz * .16); x.lineTo(pad + sz * .1, pad + sz * .8); x.stroke();
+    x.globalAlpha = 1;
+    cellArt[t] = c;
+    const gc = document.createElement('canvas'); gc.width = gc.height = s;
+    const gx = gc.getContext('2d');
+    gx.shadowColor = hex; gx.shadowBlur = s * .55;
+    gx.fillStyle = hex; roundRect(gx, pad + s * .1, pad + s * .1, sz - s * .2, sz - s * .2, s * .18); gx.fill();
+    gx.fill();
+    glowArt[t] = gc;
+  }
+}
+
+function drawMini(c, type, cx, cy, size, alpha) {
+  if (!type) return;
+  const cs = SHAPES[type][0];
+  let x0 = 9, x1 = -9, y0 = 9, y1 = -9;
+  for (const [x, y] of cs) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const w = (x1 - x0 + 1) * size, h = (y1 - y0 + 1) * size;
+  const ox = cx - w / 2 - x0 * size, oy = cy - h / 2 - y0 * size;
+  c.globalAlpha = alpha === undefined ? 1 : alpha;
+  c.globalCompositeOperation = 'lighter';
+  for (const [x, y] of cs) c.drawImage(glowArt[ck(type)], ox + x * size, oy + y * size, size, size);
+  c.globalCompositeOperation = 'source-over';
+  for (const [x, y] of cs) c.drawImage(cellArt[ck(type)], ox + x * size, oy + y * size, size, size);
+  c.globalAlpha = 1;
+}
+
+function layout() {
+  DPR = clamp(window.devicePixelRatio || 1, 1, 2.5);
+  const vh = window.innerHeight, vw = window.innerWidth;
+  /* the side rails are measured, not guessed, so the well uses what is left */
+  const touchPad = document.body.classList.contains('touch') ? clamp(vh * .15, 86, 124) : 0;
+  const rails = (($('left').clientWidth || 120) + ($('right').clientWidth || 120)) + (vw < 760 ? 14 : 56);
+  const availH = vh - touchPad - 20 - TOP_PAD - BOT_PAD;
+  const availW = vw - rails - 8;
+  CELL = clamp(Math.floor(Math.min(availH / ROWS, availW / COLS)), 10, 40);
+  GW = CELL * COLS; GH = CELL * ROWS;
+  const cw = GW + 2, chd = GH + TOP_PAD + BOT_PAD;
+  gameCv.style.width = cw + 'px'; gameCv.style.height = chd + 'px';
+  gameCv.width = Math.round(cw * DPR); gameCv.height = Math.round(chd * DPR);
+  offCv.width = gameCv.width; offCv.height = gameCv.height;
+  bgCv.width = fxCv.width = Math.round(vw * DPR);
+  bgCv.height = fxCv.height = Math.round(vh * DPR);
+  bgCv.style.width = fxCv.style.width = vw + 'px';
+  bgCv.style.height = fxCv.style.height = vh + 'px';
+  [bgc, fxc].forEach(c => c.setTransform(DPR, 0, 0, DPR, 0, 0));
+  PREVC = Math.max(7, Math.round(CELL * .55));
+  const side = document.querySelector('#left').clientWidth || 120;
+  holdCv.width = Math.round(side * DPR); holdCv.height = Math.round(PREVC * 3 * DPR);
+  holdCv.style.width = side + 'px'; holdCv.style.height = (PREVC * 3) + 'px';
+  nextCv.width = Math.round(side * DPR); nextCv.height = Math.round(PREVC * 3.5 * 5 * DPR);
+  nextCv.style.width = side + 'px'; nextCv.style.height = (PREVC * 3.5 * 5) + 'px';
+  [holdc, nextc].forEach(c => c.setTransform(DPR, 0, 0, DPR, 0, 0));
+  buildCellArt();
+  requestAnimationFrame(() => {
+    const r = gameCv.getBoundingClientRect();
+    FX.setBoard({ x: r.left + 1, y: r.top + TOP_PAD, w: GW, h: GH, cell: CELL });
+    FX.setView(window.innerWidth, window.innerHeight, DPR);
+  });
+}
+
+/* draw the playfield + piece into the offscreen buffer */
+function renderBoard(S, vis) {
+  const c = offc, s = CELL * DPR, px0 = DPR, py0 = TOP_PAD * DPR;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.clearRect(0, 0, offCv.width, offCv.height);
+  c.save();
+  c.translate(px0, py0);
+  /* well */
+  const bg = c.createLinearGradient(0, 0, 0, GH * DPR);
+  bg.addColorStop(0, 'rgba(10,14,28,.86)'); bg.addColorStop(.55, 'rgba(5,8,18,.9)'); bg.addColorStop(1, 'rgba(12,10,24,.92)');
+  roundRect(c, 0, 0, GW * DPR, GH * DPR, CELL * .25 * DPR);
+  c.fillStyle = bg; c.fill();
+  c.clip();
+  /* grid */
+  c.strokeStyle = 'rgba(150,190,255,.055)'; c.lineWidth = 1;
+  c.beginPath();
+  for (let x = 1; x < COLS; x++) { c.moveTo(x * s, 0); c.lineTo(x * s, GH * DPR); }
+  for (let y = 1; y < ROWS; y++) { c.moveTo(0, y * s); c.lineTo(GW * DPR, y * s); }
+  c.stroke();
+  /* danger zone tint */
+  const dz = c.createLinearGradient(0, 0, 0, s * 5);
+  dz.addColorStop(0, 'rgba(255,40,60,' + (0.09 + 0.09 * Math.sin(vis.time * 6) * vis.danger).toFixed(3) + ')');
+  dz.addColorStop(1, 'rgba(255,40,60,0)');
+  c.fillStyle = dz; c.fillRect(0, 0, GW * DPR, s * 5);
+
+  /* stack */
+  const clearSet = vis.clearRows;
+  for (let y = HIDE; y < HEIGHT; y++) {
+    const isClr = clearSet.indexOf(y) >= 0;
+    for (let x = 0; x < COLS; x++) {
+      const t = S.grid[idx(x, y)];
+      if (!t) continue;
+      const X = x * s, Y = (y - HIDE) * s;
+      if (isClr) {
+        const k = vis.clearK;
+        c.globalAlpha = 1 - k * .35;
+        c.globalCompositeOperation = 'lighter';
+        c.drawImage(glowArt[ck(t)], X, Y, s, s);
+        c.globalCompositeOperation = 'source-over';
+        c.drawImage(cellArt[ck(t)], X, Y, s, s);
+        c.globalAlpha = 1;
+      } else {
+        c.drawImage(cellArt[ck(t)], X, Y, s, s);
+      }
+    }
+  }
+  /* clearing sweep */
+  if (clearSet.length) {
+    const k = vis.clearK, pal = THEMES[FX.theme].pal;
+    c.globalCompositeOperation = 'lighter';
+    for (const y of clearSet) {
+      const Y = (y - HIDE) * s;
+      const g = c.createLinearGradient(0, Y, GW * DPR, 0);
+      const pos = (k * 1.5) % 1;
+      g.addColorStop(0, A(pal[0], (1 - k) * .35));
+      g.addColorStop(clamp(pos - .05, 0, 1), A('#ffffff', (1 - k) * .8));
+      g.addColorStop(clamp(pos + .05, 0, 1), A(pal[2], (1 - k) * .5));
+      g.addColorStop(1, A(pal[0], (1 - k) * .35));
+      c.fillStyle = g; c.fillRect(0, Y, GW * DPR, s);
+      c.fillStyle = A('#ffffff', (1 - k) * .25); c.fillRect(0, Y - s * .12, GW * DPR, s * 1.24);
+    }
+    c.globalCompositeOperation = 'source-over';
+  }
+  /* ghost + active piece */
+  const p = S.piece;
+  if (p && S.phase === 'playing') {
+    const gy = ghostY(S, p);
+    const cs = cellsOf(p);
+    c.globalAlpha = .30;
+    for (const [cx2, cy2] of cs) {
+      const X = (p.x + cx2) * s, Y = (gy + cy2 - HIDE) * s;
+      if (gy === p.y) continue;
+      roundRect(c, X + s * .12, Y + s * .12, s * .76, s * .76, s * .16);
+      c.strokeStyle = COL[p.t]; c.lineWidth = Math.max(1, s * .07); c.stroke();
+      c.fillStyle = A(COL[p.t], .18); c.fill();
+    }
+    c.globalAlpha = 1;
+    /* landing shadow */
+    if (gy > p.y) {
+      c.globalCompositeOperation = 'lighter';
+      c.fillStyle = A(COL[p.t], .10);
+      for (const [cx2, cy2] of cs) c.fillRect((p.x + cx2) * s, (gy + cy2 - HIDE) * s + s * .9, s, s * .1);
+      c.globalCompositeOperation = 'source-over';
+    }
+    const lockedOn = vis.grounded && (vis.time % .28) < .1;
+    c.globalCompositeOperation = 'lighter';
+    for (const [cx2, cy2] of cs) {
+      const X = (p.x + cx2) * s, Y = (p.y + cy2 - HIDE) * s;
+      c.globalAlpha = .5 + .2 * Math.sin(vis.time * 5);
+      c.drawImage(glowArt[ck(p.t)], X, Y, s, s);
+    }
+    c.globalCompositeOperation = 'source-over';
+    for (const [cx2, cy2] of cs) {
+      const X = (p.x + cx2) * s, Y = (p.y + cy2 - HIDE) * s;
+      if (Y < -s) continue;
+      c.drawImage(cellArt[ck(p.t)], X, Y, s, s);
+    }
+    if (lockedOn) {
+      c.globalCompositeOperation = 'lighter';
+      c.fillStyle = 'rgba(255,255,255,.18)';
+      for (const [cx2, cy2] of cs) c.fillRect((p.x + cx2) * s, (p.y + cy2 - HIDE) * s, s, s);
+      c.globalCompositeOperation = 'source-over';
+    }
+  }
+  c.restore();
+  /* theme post */
+  c.save();
+  c.translate(px0, py0);
+  c.beginPath(); c.rect(0, 0, GW * DPR, GH * DPR); c.clip();
+  FX.boardPost(c, GW * DPR, GH * DPR);
+  c.restore();
+  /* frame */
+  roundRect(c, 1, 1, GW * DPR - 2, GH * DPR - 2, CELL * .25 * DPR);
+  c.strokeStyle = A(THEMES[FX.theme].accent, .5); c.lineWidth = 2 * DPR; c.stroke();
+  c.restore();
+}
+
+function composite(S, vis) {
+  const sh = FX.shakeOffset, w = gameCv.width, h = gameCv.height;
+  gctx.setTransform(1, 0, 0, 1, 0, 0);
+  gctx.clearRect(0, 0, w, h);
+  gctx.save();
+  const ab = Math.min(6, vis.aberr * CELL * DPR * .28);
+  if (Math.abs(sh.r) > 1e-4 || sh.zoom !== 1) {
+    gctx.translate(w / 2, h / 2);
+    gctx.rotate(sh.r);
+    gctx.scale(sh.zoom, sh.zoom);
+    gctx.translate(-w / 2, -h / 2);
+  }
+  if (ab > .6) {
+    gctx.globalCompositeOperation = 'lighter';
+    gctx.globalAlpha = .38;
+    gctx.drawImage(offCv, -ab, 0);
+    gctx.drawImage(offCv, ab, 0);
+    gctx.globalAlpha = 1;
+    gctx.globalCompositeOperation = 'source-over';
+  }
+  gctx.drawImage(offCv, 0, 0);
+  gctx.restore();
+}
+
+function renderSide(S) {
+  holdc.clearRect(0, 0, holdCv.width / DPR, holdCv.height / DPR);
+  drawMini(holdc, S.hold, holdCv.width / DPR / 2, holdCv.height / DPR / 2, PREVC, S.canHold ? 1 : .32);
+  nextc.clearRect(0, 0, nextCv.width / DPR, nextCv.height / DPR);
+  const slot = PREVC * 3.5;
+  for (let i = 0; i < 5 && i < S.next.length; i++) {
+    const t = S.next[i];
+    const scale = i === 0 ? PREVC * 1.16 : PREVC;
+    drawMini(nextc, t, nextCv.width / DPR / 2, slot * (i + .5), scale, i === 0 ? 1 : Math.max(.42, .92 - i * .1));
+  }
+}
+
+/* HUD ------------------------------------------------------------ */
+const hud = { score: -1, best: -1, level: -1, lines: -1, time: '', pps: '', tsp: -1, te: -1 };
+function renderHUD(S, best, pps) {
+  if (hud.score !== S.score) { hud.score = S.score; $('scoreV').textContent = S.score.toLocaleString('en-US'); }
+  if (hud.best !== best) { hud.best = best; $('bestV').textContent = best.toLocaleString('en-US'); }
+  if (hud.level !== S.level) { hud.level = S.level; $('levelV').textContent = S.level; }
+  if (hud.lines !== S.lines) { hud.lines = S.lines; $('linesV').textContent = S.lines; }
+  const ts = fmtTime(S.elapsed);
+  if (hud.time !== ts) { hud.time = ts; $('timeV').textContent = ts; }
+  const ps = pps.toFixed(2);
+  if (hud.pps !== ps) { hud.pps = ps; $('ppsV').textContent = ps; }
+  if (hud.tsp !== S.stats.tspin) { hud.tsp = S.stats.tspin; $('tspV').textContent = S.stats.tspin; }
+  if (hud.te !== S.stats.tetris) { hud.te = S.stats.tetris; $('teV').textContent = S.stats.tetris; }
+  const th = THEMES[FX.theme];
+  const nm = String(FX.theme + 1).padStart(2, '0') + ' ' + th.name + ' / ' + th.jp;
+  if ($('theme').textContent !== nm) {
+    $('theme').textContent = nm;
+    document.documentElement.style.setProperty('--accent', th.accent);
+    $('keyPanel').style.borderColor = A(th.accent, .25);
+    document.querySelectorAll('.panel').forEach(p => { p.style.borderColor = A(th.accent, .22); p.style.boxShadow = '0 10px 34px rgba(0,0,0,.5), 0 0 22px ' + A(th.accent, .10); });
+  }
+  const prog = (S.lines % 10) / 10 * 100;
+  const fill = $('themeBarFill');
+  const pw = prog.toFixed(1) + '%';
+  if (fill.style.width !== pw) fill.style.width = pw;
+  const nt = ((FX.theme + 1) % THEMES.length + 1) + ' ' + THEMES[(FX.theme + 1) % THEMES.length].name;
+  const ntv = 'L' + (S.lines + 10 - (S.lines % 10)) + ' → ' + nt;
+  if ($('nextThemeV').textContent !== ntv) $('nextThemeV').textContent = ntv;
+}

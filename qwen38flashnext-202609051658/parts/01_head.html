@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#04050b">
+<title>NEON BURST Tetris — 派手エフェクト・テトリス</title>
+<style>
+:root{
+  --ink:#eaf2ff;
+  --dim:#8ba0c9;
+  --edge:rgba(150,190,255,.20);
+  --panel:rgba(9,13,26,.62);
+  --panel2:rgba(14,20,38,.72);
+  --accent:#4de1ff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:#04050b;color:var(--ink);
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;
+  overflow:hidden;-webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none;user-select:none;touch-action:manipulation;
+}
+#bg{position:fixed;inset:0;width:100%;height:100%;display:block}
+#stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;gap:clamp(6px,1.4vw,22px);padding:8px}
+#game{display:block;border-radius:10px}
+.panel{
+  position:relative;background:var(--panel);border:1px solid var(--edge);border-radius:14px;
+  padding:10px 12px;backdrop-filter:blur(7px);
+  box-shadow:0 10px 34px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06);
+  transition:box-shadow .25s,border-color .25s;
+}
+.panel::before{
+  content:"";position:absolute;left:12px;right:12px;top:-1px;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.75;
+}
+.panel h2{
+  font-size:10px;letter-spacing:.22em;color:var(--dim);font-weight:700;
+  text-transform:uppercase;margin-bottom:7px
+}
+#left,#right{display:flex;flex-direction:column;gap:10px;width:clamp(96px,13vw,172px);max-height:100%;min-height:0}
+#center{position:relative;flex:0 0 auto}
+#fx{position:fixed;inset:0;width:100%;height:100%;display:block;pointer-events:none}
+#holdCv,#nextCv{display:block}
+#stats{--rows:1}
+.stat{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:2px 0}
+.stat .k{font-size:10px;letter-spacing:.16em;color:var(--dim)}
+.stat .v{font-variant-numeric:tabular-nums;font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;font-size:15px;font-weight:700}
+#scoreV{font-size:clamp(17px,2.1vh,24px);text-shadow:0 0 16px rgba(77,225,255,.55)}
+#hint{font-size:10px;line-height:1.75;color:var(--dim);letter-spacing:.02em}
+#hint b{color:var(--ink);font-weight:700;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:4px;padding:0 4px}
+#theme{
+  font-size:11px;letter-spacing:.12em;font-weight:700;color:#fff;
+  text-shadow:0 0 12px var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+}
+#themeWrap{margin-top:6px}
+#themeBar{height:4px;border-radius:3px;background:rgba(255,255,255,.10);overflow:hidden;margin-top:7px}
+#themeBarFill{height:100%;width:0;background:linear-gradient(90deg,var(--accent),#fff);border-radius:3px;transition:width .18s}
+#toasts{
+  position:absolute;left:50%;top:29%;transform:translateX(-50%);
+  display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:none;z-index:6
+}
+.toast{
+  font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700;letter-spacing:.08em;
+  font-size:clamp(13px,1.9vh,20px);white-space:nowrap;
+  padding:4px 12px;border-radius:999px;
+  background:rgba(4,6,14,.42);border:1px solid rgba(255,255,255,.18);
+  animation:pop .30s cubic-bezier(.2,1.7,.4,1) both,float-up 1.05s ease-out both;
+  text-shadow:0 0 14px currentColor
+}
+@keyframes pop{from{transform:scale(.35);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes float-up{0%{opacity:0}12%{opacity:1}72%{opacity:1}100%{opacity:0;transform:translateY(-30px) scale(.96)}}
+#overlay{
+  position:absolute;inset:-1px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  text-align:center;background:radial-gradient(120% 80% at 50% 45%,rgba(6,8,20,.80),rgba(2,3,8,.95));
+  border-radius:10px;z-index:8;padding:16px
+}
+#overlay.hidden{display:none}
+#ovTitle{font-size:clamp(24px,5.6vh,46px);font-weight:800;letter-spacing:.06em;line-height:1.1}
+#ovTitle .g{background:linear-gradient(92deg,#4de1ff,#f472b6,#fbbf24);-webkit-background-clip:text;background-clip:text;color:transparent}
+#ovSub{font-size:12.5px;color:var(--dim);letter-spacing:.08em;line-height:1.9}
+#ovBtns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:4px}
+button{
+  font:inherit;font-weight:700;letter-spacing:.06em;color:#04121a;cursor:pointer;
+  background:linear-gradient(180deg,#8ff0ff,#2fc4ee);border:0;border-radius:999px;padding:9px 20px;
+  box-shadow:0 0 22px rgba(77,225,255,.45)
+}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--edge);box-shadow:none}
+table.res{border-collapse:collapse;font-size:13px;margin-top:2px}
+table.res td{padding:3px 10px;color:var(--dim)}
+table.res td+td{text-align:right;color:var(--ink);font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700}
+#touch{position:fixed;left:0;right:0;bottom:6px;display:none;justify-content:center;gap:6px;z-index:9;flex-wrap:wrap;padding:0 6px}
+#touch button{
+  min-width:46px;padding:11px 12px;border-radius:12px;background:rgba(16,22,40,.72);color:var(--ink);
+  border:1px solid var(--edge);box-shadow:none;font-size:14px;backdrop-filter:blur(4px)
+}
+body.touch #touch{display:flex}
+body.touch #keyPanel,body.touch .nopad{display:none}
+@media (max-height:760px){ #keyPanel{display:none} }
+@media (max-height:660px){ .panel{padding:7px 9px;border-radius:10px} #stats .opt{display:none} #themeWrap2{display:none} }
+@media (max-height:560px){ .panel h2{font-size:9px;margin-bottom:4px} .stat .v{font-size:12px} #scoreV{font-size:15px} }
+@media (max-width:760px){
+  #stage{gap:5px;padding:4px}
+  #left,#right{width:clamp(62px,17vw,88px);gap:6px}
+  .panel{padding:7px 8px;border-radius:11px}
+  .panel h2{font-size:9px;margin-bottom:4px}
+  .stat .k{font-size:9px;letter-spacing:.1em}
+  .stat .v{font-size:12px}
+  #scoreV{font-size:clamp(14px,2vh,19px)}
+  #theme{font-size:10px;letter-spacing:.06em}
+}
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+
+<div id="stage">
+  <div id="left">
+    <div class="panel">
+      <h2>Hold</h2>
+      <canvas id="holdCv"></canvas>
+    </div>
+    <div class="panel" id="stats">
+      <h2>Score</h2>
+      <div class="stat"><span class="k">SCORE</span><span class="v" id="scoreV">0</span></div>
+      <div class="stat"><span class="k">BEST</span><span class="v" id="bestV">0</span></div>
+      <div class="stat"><span class="k">LEVEL</span><span class="v" id="levelV">1</span></div>
+      <div class="stat"><span class="k">LINES</span><span class="v" id="linesV">0</span></div>
+      <div class="stat opt"><span class="k">TIME</span><span class="v" id="timeV">0:00</span></div>
+      <div class="stat opt"><span class="k">PPS</span><span class="v" id="ppsV">0.00</span></div>
+      <div class="stat nopad opt"><span class="k">T-SPIN</span><span class="v" id="tspV">0</span></div>
+      <div class="stat nopad opt"><span class="k">TETRIS</span><span class="v" id="teV">0</span></div>
+    </div>
+  </div>
+
+  <div id="center">
+    <canvas id="game"></canvas>
+    <div id="toasts"></div>
+    <div id="overlay">
+      <div id="ovTitle"><span class="g">NEON BURST</span><br>TETRIS</div>
+      <div id="ovSub">
+        ライン消去のたびに画面が爆発する<br>
+        10ラインごとにエフェクトのテーマが変化 ／ SRS・ホールド・7bag 準拠
+      </div>
+      <div id="ovBtns"><button id="btnStart">START ▸</button></div>
+    </div>
+  </div>
+
+  <div id="right">
+    <div class="panel">
+      <h2>Next</h2>
+      <canvas id="nextCv"></canvas>
+    </div>
+    <div class="panel">
+      <h2>Effect Theme</h2>
+      <div id="theme">01 SPARK</div>
+      <div id="themeWrap"><div id="themeBar"><div id="themeBarFill"></div></div></div>
+      <div id="themeWrap2" class="stat" style="margin-top:6px"><span class="k">NEXT THEME</span><span class="v" id="nextThemeV">10 lines</span></div>
+    </div>
+    <div class="panel nopad" id="keyPanel">
+      <h2>Keys</h2>
+      <div id="hint">
+        <div><b>←</b><b>→</b> 移動 / <b>↓</b> ソフト</div>
+        <div><b>↑</b><b>X</b> 右回転 / <b>Z</b> 左回転</div>
+        <div><b>A</b> 180° / <b>Space</b> ハードドロップ</div>
+        <div><b>C</b> ホールド / <b>P</b> 一時停止</div>
+        <div><b>R</b> リセット / <b>M</b> ミュート</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<canvas id="fx"></canvas>
+
+<div id="touch">
+  <button data-act="left">◀</button>
+  <button data-act="right">▶</button>
+  <button data-act="rotccw">⟲</button>
+  <button data-act="rotcw">⟳</button>
+  <button data-act="hold">H</button>
+  <button data-act="soft">▼</button>
+  <button data-act="hard">⤓</button>
+  <button data-act="pause">II</button>
+</div>

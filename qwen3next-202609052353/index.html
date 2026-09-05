@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>派手エフェクト・テトリス</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        const CELL_SIZE = 30;
+        const GRID_WIDTH = 10;
+        const GRID_HEIGHT = 20;
+        const CANVAS_WIDTH = GRID_WIDTH * CELL_SIZE;
+        const CANVAS_HEIGHT = GRID_HEIGHT * CELL_SIZE;
+
+        const shapes = [
+          {
+            color: '#00FFFF',
+            matrix: [
+              [0, 0, 0, 0],
+              [1, 1, 1, 1],
+              [0, 0, 0, 0],
+              [0, 0, 0, 0]
+            ]
+          },
+          {
+            color: '#FFFF00',
+            matrix: [
+              [0, 0, 0, 0],
+              [0, 1, 1, 0],
+              [0, 1, 1, 0],
+              [0, 0, 0, 0]
+            ]
+          },
+          {
+            color: '#0000FF',
+            matrix: [
+              [0, 0, 0, 0],
+              [0, 1, 0, 0],
+              [1, 1, 1, 0],
+              [0, 0, 0, 0]
+            ]
+          },
+          {
+            color: '#FF0000',
+            matrix: [
+              [0, 0, 0, 0],
+              [0, 1, 1, 0],
+              [1, 1, 0, 0],
+              [0, 0, 0, 0]
+            ]
+          },
+          {
+            color: '#00FF00',
+            matrix: [
+              [0, 0, 0, 0],
+              [1, 1, 0, 0],
+              [0, 1, 1, 0],
+              [0, 0, 0, 0]
+            ]
+          },
+          {
+            color: '#FF8000',
+            matrix: [
+              [0, 0, 0, 0],
+              [0, 1, 0, 0],
+              [0, 1, 0, 0],
+              [1, 1, 0, 0]
+            ]
+          },
+          {
+            color: '#800080',
+            matrix: [
+              [0, 0, 0, 0],
+              [0, 1, 0, 0],
+              [1, 1, 0, 0],
+              [0, 1, 0, 0]
+            ]
+          }
+        ];
+
+        let currentPiece = null;
+        let nextPiece = null;
+        let grid = Array.from({ length: GRID_HEIGHT }, () => Array(GRID_WIDTH).fill(0));
+        let score = 0;
+        let level = 1;
+        let linesCleared = 0;
+        let gameActive = true;
+        let dropInterval = 1000;
+        let lastDropTime = 0;
+        let particles = [];
+
+        function setup() {
+          createCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
+          initGame();
+          window.addEventListener('keydown', handleKeyPress);
+        }
+
+        function initGame() {
+          currentPiece = generateNewPiece();
+          nextPiece = generateNewPiece();
+          grid = Array.from({ length: GRID_HEIGHT }, () => Array(GRID_WIDTH).fill(0));
+          score = 0;
+          level = 1;
+          linesCleared = 0;
+          gameActive = true;
+          particles = [];
+        }
+
+        function generateNewPiece() {
+          const shape = shapes[floor(random(shapes.length))];
+          return {
+            shape: shape.matrix,
+            color: shape.color,
+            x: floor(GRID_WIDTH / 2) - 2,
+            y: 0,
+            rotation: 0
+          };
+        }
+
+        function rotatePiece() {
+          const matrix = currentPiece.shape;
+          const n = matrix.length;
+          const rotated = Array.from({ length: n }, () => Array(n).fill(0));
+          for (let i = 0; i < n; i++) {
+            for (let j = 0; j < n; j++) {
+              rotated[j][n - 1 - i] = matrix[i][j];
+            }
+          }
+          currentPiece.shape = rotated;
+        }
+
+        function canMove(dx, dy) {
+          const matrix = currentPiece.shape;
+          for (let y = 0; y < matrix.length; y++) {
+            for (let x = 0; x < matrix[0].length; x++) {
+              if (matrix[y][x] !== 0) {
+                const newX = currentPiece.x + x + dx;
+                const newY = currentPiece.y + y + dy;
+                if (newX < 0 || newX >= GRID_WIDTH || newY >= GRID_HEIGHT || (newY >= 0 && grid[newY][newX] !== 0)) {
+                  return false;
+                }
+              }
+            }
+          }
+          return true;
+        }
+
+        function moveDown() {
+          if (canMove(0, 1)) {
+            currentPiece.y += 1;
+          } else {
+            placePiece();
+            checkLines();
+            currentPiece = nextPiece;
+            nextPiece = generateNewPiece();
+            if (!canMove(0, 0)) {
+              gameActive = false;
+            }
+          }
+        }
+
+        function placePiece() {
+          const matrix = currentPiece.shape;
+          for (let y = 0; y < matrix.length; y++) {
+            for (let x = 0; x < matrix[0].length; x++) {
+              if (matrix[y][x] !== 0) {
+                const gridX = currentPiece.x + x;
+                const gridY = currentPiece.y + y;
+                if (gridY >= 0 && gridY < GRID_HEIGHT && gridX >= 0 && gridX < GRID_WIDTH) {
+                  grid[gridY][gridX] = currentPiece.color;
+                }
+              }
+            }
+          }
+        }
+
+        function checkLines() {
+          let linesClearedCount = 0;
+          for (let y = GRID_HEIGHT - 1; y >= 0; y--) {
+            if (grid[y].every(cell => cell !== 0)) {
+              grid.splice(y, 1);
+              grid.unshift(Array(GRID_WIDTH).fill(0));
+              linesClearedCount++;
+              for (let x = 0; x < GRID_WIDTH; x++) {
+                particles.push({
+                  x: x * CELL_SIZE + CELL_SIZE / 2,
+                  y: y * CELL_SIZE + CELL_SIZE / 2,
+                  vx: random(-3, 3),
+                  vy: random(-5, 0),
+                  size: random(5, 10),
+                  color: currentPiece.color,
+                  life: 100
+                });
+              }
+            }
+          }
+          if (linesClearedCount > 0) {
+            linesCleared += linesClearedCount;
+            score += linesClearedCount * 100 * level;
+            level = floor(linesCleared / 10) + 1;
+            dropInterval = max(100, 1000 - (level - 1) * 50);
+          }
+        }
+
+        function handleKeyPress(e) {
+          if (e.key === 'ArrowLeft' && canMove(-1, 0)) {
+            currentPiece.x -= 1;
+          } else if (e.key === 'ArrowRight' && canMove(1, 0)) {
+            currentPiece.x += 1;
+          } else if (e.key === 'ArrowDown') {
+            moveDown();
+          } else if (e.key === 'ArrowUp') {
+            rotatePiece();
+            if (!canMove(0, 0)) {
+              rotatePiece();
+              rotatePiece();
+              rotatePiece();
+            }
+          } else if (e.key === ' ') {
+            while (canMove(0, 1)) {
+              moveDown();
+            }
+          }
+        }
+
+        function draw() {
+          background(0);
+          for (let y = 0; y < GRID_HEIGHT; y++) {
+            for (let x = 0; x < GRID_WIDTH; x++) {
+              if (grid[y][x] !== 0) {
+                fill(grid[y][x]);
+                rect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+              }
+            }
+          }
+          if (currentPiece) {
+            const matrix = currentPiece.shape;
+            for (let y = 0; y < matrix.length; y++) {
+              for (let x = 0; x < matrix[0].length; x++) {
+                if (matrix[y][x] !== 0) {
+                  const gridX = currentPiece.x + x;
+                  const gridY = currentPiece.y + y;
+                  if (gridX >= 0 && gridX < GRID_WIDTH && gridY >= 0 && gridY < GRID_HEIGHT) {
+                    fill(currentPiece.color);
+                    rect(gridX * CELL_SIZE, gridY * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                  }
+                }
+              }
+            }
+          }
+          for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life--;
+            if (p.life <= 0) {
+              particles.splice(i, 1);
+              continue;
+            }
+            fill(p.color);
+            ellipse(p.x, p.y, p.size);
+          }
+          const now = millis();
+          if (now - lastDropTime > dropInterval) {
+            moveDown();
+            lastDropTime = now;
+          }
+        }
+    </script>
+</body>
+</html>

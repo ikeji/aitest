@@ -26,6 +26,14 @@ python3 build_index.py
 | [gpt-5.5](gpt55-202609032230/index.html) | openai | codex | 2026-09-03 22:30 |
 | [gpt-5.6-luna](gpt56luna-202609032300/index.html) | openai | codex | 2026-09-03 23:00 |
 | [gpt-5.6-terra](gpt56terra-202609032330/index.html) | openai | codex | 2026-09-03 23:30 |
+| [deepseek-v4-flash](deepseekv4flash-202609050207/index.html) | llama.cpp | pi-agent | 2026-09-05 02:07 |
+| [Qwen3.8-Flash-Next](qwen38flashnext-202609051658/index.html) | llama.cpp | pi-agent | 2026-09-05 16:58 |
+| [Devstral-2-123B-Instruct](devstral2-202609051948/index.html) | llama.cpp | pi-agent | 2026-09-05 19:48 |
+| [gpt-oss-120b](gptoss120b-202609051948/index.html) | llama.cpp | pi-agent | 2026-09-05 19:48 |
+| [GLM-4.5-Air](glm45air-202609052311/index.html) | llama.cpp | pi-agent | 2026-09-05 23:11 |
+| [GLM-4.7-Flash](glm47flash-202609052329/index.html) | llama.cpp | pi-agent | 2026-09-05 23:29 |
+| [Qwen3-Coder-Next](qwen3codernext-202609052344/index.html) | llama.cpp | pi-agent | 2026-09-05 23:44 |
+| [Qwen3-Next-80B-A3B-Thinking](qwen3next-202609052353/index.html) | llama.cpp | pi-agent | 2026-09-05 23:53 |
 <!-- index:end -->
 
 `build_index.py` を実行してから commit / push する。

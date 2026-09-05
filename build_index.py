@@ -28,7 +28,6 @@ COLUMNS = [
     ("harness", "harness"),
     ("date", "date"),
     ("size", "index.html"),
-    ("notes", "notes"),
 ]
 
 
@@ -112,6 +111,7 @@ def collect(root):
         idx = os.path.join(d, "index.html")
         row = {k: env.get(k) for k, _ in COLUMNS}
         row["model_file"] = env.get("model_file")
+        row["notes"] = env.get("notes")
         row["dir"] = name
         row["has_env"] = has_env
         row["has_index"] = os.path.isfile(idx)
@@ -142,7 +142,8 @@ th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;white
 th{cursor:pointer;user-select:none;color:var(--dim);font-weight:600;position:sticky;top:0;background:var(--card)}
 th.sorted-asc::after{content:" ▲"}th.sorted-desc::after{content:" ▼"}
 tr:hover td{background:#1d2130}
-td.notes{white-space:normal;min-width:200px;color:var(--dim)}
+td.model{white-space:normal;min-width:260px;max-width:520px}
+.notes{color:var(--dim);font-size:12px;margin-top:2px}
 small.sub{color:var(--dim);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}
 a{color:#79b8ff;text-decoration:none}a:hover{text-decoration:underline}
 .todo{color:var(--todo)}.missing{color:var(--ng)}.empty{color:var(--dim)}
@@ -191,14 +192,15 @@ def cell(key, row):
             label = f'<b>{label}</b> <span class="missing">(index.html なし)</span>'
         mf = row.get("model_file")
         sub = f'<br><small class="sub">{esc(mf)}</small>' if mf else ""
-        return f"<td>{label}{sub}</td>"
+        notes = row.get("notes")
+        extra = "".join(f'<div class="notes">{esc(k)}: {esc(x)}</div>' for k, x in row["extra"].items())
+        if notes:
+            extra = f'<div class="notes">{esc(notes)}</div>' + extra
+        return f'<td class="model">{label}{sub}{extra}</td>'
     if key == "size":
         if v is None:
             return '<td data-sort="-1" class="missing">なし</td>'
         return f'<td data-sort="{v}">{v/1024:.1f} KB</td>'
-    if key == "notes":
-        extra = "".join(f"<br><small>{esc(k)}: {esc(x)}</small>" for k, x in row["extra"].items())
-        return f'<td class="notes">{esc(v)}{extra}</td>'
     if v is None or v == "":
         return '<td class="empty">-</td>'
     if str(v).upper() == "TODO":

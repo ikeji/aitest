@@ -1,0 +1,329 @@
+<script>
+
+
+"use strict";
+/* ==========================================================================
+   NEON BURST TETRIS — single file, no dependencies, works offline.
+   Guideline: SRS + wall kicks, 7-bag, hold, ghost, lock delay (15 moves),
+   T-spin (3-corner + kick rule), B2B, combo, perfect clear, 1000L goals.
+   FX: 8 themes, one per 10 lines, all drawn with additive particles.
+   ========================================================================== */
+
+/* ---------- tiny helpers ---------- */
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const lerp = (a, b, t) => a + (b - a) * t;
+const rnd = (a = 1, b = 0) => b + Math.random() * (a - b);
+const rndi = n => (Math.random() * n) | 0;
+const pick = a => a[(Math.random() * a.length) | 0];
+const A = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5, 7), 16)},${a})`;
+const HEXC = hex => [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
+const mixC = (c1, c2, t) => {
+  const a = HEXC(c1), b = HEXC(c2);
+  return `rgb(${Math.round(lerp(a[0], b[0], t))},${Math.round(lerp(a[1], b[1], t))},${Math.round(lerp(a[2], b[2], t))})`;
+};
+const fmtTime = ms => {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+};
+
+/* ---------- board constants ---------- */
+const COLS = 10, ROWS = 20, HIDE = 2, HEIGHT = ROWS + HIDE;
+const SOFT_FACTOR = 22, DAS = 150, ARR = 28, LOCK_DELAY = 500, MAX_LOCK_RESETS = 15, CLEAR_DELAY = 190;
+
+/* piece cells per rotation state, computed as a *pure* rotation inside the
+   bounding box (SRS basic rotation). index = state 0 / R / 2 / L */
+const SHAPES = (() => {
+  const base = {
+    I: [[0, 1], [1, 1], [2, 1], [3, 1]],
+    J: [[0, 0], [0, 1], [1, 1], [2, 1]],
+    L: [[2, 0], [0, 1], [1, 1], [2, 1]],
+    O: [[1, 1], [2, 1], [1, 2], [2, 2]],
+    S: [[1, 0], [2, 0], [0, 1], [1, 1]],
+    T: [[1, 0], [0, 1], [1, 1], [2, 1]],
+    Z: [[0, 0], [1, 0], [1, 1], [2, 1]]
+  };
+  const box = { I: 4, O: 4, J: 3, L: 3, S: 3, T: 3, Z: 3 };
+  const out = {};
+  for (const k in base) {
+    const n = box[k], st = [base[k].map(c => c.slice())];
+    for (let r = 1; r < 4; r++) st.push(st[r - 1].map(([x, y]) => [n - 1 - y, x]));
+    out[k] = st;
+  }
+  return out;
+})();
+const TYPES = Object.keys(SHAPES);
+const COL = { I: '#2dd8f7', J: '#3d7bff', L: '#ff9a2e', O: '#ffe14d', S: '#3cf08a', T: '#c05cff', Z: '#ff4d63' };
+const SPAWN_X = { I: 3, O: 3, J: 3, L: 3, S: 3, T: 3, Z: 3 };
+
+/* SRS wall kicks (y down: +dy = down). Verified against tetris.wiki tables. */
+const KICKS = (() => {
+  const j = {
+    '0>1': [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]],
+    '1>0': [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]],
+    '1>2': [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]],
+    '2>1': [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]],
+    '2>3': [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]],
+    '3>2': [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]],
+    '3>0': [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]],
+    '0>3': [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]]
+  };
+  const i = {
+    '0>1': [[0, 0], [-2, 0], [1, 0], [-2, 1], [1, -2]],
+    '1>0': [[0, 0], [2, 0], [-1, 0], [2, -1], [-1, 2]],
+    '1>2': [[0, 0], [-1, 0], [2, 0], [-1, -2], [2, 1]],
+    '2>1': [[0, 0], [1, 0], [-2, 0], [1, 2], [-2, -1]],
+    '2>3': [[0, 0], [2, 0], [-1, 0], [2, -1], [-1, 2]],
+    '3>2': [[0, 0], [-2, 0], [1, 0], [-2, 1], [1, -2]],
+    '3>0': [[0, 0], [1, 0], [-2, 0], [1, 2], [-2, -1]],
+    '0>3': [[0, 0], [-1, 0], [2, 0], [-1, -2], [2, 1]]
+  };
+  const o = {}; for (const k in j) { o['j' + k] = j[k]; o['i' + k] = i[k]; }
+  /* 180 flips are not part of the Guideline: basic rotation first, then a short
+     nudge list (same list for every piece). */
+  const flip = [[0, 0], [1, 0], [-1, 0], [0, -1], [2, 0], [-2, 0], [0, -2]];
+  for (const k of ['0>2', '2>0', '1>3', '3>1']) { o['j' + k] = flip; o['i' + k] = flip; }
+  for (const k in j) o['o' + k] = [[0, 0]];
+  return o;
+})();
+
+/* effect themes: one per 10 cleared lines */
+const THEMES = [
+  { key: 'spark', name: 'SPARK', jp: 'スパーク', pal: ['#ffffff', '#a8ecff', '#4de1ff', '#1a86ff', '#b8eaff'], bg: ['#0a1728', '#03060d'], accent: '#4de1ff' },
+  { key: 'inferno', name: 'INFERNO', jp: '火炎地獄', pal: ['#fff3c4', '#ffcc4d', '#ff8a1e', '#ff3b1f', '#8f1602'], bg: ['#2a0d07', '#0a0203'], accent: '#ff7a18' },
+  { key: 'storm', name: 'THUNDER', jp: '雷光嵐', pal: ['#ffffff', '#e8f0ff', '#9fc4ff', '#5f8cff', '#cfd9ff'], bg: ['#101a34', '#04060f', '#1d2745'], accent: '#a8c4ff' },
+  { key: 'sakura', name: 'SAKURA', jp: '桜吹雪', pal: ['#ffffff', '#ffe1ee', '#ffadd2', '#ff5fa2', '#d92169'], bg: ['#28101c', '#0b0308'], accent: '#ff8ec0' },
+  { key: 'voxel', name: 'VOXEL RAID', jp: 'ブロック襲来', pal: ['#e6ff7a', '#3cf08a', '#22e0d0', '#ffe14d', '#ff6ad5'], bg: ['#07211c', '#02090a', '#04241f'], accent: '#3cf08a' },
+  { key: 'neon', name: 'LASER GRID', jp: 'レーザー格子', pal: ['#ff2fd0', '#22e0ff', '#ffe14d', '#a24bff', '#ffffff'], bg: ['#170b34', '#050311', '#1d0a2e'], accent: '#ff2fd0' },
+  { key: 'cosmos', name: 'COSMOS', jp: '深宇宙', pal: ['#ffffff', '#c9b8ff', '#7fd4ff', '#ff9ae0', '#8ea9ff'], bg: ['#0a0a2e', '#01010a', '#120a33'], accent: '#b0a4ff' },
+  { key: 'supernova', name: 'SUPERNOVA', jp: '超新星爆発', pal: ['#ffffff', '#ffd84d', '#ff5f6d', '#4de1ff', '#a8ff5f'], bg: ['#2c0738', '#0b0113', '#38052f'], accent: '#ffd84d' }
+];
+
+/* =======================================================================
+   PURE RULES LOGIC (no DOM) — also exercised by test/logic_test.mjs
+   ======================================================================= */
+//__LOGIC_START__
+const idx = (x, y) => y * COLS + x;
+
+function emptyGrid() { const g = new Array(HEIGHT * COLS).fill(null); return g; }
+
+function createState() {
+  return {
+    grid: emptyGrid(), bag: [], next: [], hold: null, canHold: true,
+    piece: null, phase: 'ready',           // ready|playing|clearing|over
+    level: 1, lines: 0, score: 0, combo: -1, b2b: false,
+    stats: { tspin: 0, tetris: 0, perfect: 0, pieces: 0, maxCombo: 0, b2bMax: 0, clears: [0, 0, 0, 0] },
+    clearing: null, lastClearRows: [], spinFlag: null,
+    lockResets: 0, goal: 0, elapsed: 0, dropLock: 0
+  };
+}
+
+const P = c => (c ? c.t : null);
+const cellsOf = p => SHAPES[p.t][p.r];
+
+function fits(g, t, r, x, y) {
+  const cs = SHAPES[t][r];
+  for (let i = 0; i < 4; i++) {
+    const cx = x + cs[i][0], cy = y + cs[i][1];
+    if (cx < 0 || cx >= COLS || cy >= HEIGHT) return false;
+    if (cy >= 0 && g[idx(cx, cy)]) return false;
+  }
+  return true;
+}
+
+function refill(s, count) {
+  while (s.next.length < count + 1) {
+    if (!s.bag.length) {
+      s.bag = TYPES.slice();
+      for (let i = s.bag.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; const t = s.bag[i]; s.bag[i] = s.bag[j]; s.bag[j] = t; }
+    }
+    s.next.push(s.bag.pop());
+  }
+}
+
+function spawn(s, type) {
+  const t = type || s.next.shift() || 'T';
+  refill(s, 5);
+  const p = { t, r: 0, x: SPAWN_X[t], y: 0, minY: 0 };
+  s.piece = p;
+  s.canHold = true; s.lockResets = 0; s.movedFlag = false; s.spinFlag = null;
+  s.stats.pieces++;
+  if (!fits(s.grid, p.t, p.r, p.x, p.y)) { s.phase = 'over'; return false; }
+  return true;
+}
+
+function grounded(s, p) { return !fits(s.grid, p.t, p.r, p.x, p.y + 1); }
+
+/* lock-delay move reset: allowed MAX_LOCK_RESETS times per piece, and always
+   when the piece reaches a new lowest row (handled by noteLowest). */
+function resetLock(s) { if (s.lockResets < MAX_LOCK_RESETS) { s.lockResets++; s.movedFlag = true; } }
+function noteLowest(s, p) { if (p.minY === undefined || p.y > p.minY) { p.minY = p.y; s.lockResets = 0; s.movedFlag = true; } }
+
+function move(s, dx) {
+  const p = s.piece; if (!p || s.phase !== 'playing') return false;
+  if (!fits(s.grid, p.t, p.r, p.x + dx, p.y)) return false;
+  p.x += dx; resetLock(s);
+  s.spinFlag = null;   /* shifting cancels a pending spin */
+  return true;
+}
+
+function softDrop(s) {
+  const p = s.piece; if (!p || s.phase !== 'playing') return 0;
+  if (!fits(s.grid, p.t, p.r, p.x, p.y + 1)) return 0;
+  /* gravity / soft drop does NOT clear the spin flag: only a successful shift does */
+  p.y++; noteLowest(s, p); s.lastAction = 'drop'; return 1;   /* gravity never spends a reset */
+}
+
+function rotate(s, dir) {              /* dir: 1 cw, -1 ccw, 2 flip */
+  const p = s.piece; if (!p || s.phase !== 'playing') return false;
+  if (p.t === 'O') return false;
+  const from = p.r, to = (p.r + (dir === 2 ? 2 : dir) + 4) % 4;
+  const tests = KICKS[(p.t === 'I' ? 'i' : (p.t === 'O' ? 'o' : 'j')) + from + '>' + to];
+  for (let i = 0; i < tests.length; i++) {
+    const kx = tests[i][0], ky = tests[i][1];
+    if (fits(s.grid, p.t, to, p.x + kx, p.y + ky)) {
+      const groundedBefore = grounded(s, p);
+      p.r = to; p.x += kx; p.y += ky;
+      s.spinFlag = { dir: dir, kick: i };
+      if (kx || ky) noteLowest(s, p);
+      if (i > 0 || groundedBefore) resetLock(s);
+      return i;
+    }
+  }
+  return false;
+}
+
+function ghostY(s, p) { let y = p.y; while (fits(s.grid, p.t, p.r, p.x, y + 1)) y++; return y; }
+
+function hardDrop(s) {
+  const p = s.piece; if (!p || s.phase !== 'playing') return 0;
+  let d = 0;
+  while (fits(s.grid, p.t, p.r, p.x, p.y + 1)) { p.y++; d++; noteLowest(s, p); }
+  return d;
+}
+
+/* T-spin: 3 of the 4 diagonals around the nub are filled; a kick into the
+   slot (or the two front corners filled) upgrades a "mini" to a full spin. */
+function spinInfo(s, p) {
+  /* the last successful action must be a rotation (falling doesn't count) */
+  const fl = s.spinFlag;
+  if (p.t !== 'T' || !fl) return { spin: false, mini: false };
+  const cxy = [p.x + 1, p.y + 1];               /* nub sits in the box centre */
+  const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+  /* the two corners in front of the nub, per rotation state (0 R 2 L) */
+  const FRONT = [[[-1, -1], [1, -1]], [[1, -1], [1, 1]], [[-1, 1], [1, 1]], [[-1, -1], [-1, 1]]];
+  let n = 0, front = 0;
+  for (let i = 0; i < 4; i++) {
+    const cx = cxy[0] + corners[i][0], cy = cxy[1] + corners[i][1];
+    /* walls and the floor count as filled for the 3-corner rule */
+    const filled = (cx < 0 || cx >= COLS || cy >= HEIGHT) ? true : (cy >= 0 && !!s.grid[idx(cx, cy)]);
+    if (filled) {
+      n++;
+      const f = FRONT[p.r];
+      if ((corners[i][0] === f[0][0] && corners[i][1] === f[0][1]) ||
+          (corners[i][0] === f[1][0] && corners[i][1] === f[1][1])) front++;
+    }
+  }
+  if (n < 3) return { spin: false, mini: false };
+  /* both front corners filled, or a deep kick into the slot -> full spin */
+  const mini = front < 2 && !(fl.kick > 0);
+  return { spin: true, mini };
+}
+
+function levelGravity(level) { return Math.min(20, 1 + (level - 1) * 0.6); }
+function lockFrac(level) { return clamp(0.5 - 0.04 * (level - 1), 0.07, 0.5); }
+
+/* lock the active piece; returns list of cleared row numbers */
+function lockPiece(s, spin) {
+  const p = s.piece;
+  const cs = cellsOf(p);
+  const locked = [];
+  let allHidden = true;
+  for (let i = 0; i < 4; i++) {
+    const cx = p.x + cs[i][0], cy = p.y + cs[i][1];
+    if (cy >= HIDE) allHidden = false;
+    if (cy >= 0 && cy < HEIGHT && cx >= 0 && cx < COLS) s.grid[idx(cx, cy)] = p.t;
+    locked.push([cx, cy]);
+  }
+  /* rows are detected here but removed later (commitClear) so the clearing
+     animation can show them */
+  const rows = [];
+  for (let y = 0; y < HEIGHT; y++) {
+    let full = true;
+    for (let x = 0; x < COLS; x++) if (!s.grid[idx(x, y)]) { full = false; break; }
+    if (full) rows.push(y);
+  }
+  let perfect = false;
+  if (rows.length) {
+    const skip = {};
+    for (const y of rows) skip[y] = 1;
+    let anyCell = false;
+    for (let y = 0; y < HEIGHT && !anyCell; y++) {
+      if (skip[y]) continue;
+      for (let x = 0; x < COLS; x++) if (s.grid[idx(x, y)]) { anyCell = true; break; }
+    }
+    if (!anyCell) { perfect = true; s.stats.perfect++; }
+    s.lines += rows.length;
+    s.stats.clears[rows.length - 1]++;
+    s.combo++;
+    if (s.combo > s.stats.maxCombo) s.stats.maxCombo = s.combo;
+  } else {
+    s.combo = -1;
+  }
+  const isTetris = rows.length === 4 && !spin.spin;
+  if (spin.spin) s.stats.tspin++;
+  if (spin.spin && spin.mini) s.stats.mini = (s.stats.mini || 0) + 1;
+  if (isTetris) s.stats.tetris++;
+  const b2bEligible = isTetris || (spin.spin && rows.length > 0);
+  const b2b = b2bEligible && s.b2b;
+  if (b2bEligible) s.b2b = true;
+  else if (rows.length > 0) s.b2b = false;
+  if (b2b) { s.b2bRun = (s.b2bRun || 0) + 1; s.stats.b2bMax = Math.max(s.stats.b2bMax, s.b2bRun); }
+  else if (rows.length) s.b2bRun = 0;
+
+  let base;
+  const N = rows.length;
+  if (spin.spin) {
+    if (spin.mini) base = [100, 200, 400, 400, 400][N];   /* N = rows cleared */
+    else base = [0, 800, 1200, 1600, 2000][N];
+  } else base = [0, 100, 300, 500, 800][N];
+  let pts = base * s.level;
+  if (b2b) pts = Math.floor(pts * 1.5);
+  if (perfect) pts += [0, 800, 1200, 1800, 2000, 3200][N] * s.level;
+  if (s.combo > 0) pts += 50 * s.combo * s.level;
+  s.score += pts;
+
+  const name = spin.spin
+    ? (spin.mini ? 'T-SPIN MINI' : 'T-SPIN') + (N ? ' ' + ['', 'SINGLE', 'DOUBLE', 'TRIPLE', 'QUAD'][N] : '')
+    : ['', 'SINGLE', 'DOUBLE', 'TRIPLE', 'TETRIS'][N];
+
+  const topOut = allHidden;
+
+  s.piece = null;
+  s.spinFlag = null;
+  return { rows, pts, name, b2b, perfect, isTetris, spin: spin.spin, mini: spin.mini, topOut, lockedCells: locked, pc: perfect };
+}
+
+/* remove full rows and let everything above collapse down */
+function commitClear(s, rows) {
+  const set = {};
+  for (const y of rows) set[y] = 1;
+  const out = new Array(HEIGHT * COLS).fill(null);
+  let wy = HEIGHT - 1;
+  for (let y = HEIGHT - 1; y >= 0; y--) {
+    if (set[y]) continue;
+    if (wy < 0) break;
+    for (let x = 0; x < COLS; x++) out[idx(x, wy)] = s.grid[idx(x, y)];
+    wy--;
+  }
+  s.grid = out;
+  return rows.length;
+}
+
+function stackTop(s) {
+  for (let y = 0; y < HEIGHT; y++) for (let x = 0; x < COLS; x++) if (s.grid[idx(x, y)]) return y;
+  return HEIGHT;
+}
+
+function levelFromLines(lines, level) { return Math.max(level, 1 + Math.floor(lines / 10)); }
+//__LOGIC_END__

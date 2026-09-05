@@ -1,0 +1,359 @@
+
+/* ================================ GAME ================================== */
+let S = createState();
+let best = 0;
+try { best = parseInt(localStorage.getItem('nbt.best') || '0', 10) || 0; } catch (e) { }
+let appPhase = 'title';                 /* title | play | pause | over */
+let lastRAF = 0, gravAcc = 0, lockT = 0, clearT = 0, lastY = -99, dasT = 0, arrT = ARR, lastWant = 0;
+let lastWallSfx = 0, lastSoftSfx = 0, pendingRes = null, fpsT = 0, fpsN = 0, fps = 60;
+const held = { left: false, right: false, down: false };
+let goals = [40, 100];
+const nowMs = () => performance.now();
+const overlay = $('overlay');
+
+if (window.matchMedia && matchMedia('(pointer:coarse)').matches) document.body.classList.add('touch');
+
+/* ------------------------------ toasts --------------------------------- */
+function toast(text, color, big, slow) {
+  const box = $('toasts');
+  while (box.childElementCount > 5) box.removeChild(box.firstChild);
+  const d = document.createElement('div');
+  d.className = 'toast';
+  d.textContent = text;
+  d.style.color = color || '#ffffff';
+  if (big) { d.style.fontSize = 'clamp(19px,3.1vh,34px)'; d.style.padding = '6px 20px'; }
+  d.style.animationDuration = (big ? .34 : .3) + 's,' + (slow ? 1.6 : 1.05) + 's';
+  box.appendChild(d);
+  setTimeout(() => d.remove(), slow ? 1700 : 1150);
+}
+
+/* ------------------------------ overlays -------------------------------- */
+function hideOverlay() { overlay.classList.add('hidden'); }
+function showOverlay(html) {
+  overlay.innerHTML = html;
+  overlay.classList.remove('hidden');
+}
+function screenTitle() {
+  showOverlay(
+    '<div id="ovTitle"><span class="g">NEON BURST</span><br>TETRIS</div>' +
+    '<div id="ovSub">ライン消去のたびに画面が爆発する<br>10ラインごとにエフェクトテーマが変化 ／ SRS・ホールド・7bag 準拠' +
+    (best ? '<br><span style="color:#fff">BEST ' + best.toLocaleString('en-US') + '</span>' : '') + '</div>' +
+    '<div id="ovBtns"><button data-btn="start">START ▸</button></div>' +
+    '<div id="ovSub" style="font-size:11px">キーボード / タッチ対応 ・ 音量注意 🔊</div>');
+}
+function screenPause() {
+  showOverlay('<div id="ovTitle">PAUSED</div><div id="ovSub">P / Esc で再開 ・ R でやり直し</div>' +
+    '<div id="ovBtns"><button data-btn="resume">RESUME ▸</button><button class="ghost" data-btn="restart">RESTART</button></div>');
+}
+function screenOver(reason) {
+  const st = S.stats, acc = st.pieces ? Math.round(S.lines / st.pieces * 100) : 0;
+  const rec = S.score >= best && S.score > 0;
+  showOverlay(
+    '<div id="ovTitle" style="font-size:clamp(20px,4.4vh,36px)">GAME OVER</div>' +
+    '<div id="ovSub">' + reason + (rec ? ' ・ <span style="color:#ffd84d">NEW RECORD!</span>' : '') + '</div>' +
+    '<table class="res">' +
+    '<tr><td>SCORE</td><td>' + S.score.toLocaleString('en-US') + '</td></tr>' +
+    '<tr><td>BEST</td><td>' + best.toLocaleString('en-US') + '</td></tr>' +
+    '<tr><td>LINES / LEVEL</td><td>' + S.lines + ' / ' + S.level + '</td></tr>' +
+    '<tr><td>TIME</td><td>' + fmtTime(S.elapsed) + '</td></tr>' +
+    '<tr><td>PPS</td><td>' + (S.elapsed > 0 ? (st.pieces / (S.elapsed / 1000)).toFixed(2) : '0.00') + '</td></tr>' +
+    '<tr><td>T-SPIN / TETRIS</td><td>' + st.tspin + ' / ' + st.tetris + '</td></tr>' +
+    '<tr><td>MAX COMBO</td><td>' + Math.max(0, st.maxCombo) + '</td></tr>' +
+    '<tr><td>B2B / PERFECT</td><td>' + st.b2bMax + ' / ' + st.perfect + '</td></tr>' +
+    '<tr><td>1 / 2 / 3 / 4</td><td>' + st.clears.join(' / ') + '</td></tr>' +
+    '<tr><td>THEME</td><td>' + THEMES[FX.theme].name + '</td></tr>' +
+    '</table>' +
+    '<div id="ovBtns"><button data-btn="restart">RETRY ↻</button></div>' +
+    '<div id="ovSub" style="font-size:11px">R キーでも再スタート</div>');
+}
+
+/* --------------------------- game flow ---------------------------------- */
+function startGame() {
+  Snd.init();
+  S = createState();
+  refill(S, 5);
+  S.phase = 'playing';
+  spawn(S);
+  appPhase = 'play';
+  gravAcc = lockT = clearT = 0; lastY = -99; dasT = 0; lastWant = 0;
+  held.left = held.right = held.down = false;
+  goals = [40, 100];
+  pendingRes = null;
+  FX.reset();
+  FX.setTheme(0);
+  hideOverlay();
+  Snd.startMusic();
+  toast('GO!', '#ffffff', true);
+}
+function pauseGame(yes) {
+  if (appPhase === 'play' && yes) { appPhase = 'pause'; Snd.stopMusic(); Snd.pause(true); screenPause(); }
+  else if (appPhase === 'pause' && !yes) { appPhase = 'play'; Snd.startMusic(); Snd.pause(false); hideOverlay(); lastRAF = nowMs(); }
+}
+function endGame(reason) {
+  appPhase = 'over'; S.phase = 'over';
+  Snd.stopMusic(); Snd.over(); FX.gameOverFx();
+  if (S.score > best) { best = S.score; try { localStorage.setItem('nbt.best', String(best)); } catch (e) { } }
+  setTimeout(() => { if (appPhase === 'over') screenOver(reason); }, 650);
+}
+
+function tryMove(d) {
+  if (!move(S, d)) {
+    if (nowMs() - lastWallSfx > 130) { lastWallSfx = nowMs(); Snd.soft(); }
+    return false;
+  }
+  Snd.move();
+  return true;
+}
+function doRotate(dir) {
+  const r = rotate(S, dir);
+  if (r === false) { Snd.fail(); FX.shakeIt(2.4, .08); return; }
+  if (dir === 2) Snd.flip(); else Snd.rot();
+  if (r > 0) {
+    const p = S.piece, c = FX.cellPx(p.x + 1, p.y + 1);
+    FX.sparksAt(c.x, c.y, 8 + r * 3);
+    FX.shakeIt(2 + r * .9, .1);
+  }
+}
+function doHold() {
+  const p = S.piece;
+  if (!p || !S.canHold) { if (!S.canHold) Snd.fail(); return; }
+  const prev = S.hold;
+  S.hold = p.t;
+  S.canHold = false;
+  if (prev) {
+    spawn(S, prev);
+    S.canHold = false;
+  } else {
+    spawn(S);
+    S.canHold = false;
+  }
+  Snd.hold();
+  const c = FX.cellPx(4, 2);
+  FX.sparksAt(c.x, c.y, 12, COL[p.t]);
+}
+function doHard() {
+  const p = S.piece; if (!p) return;
+  const from = p.y;
+  const cells = cellsOf(p).map(([x, y]) => ({ x: p.x + x, dy: y }));
+  const d = hardDrop(S);
+  if (d > 0) {
+    S.score += d * 2;
+    FX.dropTrail(cells, from, p.y, COL[p.t]);
+    Snd.lock(.45);
+  }
+  doLock(true);
+}
+function doLock(isHard) {
+  const p = S.piece; if (!p) return;
+  const spin = spinInfo(S, p);
+  const cells = cellsOf(p).map(([x, y]) => ({ x: p.x + x, y: p.y + y, t: p.t }));
+  const res = lockPiece(S, spin);
+  FX.lockBurst(cells, Math.min(1, res.rows.length / 4));
+  if (!res.rows.length) {
+    Snd.lock(isHard ? .75 : .35);
+    if (res.topOut) { endGame('TOP OUT'); return; }
+    spawnNext();
+    return;
+  }
+  startClear(res);
+}
+function spawnNext() {
+  if (!spawn(S)) endGame('BLOCK OUT');
+}
+function startClear(res) {
+  S.phase = 'clearing';
+  clearT = 0;
+  pendingRes = res;
+  const cells = [];
+  for (const y of res.rows) for (let x = 0; x < COLS; x++) { const t = S.grid[idx(x, y)]; if (t) cells.push({ x, y, t }); }
+  FX.lineClear(res.rows, cells, { tetris: res.isTetris, spin: res.spin, perfect: res.perfect, combo: S.combo });
+  if (res.spin) Snd.tspinFx(res.rows.length >= 3);
+  if (res.isTetris) Snd.tetrisFx();
+  Snd.clearFx(res.rows.length, res.b2b);
+  Snd.dip(res.isTetris || res.spin ? .55 : .22);
+  /* toasts */
+  const pal = THEMES[FX.theme].pal;
+  const col = res.isTetris ? '#8ef0ff' : res.spin ? '#e6a8ff' : pal[1];
+  if (res.name) toast(res.name, col, res.rows.length >= 4 || res.spin, true);
+  if (res.b2b) toast('BACK-TO-BACK', '#ffd84d', false, true);
+  if (S.combo > 0) toast('COMBO ×' + S.combo, '#a8ff5f', S.combo >= 5, false);
+  if (res.pts) toast('+' + res.pts.toLocaleString('en-US'), '#ffffff', false, false);
+}
+function finishClear() {
+  const res = pendingRes; pendingRes = null;
+  commitClear(S, res.rows);
+  if (res.perfect) { FX.perfectBlast(); Snd.perfectFx(); toast('PERFECT CLEAR', '#ffffff', true, true); }
+  checkProgress();
+  if (res.topOut) { endGame('TOP OUT'); return; }
+  S.phase = 'playing';
+  spawnNext();
+}
+function checkProgress() {
+  const nl = levelFromLines(S.lines, S.level);
+  if (nl > S.level) { S.level = nl; toast('LEVEL ' + nl, '#ffd84d'); Snd.levelUp(); }
+  const ti = Math.floor(S.lines / 10) % THEMES.length;
+  if (ti !== FX.theme) {
+    FX.setTheme(ti); FX.themeBlast(ti); Snd.dip(.45);
+    toast('THEME ' + String(ti + 1).padStart(2, '0'), THEMES[ti].accent, true, true);
+    setTimeout(() => toast(THEMES[ti].name + ' / ' + THEMES[ti].jp, THEMES[ti].pal[1], false, true), 180);
+  }
+  while (goals.length && S.lines >= goals[0]) {
+    const g = goals.shift();
+    FX.goalBlast(); Snd.goalFx();
+    toast(g + ' LINES GOAL!', '#ffffff', true, true);
+  }
+}
+
+/* ------------------------------- update --------------------------------- */
+function update(dt) {
+  const ms = dt * 1000;
+  if (appPhase === 'play') {
+    if (S.phase === 'playing') {
+      S.elapsed += ms;
+      /* DAS / ARR */
+      const w = (held.left && !held.right) ? -1 : (held.right && !held.left) ? 1 : 0;
+      if (w !== lastWant) { lastWant = w; dasT = 0; arrT = ARR; if (w) tryMove(w); }
+      else if (w) {
+        dasT += ms;
+        if (dasT >= DAS) { arrT += ms; let n = 0; while (arrT >= ARR && n++ < 8) { arrT -= ARR; if (!tryMove(w)) break; } }
+      }
+      /* gravity + soft drop */
+      const gcells = levelGravity(S.level) * (held.down ? SOFT_FACTOR : 1);
+      gravAcc += dt * gcells;
+      let guard = 0;
+      while (gravAcc >= 1 && guard++ < 48) {
+        const d = softDrop(S);
+        if (!d) { gravAcc = 0; break; }
+        gravAcc -= 1;
+        if (held.down) {
+          S.score += 1;
+          if (nowMs() - lastSoftSfx > 55) { lastSoftSfx = nowMs(); Snd.soft(); }
+        }
+      }
+      /* lock delay */
+      const p = S.piece;
+      if (p) {
+        if (grounded(S, p)) {
+          if (S.movedFlag) { S.movedFlag = false; lockT = 0; }   /* reset already counted */
+          lockT += ms;
+          if (lockT >= LOCK_DELAY) { lockT = 0; doLock(false); }
+        } else { lockT = 0; S.movedFlag = false; }
+        lastY = p.y;
+      }
+      FX.setDanger(clamp(1 - (stackTop(S) - HIDE) / 10, 0, 1));
+    } else if (S.phase === 'clearing') {
+      S.elapsed += ms;
+      clearT += ms;
+      const delay = Math.max(70, CLEAR_DELAY - S.level * 4);
+      if (clearT >= delay) finishClear();
+    }
+  }
+  FX.update(dt);
+  Snd.musicTick(FX.theme, clamp((S.level - 1) / 14 + FX.intensity * .4, 0, 1));
+}
+
+/* -------------------------------- draw ---------------------------------- */
+function drawFrame() {
+  FX.drawBg(bgc);
+  const clearing = S.phase === 'clearing' && pendingRes;
+  const vis = {
+    time: nowMs() / 1000,
+    clearRows: clearing ? pendingRes.rows : [],
+    clearK: clearing ? clamp(clearT / Math.max(70, CLEAR_DELAY - S.level * 4), 0, 1) : 0,
+    danger: clamp(1 - (stackTop(S) - HIDE) / 10, 0, 1),
+    grounded: S.piece ? grounded(S, S.piece) : false,
+    aberr: FX.aberr
+  };
+  renderBoard(S, vis);
+  composite(S, vis);
+  renderSide(S);
+  const pps = S.elapsed > 500 ? S.stats.pieces / (S.elapsed / 1000) : 0;
+  renderHUD(S, best, pps);
+  FX.draw(fxc);
+  const st = $('stage'), o = FX.shakeOffset;
+  st.style.transform = (o.x || o.y) ? 'translate(' + o.x.toFixed(2) + 'px,' + o.y.toFixed(2) + 'px)' : '';
+  if (Math.abs(o.r) > 1e-4) st.style.transform = 'translate(' + o.x.toFixed(2) + 'px,' + o.y.toFixed(2) + 'px) rotate(' + o.r.toFixed(4) + 'rad)';
+}
+
+function loop(t) {
+  if (!lastRAF) lastRAF = t;
+  let dt = (t - lastRAF) / 1000;
+  lastRAF = t;
+  if (dt > .12) dt = .12;
+  update(appPhase === 'pause' ? 0 : dt);
+  drawFrame();
+  fpsN++; fpsT += dt;
+  if (fpsT > 1) { fps = fpsN / fpsT; fpsN = 0; fpsT = 0; if (fps < 42 && CELL > 15) { /* keep layout, just fewer particles next time */ } }
+  requestAnimationFrame(loop);
+}
+
+/* -------------------------------- input --------------------------------- */
+const KEYS = {
+  ArrowLeft: 'left', ArrowRight: 'right', ArrowDown: 'soft', ArrowUp: 'rotcw',
+  KeyZ: 'rotccw', KeyX: 'rotcw', KeyA: 'flip', Space: 'hard', KeyC: 'hold', KeyV: 'hold',
+  KeyP: 'pause', Escape: 'pause', KeyR: 'restart', KeyM: 'mute', Enter: 'start'
+};
+function action(a) {
+  if (a === 'mute') { const on = Snd.toggleMute(); toast(on ? 'SOUND ON' : 'SOUND OFF', '#9ecbff'); return; }
+  if (a === 'restart') { startGame(); return; }
+  if (a === 'pause') { pauseGame(appPhase === 'play'); return; }
+  if (appPhase === 'title') { if (a === 'start' || a === 'hard') startGame(); return; }
+  if (appPhase === 'over') { if (a === 'start' || a === 'hard') startGame(); return; }
+  if (appPhase !== 'play') return;
+  if (S.phase !== 'playing') return;
+  switch (a) {
+    case 'soft': held.down = true; break;
+    case 'hard': doHard(); break;
+    case 'rotcw': doRotate(1); break;
+    case 'rotccw': doRotate(-1); break;
+    case 'flip': doRotate(2); break;
+    case 'hold': doHold(); break;
+  }
+}
+window.addEventListener('keydown', e => {
+  if (e.code === 'F5' || e.code === 'F12' || (e.ctrlKey || e.metaKey)) return;
+  const a = KEYS[e.code];
+  if (!a) return;
+  e.preventDefault();
+  if (a === 'left' || a === 'right') { held[a] = true; return; }
+  if (a === 'soft') { held.down = true; return; }
+  if (e.repeat) return;
+  action(a);
+});
+window.addEventListener('keyup', e => {
+  const a = KEYS[e.code];
+  if (a === 'left') held.left = false;
+  else if (a === 'right') held.right = false;
+  else if (a === 'soft') held.down = false;
+});
+window.addEventListener('blur', () => { held.left = held.right = held.down = false; if (appPhase === 'play') pauseGame(true); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && appPhase === 'play') pauseGame(true); });
+
+/* buttons + touch */
+document.addEventListener('pointerdown', ev => {
+  const b = ev.target.closest && ev.target.closest('[data-btn]');
+  if (b) {
+    const k = b.getAttribute('data-btn');
+    if (k === 'start' || k === 'restart') startGame();
+    else if (k === 'resume') pauseGame(false);
+    return;
+  }
+  const t = ev.target.closest && ev.target.closest('#touch [data-act]');
+  if (!t) return;
+  ev.preventDefault();
+  const act = t.getAttribute('data-act');
+  if (act === 'left' || act === 'right') { held[act] = true; }
+  else if (act === 'soft') held.down = true;
+  else if (act === 'pause') pauseGame(appPhase === 'play');
+  else action(act);
+}, { passive: false });
+window.addEventListener('pointerup', () => { held.left = held.right = held.down = false; });
+window.addEventListener('pointercancel', () => { held.left = held.right = held.down = false; });
+window.addEventListener('resize', () => layout());
+window.addEventListener('orientationchange', () => setTimeout(layout, 120));
+
+/* -------------------------------- boot ---------------------------------- */
+layout();
+FX.setTheme(0);
+screenTitle();
+requestAnimationFrame(loop);
