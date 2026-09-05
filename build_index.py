@@ -23,12 +23,51 @@ import sys
 from datetime import datetime
 
 COLUMNS = [
+    ("tier", "tier"),
     ("model", "model"),
     ("provider", "provider"),
     ("harness", "harness"),
     ("date", "date"),
     ("size", "index.html"),
 ]
+
+SCORE_KEYS = ("tier", "rules", "effects", "sound")
+TIER_ORDER = {"S": 5, "A": 4, "B": 3, "C": 2, "F": 1}
+# SCORING.md の各段階の短い説明
+SCORE_LABELS = {
+    "rules": {
+        0: "起動しない / 操作できない",
+        1: "致命的バグあり",
+        2: "遊べるが機能の欠落が目立つ",
+        3: "一通り揃うが操作感に違和感",
+        4: "違和感がない",
+    },
+    "effects": {
+        "NA": "評価不能",
+        0: "演出なし",
+        1: "軽く光る程度",
+        2: "はっきり分かる演出",
+        3: "画面が爆発する",
+        4: "10ライン毎に切り替わる",
+    },
+    "sound": {
+        "NA": "評価不能",
+        0: "無音",
+        1: "効果音はあるが単調",
+        2: "各操作に効果音、消去で変化",
+        3: "BGM あり",
+        4: "BGM と効果音が同期",
+    },
+}
+
+
+def score_label(key, v):
+    if v is None or v == "":
+        return None
+    sv = str(v).upper()
+    k = "NA" if sv == "NA" else (int(v) if str(v).lstrip("-").isdigit() else v)
+    desc = SCORE_LABELS.get(key, {}).get(k)
+    return f"<b>{key} {esc(sv)}</b>" + (f" {esc(desc)}" if desc else "")
 
 
 # ---------- YAML 読み込み ----------
@@ -67,22 +106,32 @@ def _scalar(s):
 
 
 def _simple_yaml(text):
+    """key: value / - リスト / 1 段のネスト (key:\n  sub: value) を読む簡易パーサ。"""
     data, cur_key = {}, None
     for raw in text.splitlines():
         line = _strip_comment(raw)
         if not line.strip():
             continue
+        indented = line[0].isspace()
         if line.lstrip().startswith("- ") and cur_key is not None:
             data.setdefault(cur_key, [])
             if not isinstance(data[cur_key], list):
                 data[cur_key] = []
             data[cur_key].append(_scalar(line.lstrip()[2:]))
             continue
-        m = re.match(r"^([A-Za-z0-9_\-./]+)\s*:\s*(.*)$", line)
+        m = re.match(r"^([A-Za-z0-9_\-./]+)\s*:\s*(.*)$", line.strip())
         if not m:
             continue
-        cur_key = m.group(1)
-        data[cur_key] = _scalar(m.group(2))
+        key, val = m.group(1), m.group(2)
+        if indented and cur_key is not None:
+            if not isinstance(data.get(cur_key), dict):
+                data[cur_key] = {}
+            data[cur_key][key] = _scalar(val)
+            continue
+        cur_key = key
+        data[cur_key] = {} if val == "" else _scalar(val)
+        if data[cur_key] == {}:
+            data[cur_key] = None  # 空 (ネスト開始 or 空値)。ネストなら後で dict になる
     return data
 
 
@@ -112,12 +161,17 @@ def collect(root):
         row = {k: env.get(k) for k, _ in COLUMNS}
         row["model_file"] = env.get("model_file")
         row["notes"] = env.get("notes")
+        score = env.get("score") if isinstance(env.get("score"), dict) else {}
+        for k in SCORE_KEYS:
+            row[k] = score.get(k)
+        row["bugs"] = score.get("bugs")
+        row["score_notes"] = score.get("notes")
         row["dir"] = name
         row["has_env"] = has_env
         row["has_index"] = os.path.isfile(idx)
         row["size"] = os.path.getsize(idx) if row["has_index"] else None
         row["has_idea"] = os.path.isfile(os.path.join(d, "IDEA.md"))
-        row["extra"] = {k: v for k, v in env.items() if k not in row}
+        row["extra"] = {k: v for k, v in env.items() if k not in row and k != "score"}
         if not has_env and not row["has_index"] and not row["has_idea"]:
             continue  # 無関係なディレクトリ
         rows.append(row)
@@ -144,6 +198,10 @@ th.sorted-asc::after{content:" ▲"}th.sorted-desc::after{content:" ▼"}
 tr:hover td{background:#1d2130}
 td.model{white-space:normal;min-width:260px;max-width:520px}
 .notes{color:var(--dim);font-size:12px;margin-top:2px}
+.score{font-size:12px;margin-top:2px}
+.score b{font-weight:700}
+td.tier{text-align:center;vertical-align:middle;font-size:28px;font-weight:800;line-height:1;width:48px;padding:6px 8px}
+td.tier-S{color:#ff7b72}td.tier-A{color:#d29922}td.tier-B{color:#3fb950}td.tier-C{color:#79b8ff}td.tier-F{color:var(--dim)}
 small.sub{color:var(--dim);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}
 a{color:#79b8ff;text-decoration:none}a:hover{text-decoration:underline}
 .todo{color:var(--todo)}.missing{color:var(--ng)}.empty{color:var(--dim)}
@@ -193,10 +251,26 @@ def cell(key, row):
         mf = row.get("model_file")
         sub = f'<br><small class="sub">{esc(mf)}</small>' if mf else ""
         notes = row.get("notes")
+        parts = [score_label(k, row.get(k)) for k in ("rules", "effects", "sound")]
+        parts = [x for x in parts if x]
+        score_line = f'<div class="score">{" · ".join(parts)}</div>' if parts else ""
         extra = "".join(f'<div class="notes">{esc(k)}: {esc(x)}</div>' for k, x in row["extra"].items())
+        for prefix, val in (("bugs: ", row.get("bugs")), ("", row.get("score_notes"))):
+            if val:
+                extra += f'<div class="notes">{esc(prefix)}{esc(val)}</div>'
         if notes:
             extra = f'<div class="notes">{esc(notes)}</div>' + extra
-        return f'<td class="model">{label}{sub}{extra}</td>'
+        return f'<td class="model">{label}{sub}{score_line}{extra}</td>'
+    if key in SCORE_KEYS:
+        if v is None or v == "":
+            cls = "tier empty" if key == "tier" else "empty"
+            return f'<td data-sort="-1" class="{cls}">-</td>'
+        sv = str(v).upper()
+        if key == "tier":
+            return f'<td data-sort="{TIER_ORDER.get(sv, 0)}" class="tier tier-{esc(sv)}">{esc(sv)}</td>'
+        if sv == "NA":
+            return '<td data-sort="-0.5" class="empty">NA</td>'
+        return f'<td data-sort="{esc(v)}" class="num">{esc(v)}</td>'
     if key == "size":
         if v is None:
             return '<td data-sort="-1" class="missing">なし</td>'
@@ -228,6 +302,7 @@ def render(rows, root):
         f'<div class="card"><div class="k">実行数</div><div class="v">{len(rows)}</div></div>'
         + card("provider", count_by(rows, "provider"))
         + card("harness", count_by(rows, "harness"))
+        + card("tier", sorted(count_by(rows, "tier"), key=lambda kv: -TIER_ORDER.get(str(kv[0]).upper(), 0)))
     )
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     return f"""<!DOCTYPE html>
@@ -240,7 +315,7 @@ def render(rows, root):
 </head>
 <body>
 <h1>aitest index</h1>
-<div class="meta">生成 {now} · <a href="IDEA.md">IDEA.md</a></div>
+<div class="meta">生成 {now} · <a href="IDEA.md">IDEA.md</a> · <a href="SCORING.md">SCORING.md</a></div>
 <div class="summary">{summary}</div>
 <input id="filter" type="search" placeholder="絞り込み (model, provider, harness ...)">
 <div class="wrap"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>
@@ -262,11 +337,12 @@ def update_readme(rows, root):
         text = f.read()
     if README_START not in text or README_END not in text:
         return False
-    lines = ["| model | provider | harness | date |", "|---|---|---|---|"]
+    lines = ["| model | provider | harness | date | tier | rules | effects | sound |", "|---|---|---|---|---|---|---|---|"]
     for r in rows:
         name = r.get("model") or r["dir"]
         link = f"[{name}]({r['dir']}/index.html)" if r["has_index"] else f"{name} (index.html なし)"
-        lines.append(f"| {link} | {r.get('provider') or '-'} | {r.get('harness') or '-'} | {r.get('date') or '-'} |")
+        sc = " | ".join("-" if r.get(k) is None else str(r.get(k)) for k in SCORE_KEYS)
+        lines.append(f"| {link} | {r.get('provider') or '-'} | {r.get('harness') or '-'} | {r.get('date') or '-'} | {sc} |")
     before = text[: text.index(README_START) + len(README_START)]
     after = text[text.index(README_END):]
     with open(path, "w", encoding="utf-8") as f:
