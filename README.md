@@ -35,6 +35,8 @@ python3 build_index.py
 | [Qwen3.6-35B-A3B](qwen36-202609022233/index.html) | llama.cpp | pi-agent | 2026-09-02 22:33 | F | 0 | NA | NA |
 | [claude-haiku-4-5](haiku45-202609022307/index.html) | anthropic | claude-code | 2026-09-02 23:07 | F | 0 | NA | NA |
 | [minimax/minimax-m3:free](minimaxm3-202609032151/index.html) | openrouter | pi-agent | 2026-09-03 21:51 | F | 0 | NA | NA |
+| [Qwen3-Coder-30B-A3B-Instruct](qwen3coder-202609061228/index.html) | llama.cpp | pi-agent | 2026-09-06 12:28 | F | 0 | NA | NA |
+| [MiniMax-M2.7](minimaxm27-202609061312/index.html) | llama.cpp | pi-agent | 2026-09-06 13:12 | F | 0 | NA | NA |
 <!-- index:end -->
 
 `build_index.py` を実行してから commit / push する。
