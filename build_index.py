@@ -8,6 +8,7 @@
 env.yml の例:
     model: claude-opus-5
     model_file:            # ローカルモデルのファイル/タグ
+    params: 30B-A3B        # パラメータ数 (総数-Active)。不明なら空
     provider: anthropic
     harness: claude-code
     date: "2026-09-02 22:18"
@@ -25,6 +26,7 @@ from datetime import datetime
 COLUMNS = [
     ("tier", "tier"),
     ("model", "model"),
+    ("params", "params"),
     ("provider", "provider"),
     ("harness", "harness"),
     ("date", "date"),
@@ -281,6 +283,10 @@ def cell(key, row):
         if sv == "NA":
             return '<td data-sort="-0.5" class="empty">NA</td>'
         return f'<td data-sort="{esc(v)}" class="num">{esc(v)}</td>'
+    if key == "params":
+        if v is None or v == "":
+            return '<td data-sort="-1" class="empty">-</td>'
+        return f'<td data-sort="{params_sort(v)}" class="params">{esc(v)}</td>'
     if key == "size":
         if v is None:
             return '<td data-sort="-1" class="missing">なし</td>'
@@ -290,6 +296,15 @@ def cell(key, row):
     if str(v).upper() == "TODO":
         return f'<td class="todo">{esc(v)}</td>'
     return f"<td>{esc(v)}</td>"
+
+
+def params_sort(v):
+    """'117B-A5B' や '27B' の総パラメータ数 (B 単位) を返す。不明なら -1。"""
+    m = re.match(r"\s*([\d.]+)\s*([BM])", str(v or ""), re.I)
+    if not m:
+        return -1
+    n = float(m.group(1))
+    return n / 1000 if m.group(2).upper() == "M" else n
 
 
 def count_by(rows, key):
@@ -347,12 +362,12 @@ def update_readme(rows, root):
         text = f.read()
     if README_START not in text or README_END not in text:
         return False
-    lines = ["| model | provider | harness | date | tier | rules | effects | sound |", "|---|---|---|---|---|---|---|---|"]
+    lines = ["| model | params | provider | harness | date | tier | rules | effects | sound |", "|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
         name = r.get("model") or r["dir"]
         link = f"[{name}]({r['dir']}/index.html)" if r["has_index"] else f"{name} (index.html なし)"
         sc = " | ".join("-" if r.get(k) is None else str(r.get(k)) for k in SCORE_KEYS)
-        lines.append(f"| {link} | {r.get('provider') or '-'} | {r.get('harness') or '-'} | {r.get('date') or '-'} | {sc} |")
+        lines.append(f"| {link} | {r.get('params') or '-'} | {r.get('provider') or '-'} | {r.get('harness') or '-'} | {r.get('date') or '-'} | {sc} |")
     before = text[: text.index(README_START) + len(README_START)]
     after = text[text.index(README_END):]
     with open(path, "w", encoding="utf-8") as f:
