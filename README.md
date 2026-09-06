@@ -18,7 +18,7 @@ python3 build_index.py
 | [claude-fable-5-1](fable51-202609022125/index.html) | - | anthropic | claude-code | 2026-09-02 21:25 | S | 4 | 4 | 4 |
 | [Qwen3.8-Flash-Next](qwen38flashnext-202609051658/index.html) | 177B-A7B | llama.cpp | pi-agent | 2026-09-05 16:58 | A | 4 | 4 | 3 |
 | [claude-opus-5](opus5-202609022218/index.html) | - | anthropic | claude-code | 2026-09-02 22:18 | A | 4 | 3 | 4 |
-| [claude-sonnet-5](sonnet5-202609022244/index.html) | - | anthropic | claude-code | 2026-09-02 22:44 | A | 4 | 3 | 3 |
+| [claude-sonnet-5](sonnet5-202609022244/index.html) | - | anthropic | claude-code | 2026-09-02 22:44 | A | 4 | 2 | 3 |
 | [gpt-5.5](gpt55-202609032230/index.html) | - | openai | codex | 2026-09-03 22:30 | B | 4 | 3 | 0 |
 | [gemma-4-26B-A4B-it](gemma4-202609022143/index.html) | 26B-A4B | llama.cpp | pi-agent | 2026-09-02 21:43 | B | 4 | 1 | 1 |
 | [deepseek-v4-flash](deepseekv4flash-202609050207/index.html) | 284B-A13B | llama.cpp | pi-agent | 2026-09-05 02:07 | B | 4 | 1 | 0 |
