@@ -13,6 +13,8 @@ env.yml の例:
     harness: claude-code
     date: "2026-09-02 22:18"
     notes: ""
+    score: {tier: A, rules: 4, effects: 3, sound: 3, bugs: "", notes: ""}   # SCORING.md
+    stats: {time: 1073, gen_time: 917, turns: 22, output_tokens: 77287, tps: 84, sessions: 2}  # collect_stats.py
 
 PyYAML があればそれを使い、無ければ内蔵の簡易パーサ (key: value と - リスト) で読む。
 """
@@ -30,8 +32,12 @@ COLUMNS = [
     ("provider", "provider"),
     ("harness", "harness"),
     ("date", "date"),
+    ("time", "time"),
+    ("output_tokens", "out tokens"),
+    ("tps", "tps"),
     ("size", "index.html"),
 ]
+STATS_KEYS = ("time", "gen_time", "turns", "output_tokens", "tps", "sessions")
 
 SCORE_KEYS = ("tier", "rules", "effects", "sound")
 TIER_ORDER = {"S": 5, "A": 4, "B": 3, "C": 2, "F": 1}
@@ -168,12 +174,15 @@ def collect(root):
             row[k] = score.get(k)
         row["bugs"] = score.get("bugs")
         row["score_notes"] = score.get("notes")
+        stats = env.get("stats") if isinstance(env.get("stats"), dict) else {}
+        for k in STATS_KEYS:
+            row[k] = stats.get(k)
         row["dir"] = name
         row["has_env"] = has_env
         row["has_index"] = os.path.isfile(idx)
         row["size"] = os.path.getsize(idx) if row["has_index"] else None
         row["has_idea"] = os.path.isfile(os.path.join(d, "IDEA.md"))
-        row["extra"] = {k: v for k, v in env.items() if k not in row and k != "score"}
+        row["extra"] = {k: v for k, v in env.items() if k not in row and k not in ("score", "stats")}
         if not has_env and not row["has_index"] and not row["has_idea"]:
             continue  # 無関係なディレクトリ
         rows.append(row)
@@ -287,6 +296,17 @@ def cell(key, row):
         if v is None or v == "":
             return '<td data-sort="-1" class="empty">-</td>'
         return f'<td data-sort="{params_sort(v)}" class="params">{esc(v)}</td>'
+    if key in ("time", "output_tokens", "tps"):
+        if v is None or v == "":
+            return '<td data-sort="-1" class="empty">-</td>'
+        n = int(v)
+        if key == "time":
+            gen = row.get("gen_time")
+            tip = f' title="生成時間 {fmt_time(int(gen))} / {row.get("turns") or "?"} 応答"' if gen is not None else ""
+            return f'<td data-sort="{n}" class="num"{tip}>{fmt_time(n)}</td>'
+        if key == "output_tokens":
+            return f'<td data-sort="{n}" class="num">{n / 1000:.1f}k</td>'
+        return f'<td data-sort="{n}" class="num">{n}</td>'
     if key == "size":
         if v is None:
             return '<td data-sort="-1" class="missing">なし</td>'
@@ -296,6 +316,12 @@ def cell(key, row):
     if str(v).upper() == "TODO":
         return f'<td class="todo">{esc(v)}</td>'
     return f"<td>{esc(v)}</td>"
+
+
+def fmt_time(sec):
+    m, s = divmod(int(sec), 60)
+    h, m = divmod(m, 60)
+    return f"{h}h{m:02d}m" if h else f"{m}m{s:02d}s"
 
 
 def params_sort(v):
@@ -362,12 +388,17 @@ def update_readme(rows, root):
         text = f.read()
     if README_START not in text or README_END not in text:
         return False
-    lines = ["| model | params | provider | harness | date | tier | rules | effects | sound |", "|---|---|---|---|---|---|---|---|---|"]
+    lines = ["| model | params | provider | harness | date | time | out tokens | tps | tier | rules | effects | sound |", "|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
         name = r.get("model") or r["dir"]
         link = f"[{name}]({r['dir']}/index.html)" if r["has_index"] else f"{name} (index.html なし)"
         sc = " | ".join("-" if r.get(k) is None else str(r.get(k)) for k in SCORE_KEYS)
-        lines.append(f"| {link} | {r.get('params') or '-'} | {r.get('provider') or '-'} | {r.get('harness') or '-'} | {r.get('date') or '-'} | {sc} |")
+        st = " | ".join([
+            fmt_time(r["time"]) if r.get("time") is not None else "-",
+            f"{int(r['output_tokens']) / 1000:.1f}k" if r.get("output_tokens") is not None else "-",
+            str(r["tps"]) if r.get("tps") is not None else "-",
+        ])
+        lines.append(f"| {link} | {r.get('params') or '-'} | {r.get('provider') or '-'} | {r.get('harness') or '-'} | {r.get('date') or '-'} | {st} | {sc} |")
     before = text[: text.index(README_START) + len(README_START)]
     after = text[text.index(README_END):]
     with open(path, "w", encoding="utf-8") as f:
