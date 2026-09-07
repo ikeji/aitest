@@ -44,27 +44,27 @@ TIER_ORDER = {"S": 5, "A": 4, "B": 3, "C": 2, "F": 1}
 # SCORING.md の各段階の短い説明
 SCORE_LABELS = {
     "rules": {
-        0: "起動しない / 操作できない",
-        1: "致命的バグあり",
-        2: "遊べるが機能の欠落が目立つ",
-        3: "一通り揃うが操作感に違和感",
-        4: "違和感がない",
+        0: "does not start / unplayable",
+        1: "fatal bug",
+        2: "playable but missing features",
+        3: "complete but controls feel off",
+        4: "feels right",
     },
     "effects": {
-        "NA": "評価不能",
-        0: "演出なし",
-        1: "軽く光る程度",
-        2: "はっきり分かる演出",
-        3: "画面が爆発する",
-        4: "10ライン毎に切り替わる",
+        "NA": "not assessable",
+        0: "no effects",
+        1: "slight glow",
+        2: "clearly visible effects",
+        3: "screen explodes",
+        4: "changes every 10 lines",
     },
     "sound": {
-        "NA": "評価不能",
-        0: "無音",
-        1: "効果音はあるが単調",
-        2: "各操作に効果音、消去で変化",
-        3: "BGM あり",
-        4: "BGM と効果音が同期",
+        "NA": "not assessable",
+        0: "silent",
+        1: "sound effects but monotonous",
+        2: "sound per action, varies on clear",
+        3: "has BGM",
+        4: "BGM synced with effects",
     },
 }
 
@@ -268,7 +268,7 @@ def cell(key, row):
         if row["has_index"]:
             label = f'<a href="{esc(row["dir"])}/index.html"><b>{label}</b></a>'
         else:
-            label = f'<b>{label}</b> <span class="missing">(index.html なし)</span>'
+            label = f'<b>{label}</b> <span class="missing">(no index.html)</span>'
         mf = row.get("model_file")
         sub = f'<br><small class="sub">{esc(mf)}</small>' if mf else ""
         notes = row.get("notes")
@@ -302,14 +302,14 @@ def cell(key, row):
         n = int(v)
         if key == "time":
             gen = row.get("gen_time")
-            tip = f' title="生成時間 {fmt_time(int(gen))} / {row.get("turns") or "?"} 応答"' if gen is not None else ""
+            tip = f' title="generation {fmt_time(int(gen))} / {row.get("turns") or "?"} responses"' if gen is not None else ""
             return f'<td data-sort="{n}" class="num"{tip}>{fmt_time(n)}</td>'
         if key == "output_tokens":
             return f'<td data-sort="{n}" class="num">{n / 1000:.1f}k</td>'
         return f'<td data-sort="{n}" class="num">{n}</td>'
     if key == "size":
         if v is None:
-            return '<td data-sort="-1" class="missing">なし</td>'
+            return '<td data-sort="-1" class="missing">none</td>'
         return f'<td data-sort="{v}">{v/1024:.1f} KB</td>'
     if v is None or v == "":
         return '<td class="empty">-</td>'
@@ -350,14 +350,14 @@ def render(rows, root):
         return f'<div class="card"><div class="k">{esc(title)}</div><ul>{lis}</ul></div>'
 
     summary = (
-        f'<div class="card"><div class="k">実行数</div><div class="v">{len(rows)}</div></div>'
+        f'<div class="card"><div class="k">runs</div><div class="v">{len(rows)}</div></div>'
         + card("provider", count_by(rows, "provider"))
         + card("harness", count_by(rows, "harness"))
         + card("tier", sorted(count_by(rows, "tier"), key=lambda kv: -TIER_ORDER.get(str(kv[0]).upper(), 0)))
     )
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     return f"""<!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -366,9 +366,9 @@ def render(rows, root):
 </head>
 <body>
 <h1>aitest index</h1>
-<div class="meta">生成 {now} · <a href="IDEA.md">IDEA.md</a> · <a href="SCORING.md">SCORING.md</a></div>
+<div class="meta">generated {now} · <a href="IDEA.md">IDEA.md</a> · <a href="SCORING.md">SCORING.md</a></div>
 <div class="summary">{summary}</div>
-<input id="filter" type="search" placeholder="絞り込み (model, provider, harness ...)">
+<input id="filter" type="search" placeholder="filter (model, provider, harness ...)">
 <div class="wrap"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>
 <script>{JS}</script>
 </body>
@@ -391,7 +391,7 @@ def update_readme(rows, root):
     lines = ["| model | params | provider | harness | date | time | out tokens | tps | tier | rules | effects | sound |", "|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
         name = r.get("model") or r["dir"]
-        link = f"[{name}]({r['dir']}/index.html)" if r["has_index"] else f"{name} (index.html なし)"
+        link = f"[{name}]({r['dir']}/index.html)" if r["has_index"] else f"{name} (no index.html)"
         sc = " | ".join("-" if r.get(k) is None else str(r.get(k)) for k in SCORE_KEYS)
         st = " | ".join([
             fmt_time(r["time"]) if r.get("time") is not None else "-",

@@ -1,19 +1,19 @@
 # aitest
 
-同じ IDEA.md を複数の LLM に渡して生成させた成果物 (index.html) を集めたベンチ。
+A benchmark that gives the same IDEA.md to many LLMs and collects what they produce (index.html).
 
-- 各ディレクトリ: 1 回の実行。`env.yml` にモデル・provider・harness を記録し、`index.html` が成果物。
-- `build_index.py`: 各 `env.yml` を集計してトップの `index.html` を生成する。
-- `SCORING.md`: 採点基準。
-- `collect_stats.py`: pi-agent / claude-code / codex のセッションログから所要時間・生成トークン数・tps を集めて各 `env.yml` の `stats:` に書く。
-- `gguf_params.py`: GGUF ファイルからパラメータ数 (総数と MoE の Active 推定) を読む。`env.yml` の `params` の確認用。
+- Each directory is one run. `env.yml` records the model, provider, harness, score and stats; `index.html` is the output.
+- `build_index.py`: aggregates every `env.yml` into the top-level `index.html` and the table below.
+- `SCORING.md`: scoring criteria.
+- `collect_stats.py`: reads pi-agent / claude-code / codex session logs and writes elapsed time, output tokens and tps into each `env.yml` under `stats:`.
+- `gguf_params.py`: reads parameter counts (total, and an active-parameter estimate for MoE) from GGUF files. Used to fill in `params` in `env.yml`.
 
 ```
-python3 collect_stats.py   # env.yml の stats: を更新
-python3 build_index.py     # index.html と README の表を再生成
+python3 collect_stats.py   # update stats: in env.yml
+python3 build_index.py     # regenerate index.html and the table in README
 ```
 
-## 成果物
+## Results
 
 <!-- index:start -->
 | model | params | provider | harness | date | time | out tokens | tps | tier | rules | effects | sound |
@@ -44,5 +44,5 @@ python3 build_index.py     # index.html と README の表を再生成
 | [MiniMax-M2.7](minimaxm27-202609061312/index.html) | 230B-A10B | llama.cpp | pi-agent | 2026-09-06 13:12 | 8m49s | 9.1k | 17 | F | 0 | NA | NA |
 <!-- index:end -->
 
-`build_index.py` を実行してから commit / push する。
-GitHub Pages は Settings → Pages → Source を **Deploy from a branch**、Branch を `master` / `/ (root)` にすると `https://<user>.github.io/aitest/` で公開される。
+Run `build_index.py` before committing / pushing.
+For GitHub Pages, set Settings → Pages → Source to **Deploy from a branch** with branch `master` / `/ (root)`; the site is then served at `https://<user>.github.io/aitest/`.
