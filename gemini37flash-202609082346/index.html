@@ -1,0 +1,2508 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CYBER BURST TETRIS - 派手エフェクト・テトリス</title>
+  <style>
+    :root {
+      --bg-dark: #050711;
+      --panel-bg: rgba(13, 17, 34, 0.8);
+      --panel-border: rgba(0, 243, 255, 0.35);
+      --panel-glow: rgba(0, 243, 255, 0.2);
+      --accent-cyan: #00f3ff;
+      --accent-magenta: #ff0077;
+      --accent-yellow: #ffe600;
+      --text-main: #e0f2fe;
+      --text-dim: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #game-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      max-width: 1200px;
+      max-height: 900px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #render-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      image-rendering: auto;
+    }
+
+    /* モバイル・タッチコントローラー */
+    #touch-controls {
+      position: absolute;
+      bottom: 12px;
+      left: 0;
+      width: 100%;
+      display: none;
+      justify-content: space-between;
+      padding: 0 16px;
+      pointer-events: none;
+      z-index: 50;
+    }
+
+    .touch-group {
+      display: grid;
+      gap: 10px;
+      pointer-events: auto;
+    }
+
+    .touch-dpad {
+      grid-template-columns: repeat(3, 56px);
+      grid-template-rows: repeat(2, 56px);
+    }
+
+    .touch-actions {
+      grid-template-columns: repeat(3, 56px);
+      grid-template-rows: repeat(2, 56px);
+    }
+
+    .touch-btn {
+      background: rgba(13, 22, 45, 0.75);
+      border: 1.5px solid var(--accent-cyan);
+      border-radius: 12px;
+      color: #fff;
+      font-size: 18px;
+      font-weight: bold;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0 0 10px rgba(0, 243, 255, 0.25);
+      backdrop-filter: blur(6px);
+      transition: background 0.1s, transform 0.05s;
+    }
+
+    .touch-btn:active, .touch-btn.active {
+      background: rgba(0, 243, 255, 0.4);
+      transform: scale(0.92);
+    }
+
+    .touch-btn.btn-harddrop {
+      border-color: var(--accent-magenta);
+      color: var(--accent-magenta);
+    }
+
+    .touch-btn.btn-hold {
+      border-color: var(--accent-yellow);
+      color: var(--accent-yellow);
+    }
+
+    /* 設定 & オーバーレイモーダル */
+    #start-modal, #gameover-modal, #pause-modal {
+      position: absolute;
+      inset: 0;
+      background: rgba(3, 5, 15, 0.88);
+      backdrop-filter: blur(10px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .modal-active {
+      opacity: 1 !important;
+      pointer-events: auto !important;
+    }
+
+    .modal-box {
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.92));
+      border: 2px solid var(--accent-cyan);
+      border-radius: 20px;
+      padding: 32px 40px;
+      max-width: 500px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 0 50px rgba(0, 243, 255, 0.35), inset 0 0 20px rgba(0, 243, 255, 0.1);
+      animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    @keyframes popIn {
+      from { transform: scale(0.85); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .game-title {
+      font-size: 2.3rem;
+      font-weight: 900;
+      letter-spacing: 2px;
+      background: linear-gradient(90deg, #00f3ff, #ff0077, #ffe600);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      filter: drop-shadow(0 0 10px rgba(0, 243, 255, 0.4));
+    }
+
+    .game-subtitle {
+      color: var(--text-dim);
+      font-size: 0.92rem;
+      margin-bottom: 20px;
+      letter-spacing: 1px;
+    }
+
+    .primary-btn {
+      background: linear-gradient(90deg, #00f3ff, #0099ff);
+      color: #030712;
+      font-size: 1.15rem;
+      font-weight: 900;
+      padding: 14px 40px;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      box-shadow: 0 0 25px rgba(0, 243, 255, 0.6);
+      transition: all 0.2s;
+      display: inline-block;
+      margin-top: 16px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+
+    .primary-btn:hover {
+      transform: translateY(-2px) scale(1.04);
+      box-shadow: 0 0 35px rgba(0, 243, 255, 0.9);
+    }
+
+    .primary-btn:active {
+      transform: translateY(1px) scale(0.98);
+    }
+
+    .key-guide {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 7px 16px;
+      text-align: left;
+      font-size: 0.85rem;
+      color: #cbd5e1;
+      margin: 18px 0;
+      background: rgba(0, 0, 0, 0.45);
+      padding: 14px 18px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .key-badge {
+      background: rgba(255, 255, 255, 0.12);
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-weight: bold;
+      color: var(--accent-cyan);
+      border: 1px solid rgba(0, 243, 255, 0.35);
+      text-align: center;
+    }
+
+    .score-stats {
+      margin: 16px 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stat-value {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    /* クイックコントロールボタン */
+    #quick-controls {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      display: flex;
+      gap: 10px;
+      z-index: 60;
+    }
+
+    .icon-btn {
+      background: rgba(13, 22, 45, 0.85);
+      border: 1px solid rgba(0, 243, 255, 0.4);
+      border-radius: 50%;
+      width: 42px;
+      height: 42px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: var(--accent-cyan);
+      cursor: pointer;
+      font-size: 18px;
+      backdrop-filter: blur(6px);
+      transition: all 0.2s;
+    }
+
+    .icon-btn:hover {
+      background: rgba(0, 243, 255, 0.3);
+      transform: scale(1.08);
+      box-shadow: 0 0 15px rgba(0, 243, 255, 0.5);
+    }
+
+    @media (hover: none) and (pointer: coarse) {
+      #touch-controls {
+        display: flex;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="game-container">
+    <canvas id="render-canvas"></canvas>
+
+    <!-- クイックコントロール -->
+    <div id="quick-controls">
+      <button class="icon-btn" id="btn-sound" title="サウンドON/OFF">🔊</button>
+      <button class="icon-btn" id="btn-pause" title="ポーズ (P/ESC)">⏸️</button>
+    </div>
+
+    <!-- モバイル操作用タッチパッド -->
+    <div id="touch-controls">
+      <div class="touch-group touch-dpad">
+        <div class="touch-btn" id="t-left" style="grid-column: 1; grid-row: 2;">◀</div>
+        <div class="touch-btn" id="t-down" style="grid-column: 2; grid-row: 2;">▼</div>
+        <div class="touch-btn" id="t-right" style="grid-column: 3; grid-row: 2;">▶</div>
+        <div class="touch-btn btn-harddrop" id="t-harddrop" style="grid-column: 2; grid-row: 1;">⚡</div>
+      </div>
+      <div class="touch-group touch-actions">
+        <div class="touch-btn btn-hold" id="t-hold" style="grid-column: 1; grid-row: 1;">H</div>
+        <div class="touch-btn" id="t-rot-ccw" style="grid-column: 2; grid-row: 2;">↺</div>
+        <div class="touch-btn" id="t-rot-cw" style="grid-column: 3; grid-row: 2;">↻</div>
+        <div class="touch-btn" id="t-rot-180" style="grid-column: 3; grid-row: 1;">⟲</div>
+      </div>
+    </div>
+
+    <!-- スタートモーダル -->
+    <div id="start-modal" class="modal-active">
+      <div class="modal-box">
+        <div class="game-title">CYBER BURST</div>
+        <div class="game-subtitle">派手エフェクト・テトリス</div>
+        
+        <div class="key-guide">
+          <span class="key-badge">← / →</span><span>左右移動 (DAS / ARR 高速リピート)</span>
+          <span class="key-badge">↓</span><span>ソフトドロップ (高速落下)</span>
+          <span class="key-badge">Space</span><span>ハードドロップ (即時設置 & 爆発)</span>
+          <span class="key-badge">↑ / X</span><span>右回転 (スーパーローテーション SRS)</span>
+          <span class="key-badge">Z / Ctrl</span><span>左回転</span>
+          <span class="key-badge">A / Q</span><span>180度回転</span>
+          <span class="key-badge">C / Shift</span><span>ホールド</span>
+          <span class="key-badge">P / ESC</span><span>ポーズ</span>
+        </div>
+
+        <button class="primary-btn" id="btn-start">GAME START</button>
+      </div>
+    </div>
+
+    <!-- ポーズモーダル -->
+    <div id="pause-modal">
+      <div class="modal-box">
+        <div class="game-title">PAUSED</div>
+        <div class="game-subtitle">一時停止中</div>
+        <button class="primary-btn" id="btn-resume">RESUME</button>
+      </div>
+    </div>
+
+    <!-- ゲームオーバーモーダル -->
+    <div id="gameover-modal">
+      <div class="modal-box">
+        <div class="game-title" style="background: linear-gradient(90deg, #ff0055, #ff6600); -webkit-background-clip: text;">GAME OVER</div>
+        <div class="game-subtitle">ゲーム終了</div>
+        
+        <div class="score-stats">
+          <div>
+            <div class="stat-label">SCORE</div>
+            <div class="stat-value" id="go-score">0</div>
+          </div>
+          <div>
+            <div class="stat-label">HIGH SCORE</div>
+            <div class="stat-value" id="go-hiscore" style="color: var(--accent-yellow);">0</div>
+          </div>
+          <div>
+            <div class="stat-label">LINES</div>
+            <div class="stat-value" id="go-lines">0</div>
+          </div>
+          <div>
+            <div class="stat-label">MAX COMBO</div>
+            <div class="stat-value" id="go-combo">0</div>
+          </div>
+        </div>
+
+        <button class="primary-btn" id="btn-restart">RETRY</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ==========================================================================
+       1. SOUND & BGM SYNTHESIZER ENGINE (Web Audio API)
+       ========================================================================== */
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.masterGain = null;
+        this.sfxGain = null;
+        this.bgmGain = null;
+        this.isMuted = false;
+        this.tempo = 132;
+        this.bgmStep = 0;
+        this.timerID = null;
+        this.nextNoteTime = 0;
+        this.currentScaleIndex = 0;
+        this.beatCallback = null;
+
+        // 7つのテーマに応じたベースシーケンス & スケール
+        this.bassSequences = [
+          // 0: Cyber Neon (Am - F - C - G)
+          [33, 33, 45, 33,  29, 29, 41, 29,  36, 36, 48, 36,  31, 31, 43, 31],
+          // 1: Inferno Magma (Dm - Bb - C - A)
+          [38, 38, 50, 38,  34, 34, 46, 34,  36, 36, 48, 36,  33, 33, 45, 33],
+          // 2: Cosmic Void (Em - C - G - D)
+          [40, 40, 52, 40,  36, 36, 48, 36,  43, 43, 55, 43,  38, 38, 50, 38],
+          // 3: Glitch Matrix (Fm - Db - Eb - C)
+          [41, 41, 53, 41,  37, 37, 49, 37,  39, 39, 51, 39,  36, 36, 48, 36],
+          // 4: Disco Laser (Gm - Eb - F - Dm)
+          [43, 43, 55, 43,  39, 39, 51, 39,  41, 41, 53, 41,  38, 38, 50, 38],
+          // 5: Quantum Overdrive (Bm - G - A - F#m)
+          [47, 47, 59, 47,  43, 43, 55, 43,  45, 45, 57, 45,  42, 42, 54, 42],
+          // 6: Supernova Cataclysm (Cm - Ab - Bb - G)
+          [36, 48, 36, 48,  32, 44, 32, 44,  34, 46, 34, 46,  31, 43, 31, 43]
+        ];
+
+        this.leadScales = [
+          [57, 60, 62, 64, 67, 69, 72, 74], // Am
+          [62, 65, 67, 69, 72, 74, 77, 79], // Dm
+          [64, 67, 69, 71, 74, 76, 79, 81], // Em
+          [65, 68, 70, 72, 75, 77, 80, 82], // Fm
+          [67, 70, 72, 74, 77, 79, 82, 84], // Gm
+          [71, 74, 76, 78, 81, 83, 86, 88], // Bm
+          [60, 63, 65, 67, 70, 72, 75, 77]  // Cm
+        ];
+      }
+
+      init() {
+        if (this.ctx) return;
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        this.ctx = new AudioContext();
+        
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.setValueAtTime(0.7, this.ctx.currentTime);
+        this.masterGain.connect(this.ctx.destination);
+
+        this.sfxGain = this.ctx.createGain();
+        this.sfxGain.gain.setValueAtTime(0.75, this.ctx.currentTime);
+        this.sfxGain.connect(this.masterGain);
+
+        this.bgmGain = this.ctx.createGain();
+        this.bgmGain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+        this.bgmGain.connect(this.masterGain);
+      }
+
+      toggleMute() {
+        if (!this.ctx) this.init();
+        this.isMuted = !this.isMuted;
+        if (this.masterGain) {
+          this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : 0.7, this.ctx.currentTime);
+        }
+        return this.isMuted;
+      }
+
+      mToFreq(m) {
+        return 440 * Math.pow(2, (m - 69) / 12);
+      }
+
+      // --- 効果音 (SFX) ---
+      playMove() {
+        if (this.isMuted || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(480, t);
+        osc.frequency.exponentialRampToValueAtTime(960, t + 0.04);
+        gain.gain.setValueAtTime(0.12, t);
+        gain.gain.linearRampToValueAtTime(0, t + 0.04);
+        osc.connect(gain);
+        gain.connect(this.sfxGain);
+        osc.start(t);
+        osc.stop(t + 0.04);
+      }
+
+      playRotate() {
+        if (this.isMuted || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(560, t);
+        osc.frequency.exponentialRampToValueAtTime(1120, t + 0.06);
+        gain.gain.setValueAtTime(0.15, t);
+        gain.gain.linearRampToValueAtTime(0, t + 0.06);
+        osc.connect(gain);
+        gain.connect(this.sfxGain);
+        osc.start(t);
+        osc.stop(t + 0.06);
+      }
+
+      playHardDrop() {
+        if (this.isMuted || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        // Sub bass kick
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(180, t);
+        osc.frequency.exponentialRampToValueAtTime(30, t + 0.16);
+        gain.gain.setValueAtTime(0.45, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+        osc.connect(gain);
+        gain.connect(this.sfxGain);
+        osc.start(t);
+        osc.stop(t + 0.16);
+
+        // Click snap noise
+        const noise = this.ctx.createBufferSource();
+        const buf = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.03, this.ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        noise.buffer = buf;
+        const nGain = this.ctx.createGain();
+        nGain.gain.setValueAtTime(0.28, t);
+        nGain.gain.linearRampToValueAtTime(0, t + 0.03);
+        noise.connect(nGain);
+        nGain.connect(this.sfxGain);
+        noise.start(t);
+      }
+
+      playHold() {
+        if (this.isMuted || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        [659.25, 880].forEach((freq, i) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, t + i * 0.04);
+          gain.gain.setValueAtTime(0.18, t + i * 0.04);
+          gain.gain.linearRampToValueAtTime(0, t + i * 0.04 + 0.12);
+          osc.connect(gain);
+          gain.connect(this.sfxGain);
+          osc.start(t + i * 0.04);
+          osc.stop(t + i * 0.04 + 0.12);
+        });
+      }
+
+      playLock() {
+        if (this.isMuted || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(220, t);
+        osc.frequency.exponentialRampToValueAtTime(60, t + 0.05);
+        gain.gain.setValueAtTime(0.2, t);
+        gain.gain.linearRampToValueAtTime(0, t + 0.05);
+        osc.connect(gain);
+        gain.connect(this.sfxGain);
+        osc.start(t);
+        osc.stop(t + 0.05);
+      }
+
+      playLineClear(lines, isTspin = false, isB2B = false) {
+        if (this.isMuted || !this.ctx) return;
+        const t = this.ctx.currentTime;
+
+        if (isTspin) {
+          // SF warp synth sweep
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(300, t);
+          osc.frequency.exponentialRampToValueAtTime(1400, t + 0.25);
+          osc.frequency.exponentialRampToValueAtTime(450, t + 0.45);
+          gain.gain.setValueAtTime(0.28, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+          osc.connect(gain);
+          gain.connect(this.sfxGain);
+          osc.start(t);
+          osc.stop(t + 0.5);
+        }
+
+        if (lines === 4) {
+          // TETRIS: Massive fanfare chords & sub blast
+          const freqs = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50];
+          freqs.forEach((f, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(f, t + i * 0.035);
+            gain.gain.setValueAtTime(0.2, t + i * 0.035);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.65);
+            osc.connect(gain);
+            gain.connect(this.sfxGain);
+            osc.start(t + i * 0.035);
+            osc.stop(t + 0.65);
+          });
+          // Explosion boom
+          const oscB = this.ctx.createOscillator();
+          const gainB = this.ctx.createGain();
+          oscB.type = 'triangle';
+          oscB.frequency.setValueAtTime(240, t);
+          oscB.frequency.exponentialRampToValueAtTime(30, t + 0.5);
+          gainB.gain.setValueAtTime(0.55, t);
+          gainB.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+          oscB.connect(gainB);
+          gainB.connect(this.sfxGain);
+          oscB.start(t);
+          oscB.stop(t + 0.5);
+        } else {
+          // 1-3 lines arpeggio
+          const chord = lines === 1 ? [523.25, 659.25] : lines === 2 ? [523.25, 659.25, 783.99] : [523.25, 659.25, 783.99, 1046.50];
+          chord.forEach((f, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(f, t + i * 0.05);
+            gain.gain.setValueAtTime(0.22, t + i * 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
+            osc.connect(gain);
+            gain.connect(this.sfxGain);
+            osc.start(t + i * 0.05);
+            osc.stop(t + 0.38);
+          });
+        }
+      }
+
+      playCombo(comboCount) {
+        if (this.isMuted || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        const scale = [523.25, 587.33, 659.25, 698.46, 783.99, 880.00, 987.77, 1046.50, 1174.66, 1318.51, 1567.98];
+        const pitch = scale[Math.min(comboCount - 1, scale.length - 1)];
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(pitch, t);
+        osc.frequency.exponentialRampToValueAtTime(pitch * 1.25, t + 0.12);
+        gain.gain.setValueAtTime(0.28, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+        osc.connect(gain);
+        gain.connect(this.sfxGain);
+        osc.start(t);
+        osc.stop(t + 0.18);
+      }
+
+      playPerfectClear() {
+        if (this.isMuted || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98, 2093.00];
+        notes.forEach((f, i) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(f, t + i * 0.06);
+          gain.gain.setValueAtTime(0.3, t + i * 0.06);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.06 + 0.6);
+          osc.connect(gain);
+          gain.connect(this.sfxGain);
+          osc.start(t + i * 0.06);
+          osc.stop(t + i * 0.06 + 0.6);
+        });
+      }
+
+      playLevelUp() {
+        if (this.isMuted || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        const notes = [440, 554.37, 659.25, 880, 1108.73, 1318.51];
+        notes.forEach((f, i) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(f, t + i * 0.05);
+          gain.gain.setValueAtTime(0.22, t + i * 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+          osc.connect(gain);
+          gain.connect(this.sfxGain);
+          osc.start(t + i * 0.05);
+          osc.stop(t + 0.5);
+        });
+      }
+
+      playGameOver() {
+        if (this.isMuted || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(320, t);
+        osc.frequency.exponentialRampToValueAtTime(40, t + 0.8);
+        gain.gain.setValueAtTime(0.4, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+        osc.connect(gain);
+        gain.connect(this.sfxGain);
+        osc.start(t);
+        osc.stop(t + 0.9);
+      }
+
+      // --- プロシージャル BGM シーケンサー ---
+      startBGM(themeIndex = 0) {
+        if (!this.ctx) this.init();
+        this.stopBGM();
+        this.currentScaleIndex = themeIndex % this.bassSequences.length;
+        this.nextNoteTime = this.ctx.currentTime + 0.05;
+        this.bgmStep = 0;
+        this.scheduler();
+      }
+
+      stopBGM() {
+        if (this.timerID) {
+          clearTimeout(this.timerID);
+          this.timerID = null;
+        }
+      }
+
+      setBGMTheme(themeIndex, level) {
+        this.currentScaleIndex = themeIndex % this.bassSequences.length;
+        this.tempo = Math.min(132 + (level - 1) * 4, 180);
+      }
+
+      scheduler() {
+        while (this.nextNoteTime < this.ctx.currentTime + 0.1) {
+          this.playBGMStep(this.nextNoteTime, this.bgmStep);
+          const secondsPerStep = 60.0 / this.tempo / 4; // 16th note
+          this.nextNoteTime += secondsPerStep;
+          this.bgmStep = (this.bgmStep + 1) % 16;
+        }
+        this.timerID = setTimeout(() => this.scheduler(), 25);
+      }
+
+      playBGMStep(time, step) {
+        if (this.isMuted) return;
+
+        // 4つ打ちキックドラム (Beat 0, 4, 8, 12)
+        if (step % 4 === 0) {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(140, time);
+          osc.frequency.exponentialRampToValueAtTime(45, time + 0.09);
+          gain.gain.setValueAtTime(0.36, time);
+          gain.gain.exponentialRampToValueAtTime(0.001, time + 0.09);
+          osc.connect(gain);
+          gain.connect(this.bgmGain);
+          osc.start(time);
+          osc.stop(time + 0.09);
+
+          if (this.beatCallback) {
+            setTimeout(() => this.beatCallback(step), Math.max(0, (time - this.ctx.currentTime) * 1000));
+          }
+        }
+
+        // スネア / クラップ (Beat 4, 12)
+        if (step === 4 || step === 12) {
+          const buf = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.08, this.ctx.sampleRate);
+          const data = buf.getChannelData(0);
+          for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+          const noise = this.ctx.createBufferSource();
+          noise.buffer = buf;
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.setValueAtTime(1800, time);
+          const gain = this.ctx.createGain();
+          gain.gain.setValueAtTime(0.22, time);
+          gain.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
+          noise.connect(filter);
+          filter.connect(gain);
+          gain.connect(this.bgmGain);
+          noise.start(time);
+        }
+
+        // クローズド・ハイハット (毎偶数ステップ)
+        if (step % 2 === 0) {
+          const buf = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.02, this.ctx.sampleRate);
+          const data = buf.getChannelData(0);
+          for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+          const noise = this.ctx.createBufferSource();
+          noise.buffer = buf;
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'highpass';
+          filter.frequency.setValueAtTime(8000, time);
+          const gain = this.ctx.createGain();
+          gain.gain.setValueAtTime(step % 4 === 2 ? 0.09 : 0.05, time);
+          gain.gain.linearRampToValueAtTime(0, time + 0.02);
+          noise.connect(filter);
+          filter.connect(gain);
+          gain.connect(this.bgmGain);
+          noise.start(time);
+        }
+
+        // シンセベース
+        const seq = this.bassSequences[this.currentScaleIndex];
+        const midi = seq[step];
+        if (midi) {
+          const freq = this.mToFreq(midi);
+          const osc = this.ctx.createOscillator();
+          const filter = this.ctx.createBiquadFilter();
+          const gain = this.ctx.createGain();
+
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(freq, time);
+
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(850, time);
+          filter.frequency.exponentialRampToValueAtTime(180, time + 0.12);
+
+          gain.gain.setValueAtTime(0.24, time);
+          gain.gain.exponentialRampToValueAtTime(0.001, time + 0.13);
+
+          osc.connect(filter);
+          filter.connect(gain);
+          gain.connect(this.bgmGain);
+          osc.start(time);
+          osc.stop(time + 0.13);
+        }
+
+        // アルペジオメロディ
+        if (step % 2 === 1 || (step % 4 === 3)) {
+          const scale = this.leadScales[this.currentScaleIndex];
+          const noteIndex = (step * 3 + this.currentScaleIndex * 2) % scale.length;
+          const freq = this.mToFreq(scale[noteIndex]);
+
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, time);
+          gain.gain.setValueAtTime(0.09, time);
+          gain.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
+
+          osc.connect(gain);
+          gain.connect(this.bgmGain);
+          osc.start(time);
+          osc.stop(time + 0.1);
+        }
+      }
+    }
+
+    /* ==========================================================================
+       2. TETRIS CONSTANTS & SRS DATA (Tetris Guideline Standard)
+       ========================================================================== */
+    const COLS = 10;
+    const ROWS = 20;
+    const BUFFER_ROWS = 4;
+    const TOTAL_ROWS = ROWS + BUFFER_ROWS;
+
+    // ミノ定義 (0: 空, 1: I, 2: J, 3: L, 4: O, 5: S, 6: T, 7: Z)
+    const SHAPES = {
+      1: [ // I
+        [0,0,0,0],
+        [1,1,1,1],
+        [0,0,0,0],
+        [0,0,0,0]
+      ],
+      2: [ // J
+        [1,0,0],
+        [1,1,1],
+        [0,0,0]
+      ],
+      3: [ // L
+        [0,0,1],
+        [1,1,1],
+        [0,0,0]
+      ],
+      4: [ // O
+        [1,1],
+        [1,1]
+      ],
+      5: [ // S
+        [0,1,1],
+        [1,1,0],
+        [0,0,0]
+      ],
+      6: [ // T
+        [0,1,0],
+        [1,1,1],
+        [0,0,0]
+      ],
+      7: [ // Z
+        [1,1,0],
+        [0,1,1],
+        [0,0,0]
+      ]
+    };
+
+    const PIECE_COLORS = {
+      1: { main: '#00f3ff', glow: '#00f3ff', light: '#bdfaff', dark: '#00838f' }, // I: Cyan
+      2: { main: '#0055ff', glow: '#3377ff', light: '#99bbff', dark: '#002299' }, // J: Blue
+      3: { main: '#ffaa00', glow: '#ffbb33', light: '#ffe099', dark: '#b35500' }, // L: Orange
+      4: { main: '#ffe600', glow: '#ffee44', light: '#fff9aa', dark: '#998800' }, // O: Yellow
+      5: { main: '#00ff66', glow: '#33ff88', light: '#b3ffcc', dark: '#009933' }, // S: Green
+      6: { main: '#cc00ff', glow: '#dd33ff', light: '#f099ff', dark: '#770099' }, // T: Purple
+      7: { main: '#ff1144', glow: '#ff4466', light: '#ff99aa', dark: '#990022' }  // Z: Red
+    };
+
+    // SRS 壁キックテーブル (J, L, S, T, Z 用)
+    const WALL_KICKS_JLSTZ = {
+      '0->1': [[0,0], [-1,0], [-1,1], [0,-2], [-1,-2]],
+      '1->0': [[0,0], [1,0], [1,-1], [0,2], [1,2]],
+      '1->2': [[0,0], [1,0], [1,-1], [0,2], [1,2]],
+      '2->1': [[0,0], [-1,0], [-1,1], [0,-2], [-1,-2]],
+      '2->3': [[0,0], [1,0], [1,1], [0,-2], [1,-2]],
+      '3->2': [[0,0], [-1,0], [-1,-1], [0,2], [-1,2]],
+      '3->0': [[0,0], [-1,0], [-1,-1], [0,2], [-1,2]],
+      '0->3': [[0,0], [1,0], [1,1], [0,-2], [1,-2]]
+    };
+
+    // SRS 壁キックテーブル (I ミノ用)
+    const WALL_KICKS_I = {
+      '0->1': [[0,0], [-2,0], [1,0], [-2,-1], [1,2]],
+      '1->0': [[0,0], [2,0], [-1,0], [2,1], [-1,-2]],
+      '1->2': [[0,0], [-1,0], [2,0], [-1,2], [2,-1]],
+      '2->1': [[0,0], [1,0], [-2,0], [1,-2], [-2,1]],
+      '2->3': [[0,0], [2,0], [-1,0], [2,1], [-1,-2]],
+      '3->2': [[0,0], [-2,0], [1,0], [-2,-1], [1,2]],
+      '3->0': [[0,0], [1,0], [-2,0], [1,-2], [-2,1]],
+      '0->3': [[0,0], [-1,0], [2,0], [-1,2], [2,-1]]
+    };
+
+    // テーマ設定 (10ライン毎に切り替わり、進むほどエフェクトが賑やかに進化)
+    const THEMES = [
+      {
+        id: 0,
+        name: 'CYBER NEON',
+        sub: 'ネオン・グリッド',
+        bgGradient: ['#040714', '#08112e', '#03050c'],
+        accent: '#00f3ff',
+        particlePalette: ['#00f3ff', '#0099ff', '#ff0077', '#ffffff']
+      },
+      {
+        id: 1,
+        name: 'INFERNO MAGMA',
+        sub: '紅蓮・火炎爆発',
+        bgGradient: ['#160404', '#2d0909', '#0d0202'],
+        accent: '#ff3700',
+        particlePalette: ['#ff1100', '#ff6600', '#ffe600', '#ffeedd']
+      },
+      {
+        id: 2,
+        name: 'COSMIC VOID',
+        sub: '超銀河・星雲オーロラ',
+        bgGradient: ['#0b0416', '#1a0d33', '#05020a'],
+        accent: '#a855f7',
+        particlePalette: ['#c084fc', '#e879f9', '#38bdf8', '#ffffff']
+      },
+      {
+        id: 3,
+        name: 'GLITCH MATRIX',
+        sub: '電脳・サイバーグリッチ',
+        bgGradient: ['#021207', '#062612', '#010a04'],
+        accent: '#22c55e',
+        particlePalette: ['#4ade80', '#86efac', '#a3e635', '#ffffff']
+      },
+      {
+        id: 4,
+        name: 'DISCO LASER',
+        sub: 'プリズム・ディスコ光線',
+        bgGradient: ['#160519', '#2f0b36', '#09020a'],
+        accent: '#ec4899',
+        particlePalette: ['#f43f5e', '#a855f7', '#06b6d4', '#fbbf24']
+      },
+      {
+        id: 5,
+        name: 'QUANTUM OVERDRIVE',
+        sub: '時空跳躍・ハイパードライブ',
+        bgGradient: ['#03161c', '#062d3a', '#020b0e'],
+        accent: '#06b6d4',
+        particlePalette: ['#22d3ee', '#67e8f9', '#facc15', '#ffffff']
+      },
+      {
+        id: 6,
+        name: 'SUPERNOVA CATACLYSM',
+        sub: '超新星・極限カオス',
+        bgGradient: ['#1a0b02', '#381604', '#0d0501'],
+        accent: '#f97316',
+        particlePalette: ['#fb923c', '#f43f5e', '#a855f7', '#38bdf8', '#facc15', '#ffffff']
+      }
+    ];
+
+    /* ==========================================================================
+       3. FX & PARTICLE ENGINE (ド派手エフェクト & 環境パーティクル)
+       ========================================================================== */
+    class FXEngine {
+      constructor() {
+        this.particles = [];
+        this.shockwaves = [];
+        this.beams = [];
+        this.floatingTexts = [];
+        this.ambientParticles = []; // テーマ別常時エフェクト
+        this.screenShake = 0;
+        this.shakeDecay = 0.9;
+        this.flashAlpha = 0;
+        this.flashColor = '#ffffff';
+        this.hitStopFrames = 0;
+        this.themePulse = 0;
+
+        // 環境パーティクル初期化
+        for (let i = 0; i < 100; i++) {
+          this.ambientParticles.push({
+            x: Math.random() * 800,
+            y: Math.random() * 800,
+            vx: (Math.random() - 0.5) * 1.5,
+            vy: -0.5 - Math.random() * 2,
+            size: 1 + Math.random() * 3,
+            color: '#00f3ff',
+            alpha: 0.2 + Math.random() * 0.6,
+            life: Math.random(),
+            decay: 0.005 + Math.random() * 0.01,
+            char: String.fromCharCode(0x30A0 + Math.floor(Math.random() * 96)) // マトリックス用カタカナ
+          });
+        }
+      }
+
+      update(themeId) {
+        if (this.hitStopFrames > 0) {
+          this.hitStopFrames--;
+          return;
+        }
+
+        // Screen shake
+        if (this.screenShake > 0.1) {
+          this.screenShake *= this.shakeDecay;
+        } else {
+          this.screenShake = 0;
+        }
+
+        // Flash alpha
+        if (this.flashAlpha > 0.01) {
+          this.flashAlpha *= 0.88;
+        } else {
+          this.flashAlpha = 0;
+        }
+
+        // Theme beat pulse decay
+        if (this.themePulse > 0.01) {
+          this.themePulse *= 0.92;
+        } else {
+          this.themePulse = 0;
+        }
+
+        // 環境パーティクル更新（テーマごとに異なる挙動）
+        const theme = THEMES[themeId % THEMES.length];
+        for (let i = 0; i < this.ambientParticles.length; i++) {
+          const ap = this.ambientParticles[i];
+          ap.life -= ap.decay;
+          
+          if (themeId === 1) {
+            // マグマ: 炎と火の粉が勢いよく上昇
+            ap.y += ap.vy * 1.8;
+            ap.x += Math.sin(ap.life * 10) * 1.2;
+          } else if (themeId === 2) {
+            // コズミック: 斜め流星
+            ap.x += 2.5;
+            ap.y += 1.8;
+          } else if (themeId === 3) {
+            // マトリックス: 上からコード雨
+            ap.y += 4.5;
+          } else if (themeId === 4) {
+            // ディスコ: 旋回
+            ap.x += Math.cos(ap.life * 8) * 3;
+            ap.y += Math.sin(ap.life * 8) * 3;
+          } else if (themeId === 5) {
+            // クォンタム: 光速ワープ
+            ap.x += (ap.x - 400) * 0.05;
+            ap.y += (ap.y - 400) * 0.05;
+          } else if (themeId >= 6) {
+            // スーパーノヴァ: カオス爆発
+            ap.x += ap.vx * 3;
+            ap.y += ap.vy * 3;
+          } else {
+            // サイバーネオン: ゆったり浮遊
+            ap.y += ap.vy * 0.8;
+            ap.x += ap.vx * 0.5;
+          }
+
+          if (ap.life <= 0 || ap.x < -50 || ap.x > 850 || ap.y < -50 || ap.y > 850) {
+            ap.x = Math.random() * 800;
+            ap.y = themeId === 3 ? -10 : themeId === 1 ? 810 : Math.random() * 800;
+            ap.life = 1.0;
+            ap.color = theme.particlePalette[Math.floor(Math.random() * theme.particlePalette.length)];
+            ap.size = (1 + Math.random() * (2 + themeId * 0.6));
+          }
+        }
+
+        // Update explosion particles
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+          const p = this.particles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vx *= p.drag;
+          p.vy *= p.drag;
+          p.vy += p.gravity;
+          p.rot += p.vRot;
+          p.life -= p.decay;
+          if (p.life <= 0) {
+            this.particles.splice(i, 1);
+          }
+        }
+
+        // Update shockwaves
+        for (let i = this.shockwaves.length - 1; i >= 0; i--) {
+          const sw = this.shockwaves[i];
+          sw.radius += sw.speed;
+          sw.speed *= 0.96;
+          sw.life -= sw.decay;
+          if (sw.life <= 0) {
+            this.shockwaves.splice(i, 1);
+          }
+        }
+
+        // Update beams
+        for (let i = this.beams.length - 1; i >= 0; i--) {
+          const b = this.beams[i];
+          b.life -= b.decay;
+          b.height *= 0.94;
+          if (b.life <= 0) {
+            this.beams.splice(i, 1);
+          }
+        }
+
+        // Update floating texts
+        for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
+          const ft = this.floatingTexts[i];
+          ft.y += ft.vy;
+          ft.vy *= 0.92;
+          ft.scale += (ft.targetScale - ft.scale) * 0.2;
+          ft.life -= ft.decay;
+          if (ft.life <= 0) {
+            this.floatingTexts.splice(i, 1);
+          }
+        }
+      }
+
+      shake(strength) {
+        this.screenShake = Math.min(this.screenShake + strength, 40);
+      }
+
+      flash(color = '#ffffff', alpha = 0.5) {
+        this.flashColor = color;
+        this.flashAlpha = alpha;
+      }
+
+      pulse() {
+        this.themePulse = 1.0;
+      }
+
+      hitStop(frames = 4) {
+        this.hitStopFrames = frames;
+      }
+
+      // ブロック破片爆発
+      explodeBlock(x, y, color, count = 12) {
+        for (let i = 0; i < count; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 2 + Math.random() * 9;
+          this.particles.push({
+            x: x,
+            y: y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            drag: 0.96,
+            gravity: 0.15,
+            size: 3 + Math.random() * 7,
+            color: color,
+            life: 1.0,
+            decay: 0.015 + Math.random() * 0.02,
+            rot: Math.random() * Math.PI * 2,
+            vRot: (Math.random() - 0.5) * 0.3,
+            shape: Math.random() > 0.4 ? 'rect' : 'circle'
+          });
+        }
+      }
+
+      // ライン消去時の大爆発
+      createLineClearFX(lineIndex, rowY, boardLeft, boardWidth, theme, isTetris = false) {
+        const pCount = isTetris ? 140 : 70;
+        const palette = theme.particlePalette;
+
+        // 水平レーザービーム
+        this.beams.push({
+          y: rowY,
+          left: boardLeft - 200,
+          right: boardLeft + boardWidth + 200,
+          height: isTetris ? 48 : 26,
+          color: theme.accent,
+          life: 1.0,
+          decay: 0.038
+        });
+
+        // 衝撃波リング
+        this.shockwaves.push({
+          x: boardLeft + boardWidth / 2,
+          y: rowY,
+          radius: 10,
+          maxRadius: boardWidth * 1.6,
+          speed: isTetris ? 26 : 17,
+          color: theme.accent,
+          life: 1.0,
+          decay: 0.032,
+          lineWidth: isTetris ? 9 : 5
+        });
+
+        // スプラッシュ破片パーティクル
+        for (let i = 0; i < pCount; i++) {
+          const px = boardLeft + Math.random() * boardWidth;
+          const py = rowY + (Math.random() - 0.5) * 22;
+          const angle = (Math.random() - 0.5) * Math.PI * 2;
+          const speed = (isTetris ? 4 : 2) + Math.random() * (isTetris ? 18 : 10);
+          const col = palette[Math.floor(Math.random() * palette.length)];
+
+          this.particles.push({
+            x: px,
+            y: py,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            drag: 0.94,
+            gravity: 0.1,
+            size: (isTetris ? 4 : 2.5) + Math.random() * 7,
+            color: col,
+            life: 1.0,
+            decay: 0.012 + Math.random() * 0.02,
+            rot: Math.random() * Math.PI * 2,
+            vRot: (Math.random() - 0.5) * 0.4,
+            shape: Math.random() > 0.3 ? 'rect' : 'spark'
+          });
+        }
+      }
+
+      // フローティングテキスト生成 (TETRIS! / T-SPIN! / COMBO!)
+      addFloatingText(text, x, y, color = '#00f3ff', size = 32, subtext = '') {
+        this.floatingTexts.push({
+          text: text,
+          subtext: subtext,
+          x: x,
+          y: y,
+          vy: -3.6,
+          scale: 0.2,
+          targetScale: 1.0,
+          color: color,
+          size: size,
+          life: 1.0,
+          decay: 0.018
+        });
+      }
+
+      renderAmbient(ctx, themeId) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const ap of this.ambientParticles) {
+          ctx.fillStyle = ap.color;
+          ctx.globalAlpha = ap.life * ap.alpha * (0.8 + this.themePulse * 0.6);
+          if (themeId === 3) {
+            ctx.font = '10px monospace';
+            ctx.fillText(ap.char, ap.x, ap.y);
+          } else {
+            ctx.beginPath();
+            ctx.arc(ap.x, ap.y, ap.size, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        ctx.restore();
+      }
+
+      render(ctx) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+
+        // 1. レーザービーム描画
+        for (const b of this.beams) {
+          const alpha = Math.max(0, b.life);
+          ctx.fillStyle = b.color;
+          ctx.globalAlpha = alpha * 0.85;
+          ctx.fillRect(b.left, b.y - b.height / 2, b.right - b.left, b.height);
+
+          // 中央コア白光
+          ctx.fillStyle = '#ffffff';
+          ctx.globalAlpha = alpha;
+          ctx.fillRect(b.left, b.y - b.height / 5, b.right - b.left, b.height / 2.5);
+        }
+
+        // 2. 衝撃波リング描画
+        for (const sw of this.shockwaves) {
+          const alpha = Math.max(0, sw.life);
+          ctx.strokeStyle = sw.color;
+          ctx.lineWidth = sw.lineWidth * alpha;
+          ctx.globalAlpha = alpha * 0.95;
+          ctx.beginPath();
+          ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        // 3. パーティクル描画
+        for (const p of this.particles) {
+          const alpha = Math.max(0, p.life);
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = alpha;
+
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rot);
+
+          if (p.shape === 'rect') {
+            ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+          } else if (p.shape === 'spark') {
+            ctx.beginPath();
+            ctx.moveTo(0, -p.size * 1.5);
+            ctx.lineTo(p.size * 0.4, 0);
+            ctx.lineTo(0, p.size * 1.5);
+            ctx.lineTo(-p.size * 0.4, 0);
+            ctx.closePath();
+            ctx.fill();
+          } else {
+            ctx.beginPath();
+            ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+
+        // 4. フローティングテキスト描画
+        ctx.globalCompositeOperation = 'source-over';
+        for (const ft of this.floatingTexts) {
+          const alpha = Math.max(0, ft.life);
+          ctx.save();
+          ctx.translate(ft.x, ft.y);
+          ctx.scale(ft.scale, ft.scale);
+          ctx.globalAlpha = alpha;
+
+          // メインテキスト
+          ctx.font = `900 ${ft.size}px 'Segoe UI', sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+
+          // テキストグロー影
+          ctx.shadowColor = ft.color;
+          ctx.shadowBlur = 22;
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(ft.text, 0, 0);
+
+          ctx.shadowBlur = 0;
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = ft.color;
+          ctx.strokeText(ft.text, 0, 0);
+
+          // サブテキスト (BACK-TO-BACK等)
+          if (ft.subtext) {
+            ctx.font = `800 ${Math.floor(ft.size * 0.45)}px 'Segoe UI', sans-serif`;
+            ctx.fillStyle = '#ffe600';
+            ctx.fillText(ft.subtext, 0, ft.size * 0.75);
+          }
+          ctx.restore();
+        }
+
+        ctx.restore();
+
+        // 5. フラッシュ効果
+        if (this.flashAlpha > 0.01) {
+          ctx.save();
+          ctx.fillStyle = this.flashColor;
+          ctx.globalAlpha = this.flashAlpha;
+          ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+          ctx.restore();
+        }
+      }
+    }
+
+    /* ==========================================================================
+       4. TETRIS CORE ENGINE (7-Bag, SRS, T-Spin, Scoring, Combo, B2B)
+       ========================================================================== */
+    class TetrisGame {
+      constructor(sound, fx) {
+        this.sound = sound;
+        this.fx = fx;
+
+        this.grid = this.createGrid();
+        this.bag = [];
+        this.nextPieces = [];
+        this.holdPiece = null;
+        this.canHold = true;
+
+        this.currentPiece = null;
+        this.pieceX = 0;
+        this.pieceY = 0;
+        this.rotation = 0; // 0: 0, 1: R, 2: 2, 3: L
+
+        // ガイドライン仕様
+        this.score = 0;
+        this.highScore = parseInt(localStorage.getItem('cyber_burst_hiscore') || '0', 10);
+        this.lines = 0;
+        this.level = 1;
+        this.combo = -1;
+        this.b2b = false;
+        this.maxCombo = 0;
+
+        // タイマー & 状態
+        this.dropTimer = 0;
+        this.lockTimer = 0;
+        this.lockDelay = 30; // 30 frames (0.5s at 60fps)
+        this.isLocking = false;
+        this.lockResets = 0;
+        this.maxLockResets = 15;
+
+        this.lastActionWasRotate = false;
+        this.lastKickIndex = 0;
+        this.isTSpin = false;
+        this.isTSpinMini = false;
+
+        this.gameOver = false;
+        this.isPaused = false;
+        this.isRunning = false;
+
+        // キー入力 DAS/ARR 管理
+        this.keys = {
+          left: { pressed: false, das: 0 },
+          right: { pressed: false, das: 0 },
+          down: { pressed: false }
+        };
+        this.DAS_DELAY = 10; // ~160ms
+        this.ARR_RATE = 2;   // ~33ms
+
+        // 背景スター
+        this.stars = [];
+        for (let i = 0; i < 90; i++) {
+          this.stars.push({
+            x: Math.random() * 800,
+            y: Math.random() * 800,
+            size: 0.5 + Math.random() * 2,
+            speed: 0.2 + Math.random() * 0.8,
+            alpha: 0.2 + Math.random() * 0.8
+          });
+        }
+      }
+
+      createGrid() {
+        const g = [];
+        for (let r = 0; r < TOTAL_ROWS; r++) {
+          g.push(new Array(COLS).fill(0));
+        }
+        return g;
+      }
+
+      start() {
+        this.grid = this.createGrid();
+        this.score = 0;
+        this.lines = 0;
+        this.level = 1;
+        this.combo = -1;
+        this.b2b = false;
+        this.maxCombo = 0;
+        this.gameOver = false;
+        this.isPaused = false;
+        this.isRunning = true;
+        this.holdPiece = null;
+        this.canHold = true;
+
+        this.bag = [];
+        this.nextPieces = [];
+        for (let i = 0; i < 6; i++) {
+          this.nextPieces.push(this.drawFromBag());
+        }
+
+        this.spawnPiece();
+        this.sound.startBGM(0);
+      }
+
+      restart() {
+        this.start();
+      }
+
+      drawFromBag() {
+        if (this.bag.length === 0) {
+          this.bag = [1, 2, 3, 4, 5, 6, 7];
+          // Fisher-Yates shuffle
+          for (let i = this.bag.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [this.bag[i], this.bag[j]] = [this.bag[j], this.bag[i]];
+          }
+        }
+        return this.bag.pop();
+      }
+
+      getDropInterval() {
+        // テトリス標準重力式
+        const g = Math.pow(0.8 - ((this.level - 1) * 0.007), this.level - 1);
+        return Math.max(2, Math.floor(g * 60));
+      }
+
+      spawnPiece() {
+        this.currentPiece = this.nextPieces.shift();
+        this.nextPieces.push(this.drawFromBag());
+        this.rotation = 0;
+        this.canHold = true;
+        this.isLocking = false;
+        this.lockTimer = 0;
+        this.lockResets = 0;
+        this.lastActionWasRotate = false;
+        this.isTSpin = false;
+        this.isTSpinMini = false;
+
+        const shape = this.getRotatedShape(this.currentPiece, 0);
+        this.pieceX = Math.floor((COLS - shape[0].length) / 2);
+        this.pieceY = BUFFER_ROWS - 2;
+
+        // スポーン即衝突ならゲームオーバー
+        if (this.checkCollision(this.pieceX, this.pieceY, shape)) {
+          this.triggerGameOver();
+        }
+      }
+
+      getRotatedShape(type, rotation) {
+        let mat = SHAPES[type];
+        const rotCount = (rotation % 4 + 4) % 4;
+        for (let i = 0; i < rotCount; i++) {
+          const N = mat.length;
+          const M = mat[0].length;
+          const res = [];
+          for (let c = 0; c < M; c++) {
+            res.push(new Array(N).fill(0));
+          }
+          for (let r = 0; r < N; r++) {
+            for (let c = 0; c < M; c++) {
+              res[c][N - 1 - r] = mat[r][c];
+            }
+          }
+          mat = res;
+        }
+        return mat;
+      }
+
+      checkCollision(px, py, shape) {
+        for (let r = 0; r < shape.length; r++) {
+          for (let c = 0; c < shape[r].length; c++) {
+            if (shape[r][c] !== 0) {
+              const nx = px + c;
+              const ny = py + r;
+              if (nx < 0 || nx >= COLS || ny >= TOTAL_ROWS) {
+                return true;
+              }
+              if (ny >= 0 && this.grid[ny][nx] !== 0) {
+                return true;
+              }
+            }
+          }
+        }
+        return false;
+      }
+
+      getGhostY() {
+        if (!this.currentPiece) return 0;
+        const shape = this.getRotatedShape(this.currentPiece, this.rotation);
+        let gy = this.pieceY;
+        while (!this.checkCollision(this.pieceX, gy + 1, shape)) {
+          gy++;
+        }
+        return gy;
+      }
+
+      // --- 移動 & 操作 ---
+      moveLeft() {
+        if (!this.currentPiece || this.gameOver || this.isPaused) return false;
+        const shape = this.getRotatedShape(this.currentPiece, this.rotation);
+        if (!this.checkCollision(this.pieceX - 1, this.pieceY, shape)) {
+          this.pieceX--;
+          this.lastActionWasRotate = false;
+          this.resetLockDelay();
+          this.sound.playMove();
+          return true;
+        }
+        return false;
+      }
+
+      moveRight() {
+        if (!this.currentPiece || this.gameOver || this.isPaused) return false;
+        const shape = this.getRotatedShape(this.currentPiece, this.rotation);
+        if (!this.checkCollision(this.pieceX + 1, this.pieceY, shape)) {
+          this.pieceX++;
+          this.lastActionWasRotate = false;
+          this.resetLockDelay();
+          this.sound.playMove();
+          return true;
+        }
+        return false;
+      }
+
+      rotate(dir) { // dir: 1 (CW), -1 (CCW), 2 (180)
+        if (!this.currentPiece || this.gameOver || this.isPaused) return;
+        if (this.currentPiece === 4) return; // Oミノは回転不要
+
+        const oldRot = this.rotation;
+        const newRot = (oldRot + dir + 4) % 4;
+        const newShape = this.getRotatedShape(this.currentPiece, newRot);
+
+        // SRS 壁キック判定
+        const kickKey = `${oldRot}->${newRot}`;
+        const kickTable = this.currentPiece === 1 ? WALL_KICKS_I : WALL_KICKS_JLSTZ;
+        const kicks = kickTable[kickKey] || [[0, 0]];
+
+        let rotated = false;
+        for (let i = 0; i < kicks.length; i++) {
+          const [kx, ky] = kicks[i];
+          // SRSテーブルのkyは上向き正なので、Canvasグリッドでは -ky
+          if (!this.checkCollision(this.pieceX + kx, this.pieceY - ky, newShape)) {
+            this.pieceX += kx;
+            this.pieceY -= ky;
+            this.rotation = newRot;
+            this.lastActionWasRotate = true;
+            this.lastKickIndex = i;
+            this.resetLockDelay();
+            this.sound.playRotate();
+            rotated = true;
+            break;
+          }
+        }
+
+        if (rotated && this.currentPiece === 6) {
+          // T-Spin 検出
+          this.checkTSpin();
+        }
+      }
+
+      checkTSpin() {
+        if (this.currentPiece !== 6 || !this.lastActionWasRotate) {
+          this.isTSpin = false;
+          this.isTSpinMini = false;
+          return;
+        }
+
+        // Tミノの中心(1, 1)に対する4隅のチェック
+        const cx = this.pieceX + 1;
+        const cy = this.pieceY + 1;
+        const corners = [
+          [cx - 1, cy - 1], // Top-Left
+          [cx + 1, cy - 1], // Top-Right
+          [cx + 1, cy + 1], // Bottom-Right
+          [cx - 1, cy + 1]  // Bottom-Left
+        ];
+
+        let occupied = 0;
+        corners.forEach(([x, y]) => {
+          if (x < 0 || x >= COLS || y >= TOTAL_ROWS || (y >= 0 && this.grid[y][x] !== 0)) {
+            occupied++;
+          }
+        });
+
+        if (occupied >= 3) {
+          // 3-corner rule 成立
+          // Tの向きに応じた前方の2隅チェック
+          let frontCorners = [];
+          if (this.rotation === 0) frontCorners = [corners[0], corners[1]];
+          else if (this.rotation === 1) frontCorners = [corners[1], corners[2]];
+          else if (this.rotation === 2) frontCorners = [corners[2], corners[3]];
+          else if (this.rotation === 3) frontCorners = [corners[3], corners[0]];
+
+          let frontOccupied = 0;
+          frontCorners.forEach(([x, y]) => {
+            if (x < 0 || x >= COLS || y >= TOTAL_ROWS || (y >= 0 && this.grid[y][x] !== 0)) {
+              frontOccupied++;
+            }
+          });
+
+          if (frontOccupied === 2 || this.lastKickIndex === 4) {
+            this.isTSpin = true;
+            this.isTSpinMini = false;
+          } else {
+            this.isTSpin = false;
+            this.isTSpinMini = true;
+          }
+        } else {
+          this.isTSpin = false;
+          this.isTSpinMini = false;
+        }
+      }
+
+      hold() {
+        if (!this.canHold || !this.currentPiece || this.gameOver || this.isPaused) return;
+        this.sound.playHold();
+        const currentType = this.currentPiece;
+        if (this.holdPiece === null) {
+          this.holdPiece = currentType;
+          this.spawnPiece();
+        } else {
+          const temp = this.holdPiece;
+          this.holdPiece = currentType;
+          this.currentPiece = temp;
+          this.rotation = 0;
+          const shape = this.getRotatedShape(this.currentPiece, 0);
+          this.pieceX = Math.floor((COLS - shape[0].length) / 2);
+          this.pieceY = BUFFER_ROWS - 2;
+          this.isLocking = false;
+          this.lockTimer = 0;
+          this.lockResets = 0;
+        }
+        this.canHold = false;
+      }
+
+      hardDrop() {
+        if (!this.currentPiece || this.gameOver || this.isPaused) return;
+        const gy = this.getGhostY();
+        const droppedRows = gy - this.pieceY;
+        this.pieceY = gy;
+        this.score += droppedRows * 2;
+        this.sound.playHardDrop();
+        this.fx.shake(4 + droppedRows * 0.45);
+        this.lockPiece();
+      }
+
+      softDrop() {
+        if (!this.currentPiece || this.gameOver || this.isPaused) return;
+        const shape = this.getRotatedShape(this.currentPiece, this.rotation);
+        if (!this.checkCollision(this.pieceX, this.pieceY + 1, shape)) {
+          this.pieceY++;
+          this.score += 1;
+          this.dropTimer = 0;
+          this.lastActionWasRotate = false;
+          return true;
+        }
+        return false;
+      }
+
+      resetLockDelay() {
+        if (this.isLocking && this.lockResets < this.maxLockResets) {
+          this.lockTimer = 0;
+          this.lockResets++;
+        }
+      }
+
+      lockPiece() {
+        const shape = this.getRotatedShape(this.currentPiece, this.rotation);
+        for (let r = 0; r < shape.length; r++) {
+          for (let c = 0; c < shape[r].length; c++) {
+            if (shape[r][c] !== 0) {
+              const gx = this.pieceX + c;
+              const gy = this.pieceY + r;
+              if (gy >= 0 && gy < TOTAL_ROWS) {
+                this.grid[gy][gx] = this.currentPiece;
+              }
+            }
+          }
+        }
+
+        this.sound.playLock();
+        this.clearLines();
+      }
+
+      clearLines() {
+        const linesToClear = [];
+        for (let r = TOTAL_ROWS - 1; r >= 0; r--) {
+          let full = true;
+          for (let c = 0; c < COLS; c++) {
+            if (this.grid[r][c] === 0) {
+              full = false;
+              break;
+            }
+          }
+          if (full) {
+            linesToClear.push(r);
+          }
+        }
+
+        const clearedCount = linesToClear.length;
+        const isTSpin = this.isTSpin;
+        const isTSpinMini = this.isTSpinMini;
+
+        if (clearedCount > 0) {
+          this.combo++;
+          if (this.combo > this.maxCombo) this.maxCombo = this.combo;
+
+          // 行削除処理 & 盤面下降
+          linesToClear.forEach(r => {
+            this.grid.splice(r, 1);
+            this.grid.unshift(new Array(COLS).fill(0));
+          });
+
+          // Perfect Clear 判定
+          let isPerfectClear = true;
+          for (let r = 0; r < TOTAL_ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+              if (this.grid[r][c] !== 0) {
+                isPerfectClear = false;
+                break;
+              }
+            }
+            if (!isPerfectClear) break;
+          }
+
+          // Back-to-Back (B2B) 判定
+          const isDifficult = clearedCount === 4 || isTSpin || isTSpinMini;
+          let b2bBonus = false;
+          if (isDifficult) {
+            if (this.b2b) {
+              b2bBonus = true;
+            }
+            this.b2b = true;
+          } else {
+            this.b2b = false;
+          }
+
+          // スコア計算
+          let basePoints = 0;
+          let actionName = '';
+          if (isTSpin) {
+            if (clearedCount === 1) { basePoints = 800; actionName = 'T-SPIN SINGLE!'; }
+            else if (clearedCount === 2) { basePoints = 1200; actionName = 'T-SPIN DOUBLE!'; }
+            else if (clearedCount === 3) { basePoints = 1600; actionName = 'T-SPIN TRIPLE!'; }
+          } else if (isTSpinMini) {
+            basePoints = clearedCount === 1 ? 200 : 100;
+            actionName = 'T-SPIN MINI!';
+          } else {
+            if (clearedCount === 1) { basePoints = 100; actionName = 'SINGLE'; }
+            else if (clearedCount === 2) { basePoints = 300; actionName = 'DOUBLE!'; }
+            else if (clearedCount === 3) { basePoints = 500; actionName = 'TRIPLE!'; }
+            else if (clearedCount === 4) { basePoints = 800; actionName = 'TETRIS!'; }
+          }
+
+          let earned = basePoints * this.level;
+          if (b2bBonus) {
+            earned = Math.floor(earned * 1.5);
+          }
+          if (this.combo > 0) {
+            earned += 50 * this.combo * this.level;
+          }
+          if (isPerfectClear) {
+            earned += 3500 * this.level;
+            actionName = 'PERFECT CLEAR!!';
+          }
+
+          this.score += earned;
+          if (this.score > this.highScore) {
+            this.highScore = this.score;
+            localStorage.setItem('cyber_burst_hiscore', this.highScore);
+          }
+
+          // サウンド再生
+          this.sound.playLineClear(clearedCount, isTSpin || isTSpinMini, b2bBonus);
+          if (this.combo > 0) {
+            this.sound.playCombo(this.combo);
+          }
+          if (isPerfectClear) {
+            this.sound.playPerfectClear();
+          }
+
+          // レベルアップ & テーマ切り替え判定 (10ライン毎)
+          const oldLevel = this.level;
+          this.lines += clearedCount;
+          this.level = Math.floor(this.lines / 10) + 1;
+          const currentTheme = THEMES[(this.level - 1) % THEMES.length];
+
+          if (this.level > oldLevel) {
+            this.sound.playLevelUp();
+            this.sound.setBGMTheme(this.level - 1, this.level);
+            this.fx.flash(currentTheme.accent, 0.75);
+            this.fx.addFloatingText(`LEVEL UP! (LV.${this.level})`, 400, 290, currentTheme.accent, 36);
+          }
+
+          // エフェクト発動
+          const shakeMag = clearedCount === 4 ? 22 : isTSpin ? 16 : clearedCount * 4.5;
+          this.fx.shake(shakeMag);
+
+          if (clearedCount === 4 || isTSpin || isPerfectClear) {
+            this.fx.flash(currentTheme.accent, clearedCount === 4 ? 0.65 : 0.45);
+            this.fx.hitStop(6);
+          }
+
+          // 行エフェクト
+          linesToClear.forEach(r => {
+            const rowY = (r - BUFFER_ROWS) * 32 + 16 + 80;
+            this.fx.createLineClearFX(r, rowY, 240, 320, currentTheme, clearedCount === 4);
+          });
+
+          // フローティングテキスト
+          const subText = b2bBonus ? 'BACK-TO-BACK' : this.combo > 0 ? `COMBO x${this.combo}` : '';
+          const txtColor = clearedCount === 4 ? '#00f3ff' : isTSpin ? '#dd33ff' : '#ffe600';
+          this.fx.addFloatingText(actionName, 400, 320, txtColor, clearedCount === 4 ? 38 : 28, subText);
+
+        } else {
+          this.combo = -1;
+          if (isTSpin || isTSpinMini) {
+            this.score += (isTSpin ? 400 : 100) * this.level;
+            this.sound.playLineClear(0, true, false);
+            this.fx.addFloatingText(isTSpin ? 'T-SPIN!' : 'T-SPIN MINI!', 400, 320, '#dd33ff', 24);
+          }
+        }
+
+        // 次のミノ生成
+        this.spawnPiece();
+      }
+
+      triggerGameOver() {
+        this.gameOver = true;
+        this.isRunning = false;
+        this.sound.playGameOver();
+        this.sound.stopBGM();
+        this.fx.shake(25);
+        this.fx.flash('#ff0055', 0.8);
+
+        // 全ブロック爆散エフェクト
+        for (let r = BUFFER_ROWS; r < TOTAL_ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            if (this.grid[r][c] !== 0) {
+              const x = 240 + c * 32 + 16;
+              const y = (r - BUFFER_ROWS) * 32 + 16 + 80;
+              this.fx.explodeBlock(x, y, PIECE_COLORS[this.grid[r][c]].main, 6);
+            }
+          }
+        }
+
+        // モーダル更新
+        document.getElementById('go-score').textContent = this.score.toLocaleString();
+        document.getElementById('go-hiscore').textContent = this.highScore.toLocaleString();
+        document.getElementById('go-lines').textContent = this.lines;
+        document.getElementById('go-combo').textContent = this.maxCombo;
+        document.getElementById('gameover-modal').classList.add('modal-active');
+      }
+
+      // --- フレーム更新 ---
+      update() {
+        if (!this.isRunning || this.gameOver || this.isPaused) return;
+
+        // DAS / ARR 処理
+        if (this.keys.left.pressed) {
+          this.keys.left.das++;
+          if (this.keys.left.das > this.DAS_DELAY && (this.keys.left.das - this.DAS_DELAY) % this.ARR_RATE === 0) {
+            this.moveLeft();
+          }
+        }
+        if (this.keys.right.pressed) {
+          this.keys.right.das++;
+          if (this.keys.right.das > this.DAS_DELAY && (this.keys.right.das - this.DAS_DELAY) % this.ARR_RATE === 0) {
+            this.moveRight();
+          }
+        }
+        if (this.keys.down.pressed) {
+          this.softDrop();
+        }
+
+        // 重力落下 & ロックダウン
+        const shape = this.getRotatedShape(this.currentPiece, this.rotation);
+        const isTouchingGround = this.checkCollision(this.pieceX, this.pieceY + 1, shape);
+
+        if (isTouchingGround) {
+          this.isLocking = true;
+          this.lockTimer++;
+          if (this.lockTimer >= this.lockDelay) {
+            this.lockPiece();
+          }
+        } else {
+          this.isLocking = false;
+          this.lockTimer = 0;
+          this.dropTimer++;
+          if (this.dropTimer >= this.getDropInterval()) {
+            this.pieceY++;
+            this.dropTimer = 0;
+            this.lastActionWasRotate = false;
+          }
+        }
+      }
+    }
+
+    /* ==========================================================================
+       5. RENDERER (キャンバス描画 & ネオングローUI)
+       ========================================================================== */
+    class GameRenderer {
+      constructor(canvas, game, fx) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.game = game;
+        this.fx = fx;
+
+        this.BLOCK_SIZE = 32;
+        this.BOARD_X = 240;
+        this.BOARD_Y = 80;
+        this.BOARD_W = COLS * this.BLOCK_SIZE; // 320
+        this.BOARD_H = ROWS * this.BLOCK_SIZE; // 640
+
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+      }
+
+      resize() {
+        this.canvas.width = 800;
+        this.canvas.height = 800;
+      }
+
+      render() {
+        const ctx = this.ctx;
+        const currentTheme = THEMES[(this.game.level - 1) % THEMES.length];
+
+        ctx.save();
+
+        // 画面シェイク適用
+        if (this.fx.screenShake > 0) {
+          const sx = (Math.random() - 0.5) * this.fx.screenShake;
+          const sy = (Math.random() - 0.5) * this.fx.screenShake;
+          ctx.translate(sx, sy);
+        }
+
+        // 1. 動的背景描画
+        this.renderBackground(ctx, currentTheme);
+
+        // 2. 環境パーティクル描画
+        this.fx.renderAmbient(ctx, (this.game.level - 1) % THEMES.length);
+
+        // 3. テトリスボード枠 & グリッド
+        this.renderBoardFrame(ctx, currentTheme);
+
+        // 4. 配置済みブロック描画
+        this.renderPlacedBlocks(ctx);
+
+        // 5. ゴーストピース描画
+        if (this.game.isRunning && !this.game.gameOver && this.game.currentPiece) {
+          this.renderGhostPiece(ctx);
+        }
+
+        // 6. 現在の操作中ピース描画
+        if (this.game.isRunning && !this.game.gameOver && this.game.currentPiece) {
+          this.renderCurrentPiece(ctx);
+        }
+
+        // 7. エフェクト・パーティクル・フローティングテキスト描画
+        this.fx.render(ctx);
+
+        // 8. HUD (HOLD / NEXT / SCORE / LEVEL / STATS)
+        this.renderHUD(ctx, currentTheme);
+
+        ctx.restore();
+      }
+
+      renderBackground(ctx, theme) {
+        // グラデーション背景
+        const grad = ctx.createRadialGradient(400, 400, 50, 400, 400, 600);
+        grad.addColorStop(0, theme.bgGradient[1]);
+        grad.addColorStop(0.7, theme.bgGradient[0]);
+        grad.addColorStop(1, theme.bgGradient[2]);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 800, 800);
+
+        // 背景スター
+        ctx.fillStyle = '#ffffff';
+        for (const s of this.game.stars) {
+          s.y += s.speed;
+          if (s.y > 800) { s.y = 0; s.x = Math.random() * 800; }
+          ctx.globalAlpha = s.alpha * (0.5 + this.fx.themePulse * 0.5);
+          ctx.fillRect(s.x, s.y, s.size, s.size);
+        }
+        ctx.globalAlpha = 1.0;
+
+        // サイバーグリッド線
+        ctx.strokeStyle = theme.accent;
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.08 + this.fx.themePulse * 0.08;
+        for (let x = 0; x <= 800; x += 40) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, 800);
+          ctx.stroke();
+        }
+        for (let y = 0; y <= 800; y += 40) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(800, y);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1.0;
+      }
+
+      renderBoardFrame(ctx, theme) {
+        const x = this.BOARD_X;
+        const y = this.BOARD_Y;
+        const w = this.BOARD_W;
+        const h = this.BOARD_H;
+
+        // ボード背景
+        ctx.fillStyle = 'rgba(5, 10, 25, 0.85)';
+        ctx.fillRect(x, y, w, h);
+
+        // 内側グリッド線
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+        ctx.lineWidth = 1;
+        for (let c = 1; c < COLS; c++) {
+          ctx.beginPath();
+          ctx.moveTo(x + c * this.BLOCK_SIZE, y);
+          ctx.lineTo(x + c * this.BLOCK_SIZE, y + h);
+          ctx.stroke();
+        }
+        for (let r = 1; r < ROWS; r++) {
+          ctx.beginPath();
+          ctx.moveTo(x, y + r * this.BLOCK_SIZE);
+          ctx.lineTo(x + w, y + r * this.BLOCK_SIZE);
+          ctx.stroke();
+        }
+
+        // 外枠ネオングロー
+        ctx.save();
+        ctx.strokeStyle = theme.accent;
+        ctx.lineWidth = 2 + this.fx.themePulse * 2;
+        ctx.shadowColor = theme.accent;
+        ctx.shadowBlur = 16 + this.fx.themePulse * 16;
+        ctx.strokeRect(x - 2, y - 2, w + 4, h + 4);
+        ctx.restore();
+      }
+
+      renderBlock(ctx, x, y, colorData, alpha = 1.0, isGhost = false) {
+        const size = this.BLOCK_SIZE;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+
+        if (isGhost) {
+          ctx.strokeStyle = colorData.main;
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x + 2, y + 2, size - 4, size - 4);
+          ctx.fillStyle = colorData.main;
+          ctx.globalAlpha = 0.15;
+          ctx.fillRect(x + 2, y + 2, size - 4, size - 4);
+          ctx.restore();
+          return;
+        }
+
+        // メインブロック背景
+        ctx.fillStyle = colorData.main;
+        ctx.fillRect(x + 1, y + 1, size - 2, size - 2);
+
+        // 面取りハイライト (Top & Left)
+        ctx.fillStyle = colorData.light;
+        ctx.beginPath();
+        ctx.moveTo(x + 1, y + 1);
+        ctx.lineTo(x + size - 1, y + 1);
+        ctx.lineTo(x + size - 5, y + 5);
+        ctx.lineTo(x + 5, y + 5);
+        ctx.lineTo(x + 5, y + size - 5);
+        ctx.lineTo(x + 1, y + size - 1);
+        ctx.closePath();
+        ctx.fill();
+
+        // 影 (Bottom & Right)
+        ctx.fillStyle = colorData.dark;
+        ctx.beginPath();
+        ctx.moveTo(x + size - 1, y + 1);
+        ctx.lineTo(x + size - 1, y + size - 1);
+        ctx.lineTo(x + 1, y + size - 1);
+        ctx.lineTo(x + 5, y + size - 5);
+        ctx.lineTo(x + size - 5, y + size - 5);
+        ctx.lineTo(x + size - 5, y + 5);
+        ctx.closePath();
+        ctx.fill();
+
+        // 中央コア
+        ctx.fillStyle = colorData.main;
+        ctx.fillRect(x + 6, y + 6, size - 12, size - 12);
+
+        ctx.restore();
+      }
+
+      renderPlacedBlocks(ctx) {
+        for (let r = BUFFER_ROWS; r < TOTAL_ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            const type = this.game.grid[r][c];
+            if (type !== 0) {
+              const x = this.BOARD_X + c * this.BLOCK_SIZE;
+              const y = this.BOARD_Y + (r - BUFFER_ROWS) * this.BLOCK_SIZE;
+              this.renderBlock(ctx, x, y, PIECE_COLORS[type]);
+            }
+          }
+        }
+      }
+
+      renderGhostPiece(ctx) {
+        const shape = this.game.getRotatedShape(this.game.currentPiece, this.game.rotation);
+        const gy = this.game.getGhostY();
+        const colData = PIECE_COLORS[this.game.currentPiece];
+
+        for (let r = 0; r < shape.length; r++) {
+          for (let c = 0; c < shape[r].length; c++) {
+            if (shape[r][c] !== 0) {
+              const drawY = gy + r;
+              if (drawY >= BUFFER_ROWS) {
+                const x = this.BOARD_X + (this.game.pieceX + c) * this.BLOCK_SIZE;
+                const y = this.BOARD_Y + (drawY - BUFFER_ROWS) * this.BLOCK_SIZE;
+                this.renderBlock(ctx, x, y, colData, 0.6, true);
+              }
+            }
+          }
+        }
+      }
+
+      renderCurrentPiece(ctx) {
+        const shape = this.game.getRotatedShape(this.game.currentPiece, this.game.rotation);
+        const colData = PIECE_COLORS[this.game.currentPiece];
+        const lockProgress = this.game.isLocking ? this.game.lockTimer / this.game.lockDelay : 0;
+
+        for (let r = 0; r < shape.length; r++) {
+          for (let c = 0; c < shape[r].length; c++) {
+            if (shape[r][c] !== 0) {
+              const drawY = this.game.pieceY + r;
+              if (drawY >= BUFFER_ROWS) {
+                const x = this.BOARD_X + (this.game.pieceX + c) * this.BLOCK_SIZE;
+                const y = this.BOARD_Y + (drawY - BUFFER_ROWS) * this.BLOCK_SIZE;
+                this.renderBlock(ctx, x, y, colData);
+
+                // ロックダウン時点滅
+                if (this.game.isLocking) {
+                  ctx.save();
+                  ctx.fillStyle = '#ffffff';
+                  ctx.globalAlpha = lockProgress * 0.6;
+                  ctx.fillRect(x + 2, y + 2, this.BLOCK_SIZE - 4, this.BLOCK_SIZE - 4);
+                  ctx.restore();
+                }
+              }
+            }
+          }
+        }
+      }
+
+      renderMiniPiece(ctx, type, centerX, centerY, scale = 22) {
+        if (!type) return;
+        const shape = SHAPES[type];
+        const colData = PIECE_COLORS[type];
+        const rows = shape.length;
+        const cols = shape[0].length;
+        const offsetX = centerX - (cols * scale) / 2;
+        const offsetY = centerY - (rows * scale) / 2;
+
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            if (shape[r][c] !== 0) {
+              const x = offsetX + c * scale;
+              const y = offsetY + r * scale;
+              ctx.fillStyle = colData.main;
+              ctx.fillRect(x + 1, y + 1, scale - 2, scale - 2);
+              ctx.fillStyle = colData.light;
+              ctx.fillRect(x + 2, y + 2, scale - 4, 3);
+            }
+          }
+        }
+      }
+
+      renderHUD(ctx, theme) {
+        // --- 左パネル: HOLD & STATS ---
+        // 1. HOLD ボックス
+        this.renderPanel(ctx, 40, 80, 160, 130, 'HOLD');
+        if (this.game.holdPiece) {
+          const alpha = this.game.canHold ? 1.0 : 0.4;
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          this.renderMiniPiece(ctx, this.game.holdPiece, 120, 155, 24);
+          ctx.restore();
+        }
+
+        // 2. STATS ボックス
+        this.renderPanel(ctx, 40, 230, 160, 490, 'STATS');
+        
+        ctx.textAlign = 'left';
+        // Score
+        this.renderLabelValue(ctx, 60, 275, 'SCORE', this.game.score.toLocaleString(), theme.accent);
+        // High Score
+        this.renderLabelValue(ctx, 60, 345, 'HIGH SCORE', this.game.highScore.toLocaleString(), '#ffe600');
+        // Level
+        this.renderLabelValue(ctx, 60, 415, 'LEVEL', this.game.level.toString(), '#ffffff');
+        // Lines
+        this.renderLabelValue(ctx, 60, 485, 'LINES', this.game.lines.toString(), '#38bdf8');
+
+        // B2B & Combo Indicator
+        if (this.game.b2b) {
+          ctx.fillStyle = '#ff0077';
+          ctx.font = "900 14px 'Segoe UI', sans-serif";
+          ctx.fillText('⚡ B2B ACTIVE', 60, 560);
+        }
+        if (this.game.combo > 0) {
+          ctx.fillStyle = '#ffe600';
+          ctx.font = "900 16px 'Segoe UI', sans-serif";
+          ctx.fillText(`🔥 ${this.game.combo} COMBO`, 60, 595);
+        }
+
+        // テーマ表示
+        ctx.fillStyle = theme.accent;
+        ctx.font = "800 12px 'Segoe UI', sans-serif";
+        ctx.fillText('THEME:', 60, 650);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = "900 14px 'Segoe UI', sans-serif";
+        ctx.fillText(theme.name, 60, 672);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = "11px 'Segoe UI', sans-serif";
+        ctx.fillText(theme.sub, 60, 692);
+
+        // --- 右パネル: NEXT (最大5個) ---
+        this.renderPanel(ctx, 600, 80, 160, 640, 'NEXT');
+        for (let i = 0; i < 5; i++) {
+          const piece = this.game.nextPieces[i];
+          if (piece) {
+            const py = 150 + i * 110;
+            this.renderMiniPiece(ctx, piece, 680, py, i === 0 ? 24 : 20);
+          }
+        }
+      }
+
+      renderPanel(ctx, x, y, w, h, title) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(13, 17, 34, 0.78)';
+        ctx.strokeStyle = 'rgba(0, 243, 255, 0.28)';
+        ctx.lineWidth = 1.5;
+
+        // 丸角パネル描画（フォールバック付き）
+        ctx.beginPath();
+        if (ctx.roundRect) {
+          ctx.roundRect(x, y, w, h, 14);
+        } else {
+          ctx.rect(x, y, w, h);
+        }
+        ctx.fill();
+        ctx.stroke();
+
+        // パネルタイトル
+        ctx.fillStyle = '#64748b';
+        ctx.font = "800 12px 'Segoe UI', sans-serif";
+        ctx.textAlign = 'center';
+        ctx.fillText(title, x + w / 2, y + 24);
+        ctx.restore();
+      }
+
+      renderLabelValue(ctx, x, y, label, val, color) {
+        ctx.fillStyle = '#64748b';
+        ctx.font = "800 11px 'Segoe UI', sans-serif";
+        ctx.fillText(label, x, y);
+
+        ctx.fillStyle = color;
+        ctx.font = "900 20px 'Segoe UI', sans-serif";
+        ctx.fillText(val, x, y + 26);
+      }
+    }
+
+    /* ==========================================================================
+       6. INPUT MANAGER & APP INITIALIZATION
+       ========================================================================== */
+    window.addEventListener('DOMContentLoaded', () => {
+      const canvas = document.getElementById('render-canvas');
+      const sound = new SoundEngine();
+      const fx = new FXEngine();
+      const game = new TetrisGame(sound, fx);
+      const renderer = new GameRenderer(canvas, game, fx);
+
+      // BGMビートコールバックで背景パルス
+      sound.beatCallback = (step) => {
+        fx.pulse();
+      };
+
+      // --- キーボード入力 ---
+      window.addEventListener('keydown', (e) => {
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
+          e.preventDefault();
+        }
+
+        if (e.code === 'KeyP' || e.code === 'Escape') {
+          togglePause();
+          return;
+        }
+
+        if (!game.isRunning || game.gameOver || game.isPaused) {
+          if (e.code === 'KeyR' && game.gameOver) {
+            hideModals();
+            game.restart();
+          }
+          return;
+        }
+
+        switch (e.code) {
+          case 'ArrowLeft':
+            if (!game.keys.left.pressed) {
+              game.keys.left.pressed = true;
+              game.keys.left.das = 0;
+              game.moveLeft();
+            }
+            break;
+          case 'ArrowRight':
+            if (!game.keys.right.pressed) {
+              game.keys.right.pressed = true;
+              game.keys.right.das = 0;
+              game.moveRight();
+            }
+            break;
+          case 'ArrowDown':
+            game.keys.down.pressed = true;
+            break;
+          case 'Space':
+            game.hardDrop();
+            break;
+          case 'ArrowUp':
+          case 'KeyX':
+          case 'KeyK':
+            game.rotate(1); // CW (右回転)
+            break;
+          case 'KeyZ':
+          case 'ControlLeft':
+          case 'ControlRight':
+          case 'KeyJ':
+            game.rotate(-1); // CCW (左回転)
+            break;
+          case 'KeyA':
+          case 'KeyQ':
+            game.rotate(2); // 180度回転
+            break;
+          case 'KeyC':
+          case 'ShiftLeft':
+          case 'ShiftRight':
+            game.hold();
+            break;
+          case 'KeyR':
+            game.restart();
+            break;
+        }
+      });
+
+      window.addEventListener('keyup', (e) => {
+        switch (e.code) {
+          case 'ArrowLeft':
+            game.keys.left.pressed = false;
+            break;
+          case 'ArrowRight':
+            game.keys.right.pressed = false;
+            break;
+          case 'ArrowDown':
+            game.keys.down.pressed = false;
+            break;
+        }
+      });
+
+      // --- タッチ入力バインド ---
+      const bindTouch = (id, onDown, onUp) => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        btn.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          btn.classList.add('active');
+          if (onDown) onDown();
+        });
+        btn.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          btn.classList.remove('active');
+          if (onUp) onUp();
+        });
+      };
+
+      bindTouch('t-left', () => {
+        game.keys.left.pressed = true;
+        game.keys.left.das = 0;
+        game.moveLeft();
+      }, () => { game.keys.left.pressed = false; });
+
+      bindTouch('t-right', () => {
+        game.keys.right.pressed = true;
+        game.keys.right.das = 0;
+        game.moveRight();
+      }, () => { game.keys.right.pressed = false; });
+
+      bindTouch('t-down', () => {
+        game.keys.down.pressed = true;
+      }, () => { game.keys.down.pressed = false; });
+
+      bindTouch('t-harddrop', () => game.hardDrop());
+      bindTouch('t-rot-cw', () => game.rotate(1));
+      bindTouch('t-rot-ccw', () => game.rotate(-1));
+      bindTouch('t-rot-180', () => game.rotate(2));
+      bindTouch('t-hold', () => game.hold());
+
+      // --- UIボタン & モーダル ---
+      const startModal = document.getElementById('start-modal');
+      const pauseModal = document.getElementById('pause-modal');
+      const gameoverModal = document.getElementById('gameover-modal');
+
+      const hideModals = () => {
+        startModal.classList.remove('modal-active');
+        pauseModal.classList.remove('modal-active');
+        gameoverModal.classList.remove('modal-active');
+      };
+
+      const togglePause = () => {
+        if (!game.isRunning || game.gameOver) return;
+        game.isPaused = !game.isPaused;
+        if (game.isPaused) {
+          pauseModal.classList.add('modal-active');
+          sound.stopBGM();
+        } else {
+          pauseModal.classList.remove('modal-active');
+          sound.startBGM((game.level - 1) % THEMES.length);
+        }
+      };
+
+      document.getElementById('btn-start').addEventListener('click', () => {
+        sound.init();
+        hideModals();
+        game.start();
+      });
+
+      document.getElementById('btn-resume').addEventListener('click', () => {
+        togglePause();
+      });
+
+      document.getElementById('btn-restart').addEventListener('click', () => {
+        hideModals();
+        game.restart();
+      });
+
+      document.getElementById('btn-pause').addEventListener('click', () => {
+        togglePause();
+      });
+
+      document.getElementById('btn-sound').addEventListener('click', () => {
+        const muted = sound.toggleMute();
+        document.getElementById('btn-sound').textContent = muted ? '🔇' : '🔊';
+      });
+
+      // --- ゲームメインループ ---
+      const gameLoop = () => {
+        game.update();
+        fx.update((game.level - 1) % THEMES.length);
+        renderer.render();
+        requestAnimationFrame(gameLoop);
+      };
+
+      requestAnimationFrame(gameLoop);
+    });
+  </script>
+</body>
+</html>

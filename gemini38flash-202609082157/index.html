@@ -1,0 +1,2695 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CYBER BURST TETRIS - 派手エフェクト・テトリス</title>
+  <meta name="description" content="ライン消去のたびに画面が大爆発する超ド派手テトリス。ガイドライン準拠・プロシージャルWeb Audio BGM/SE・10ラインごとに進化する6つのエフェクトテーマ！">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <!-- canvas-confetti for extra celebratory bursts -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: #070714;
+      --panel-bg: rgba(14, 16, 35, 0.78);
+      --panel-border: rgba(0, 240, 255, 0.35);
+      --cyan: #00f0ff;
+      --magenta: #ff0077;
+      --yellow: #ffe600;
+      --purple: #9d00ff;
+      --green: #00ff66;
+      --orange: #ff7700;
+      --blue: #0055ff;
+      --theme-glow: #00f0ff;
+      --font-main: 'Orbitron', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-sub: 'Rajdhani', sans-serif;
+      --font-mono: 'Share Tech Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-dark);
+      color: #fff;
+      font-family: var(--font-main);
+      touch-action: manipulation;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    /* Ambient dynamic background canvas */
+    #bgCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* Scanline effect */
+    .scanlines {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+        to bottom,
+        rgba(255,255,255,0),
+        rgba(255,255,255,0) 50%,
+        rgba(0, 0, 0, 0.28) 51%,
+        rgba(0, 0, 0, 0.28)
+      );
+      background-size: 100% 4px;
+      z-index: 2;
+      pointer-events: none;
+      opacity: 0.6;
+    }
+
+    /* Vignette & color flash */
+    #flashOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 3;
+      pointer-events: none;
+      opacity: 0;
+      mix-blend-mode: screen;
+      transition: opacity 0.05s ease-out;
+    }
+
+    /* Game App Container (Target for Screen Shake) */
+    #gameApp {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      max-height: 100vh;
+      padding: 10px;
+      transform-origin: center center;
+      transition: filter 0.2s;
+    }
+
+    /* Header Bar */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 860px;
+      margin-bottom: 8px;
+      padding: 6px 18px;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 0 25px rgba(0, 240, 255, 0.15), inset 0 0 15px rgba(0, 240, 255, 0.08);
+    }
+
+    .brand-title {
+      font-size: 1.3rem;
+      font-weight: 900;
+      letter-spacing: 3px;
+      background: linear-gradient(90deg, #00f0ff, #ff0077, #ffe600);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 0 0 20px rgba(0, 240, 255, 0.4);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-title .burst-badge {
+      font-size: 0.65rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(255, 0, 119, 0.3);
+      border: 1px solid #ff0077;
+      color: #ff88cc;
+      letter-spacing: 1px;
+      -webkit-text-fill-color: initial;
+    }
+
+    .theme-banner {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      font-family: var(--font-sub);
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 20px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--theme-glow);
+      box-shadow: 0 0 15px var(--theme-glow);
+      transition: all 0.5s ease;
+    }
+
+    .theme-indicator-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--theme-glow);
+      box-shadow: 0 0 10px var(--theme-glow);
+      animation: pulseGlow 1.2s infinite alternate;
+    }
+
+    @keyframes pulseGlow {
+      from { transform: scale(0.85); opacity: 0.6; }
+      to { transform: scale(1.3); opacity: 1; }
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .icon-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: var(--font-sub);
+      font-size: 0.75rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.2s;
+    }
+
+    .icon-btn:hover {
+      background: rgba(0, 240, 255, 0.25);
+      border-color: var(--cyan);
+      box-shadow: 0 0 12px var(--cyan);
+      transform: translateY(-1px);
+    }
+
+    /* Main Game Layout */
+    .game-layout {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 16px;
+    }
+
+    /* Left and Right Side Panels */
+    .side-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 155px;
+    }
+
+    .panel-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 12px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), inset 0 0 15px rgba(0, 240, 255, 0.05);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .panel-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--theme-glow), transparent);
+    }
+
+    .card-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: rgba(255, 255, 255, 0.7);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+
+    .card-value {
+      font-size: 1.4rem;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      color: #fff;
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    }
+
+    .progress-wrap {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--cyan), var(--theme-glow));
+      box-shadow: 0 0 8px var(--theme-glow);
+      transition: width 0.3s ease;
+    }
+
+    .b2b-badge {
+      display: none;
+      margin-top: 6px;
+      font-size: 0.65rem;
+      font-weight: 900;
+      padding: 3px 8px;
+      background: linear-gradient(90deg, #ff0077, #ff7700);
+      border-radius: 6px;
+      color: #fff;
+      box-shadow: 0 0 12px rgba(255, 0, 119, 0.6);
+      animation: b2bPulse 0.8s infinite alternate;
+    }
+
+    @keyframes b2bPulse {
+      from { transform: scale(0.95); }
+      to { transform: scale(1.08); }
+    }
+
+    /* Mini Canvases for Hold & Next */
+    #holdCanvas {
+      width: 110px;
+      height: 90px;
+      background: rgba(0, 0, 0, 0.35);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    #nextCanvas {
+      width: 110px;
+      height: 320px;
+      background: rgba(0, 0, 0, 0.35);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Center Stage (Game Canvas Area) */
+    .stage-wrapper {
+      position: relative;
+      background: var(--panel-bg);
+      border: 2px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 8px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 0 40px rgba(0, 240, 255, 0.25), inset 0 0 30px rgba(0, 0, 0, 0.8);
+      transition: border-color 0.5s ease, box-shadow 0.5s ease;
+    }
+
+    .canvas-stack {
+      position: relative;
+      width: 320px;
+      height: 640px;
+      overflow: hidden;
+      border-radius: 10px;
+      background: #060814;
+    }
+
+    #gameCanvas, #fxCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    #fxCanvas {
+      pointer-events: none;
+    }
+
+    /* Key controls reference bar */
+    .controls-bar {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-top: 10px;
+      font-size: 0.72rem;
+      font-family: var(--font-sub);
+      color: rgba(255, 255, 255, 0.6);
+      letter-spacing: 0.8px;
+    }
+
+    .key-badge {
+      display: inline-block;
+      padding: 1px 5px;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 4px;
+      color: var(--cyan);
+      font-family: var(--font-mono);
+      font-weight: 700;
+    }
+
+    /* Touch Controls for Mobile/Tablet */
+    .touch-controls {
+      display: none;
+      width: 100%;
+      max-width: 480px;
+      margin-top: 8px;
+      gap: 8px;
+      flex-direction: column;
+    }
+
+    .touch-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .t-btn {
+      flex: 1;
+      height: 44px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      border-radius: 8px;
+      color: #fff;
+      font-family: var(--font-sub);
+      font-weight: 700;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: manipulation;
+    }
+
+    .t-btn:active {
+      background: rgba(0, 240, 255, 0.4);
+      transform: scale(0.96);
+    }
+
+    .t-btn.hard-drop {
+      background: rgba(255, 0, 119, 0.25);
+      border-color: rgba(255, 0, 119, 0.5);
+    }
+
+    /* Modal Overlays (Start, Pause, GameOver) */
+    .modal-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(7, 7, 20, 0.88);
+      backdrop-filter: blur(12px);
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      transition: opacity 0.3s ease;
+    }
+
+    .modal-overlay.hidden {
+      display: none;
+    }
+
+    .modal-title {
+      font-size: 2rem;
+      font-weight: 900;
+      letter-spacing: 4px;
+      background: linear-gradient(90deg, #00f0ff, #ff0077, #ffe600);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+
+    .modal-sub {
+      font-size: 0.85rem;
+      font-family: var(--font-sub);
+      color: rgba(255, 255, 255, 0.7);
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+
+    .big-btn {
+      padding: 12px 32px;
+      font-size: 1.1rem;
+      font-family: var(--font-main);
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: #050510;
+      background: linear-gradient(90deg, var(--cyan), #ffe600);
+      border: none;
+      border-radius: 30px;
+      cursor: pointer;
+      box-shadow: 0 0 25px rgba(0, 240, 255, 0.6);
+      transition: all 0.2s ease;
+    }
+
+    .big-btn:hover {
+      transform: scale(1.06);
+      box-shadow: 0 0 35px rgba(255, 230, 0, 0.8);
+    }
+
+    .big-btn:active {
+      transform: scale(0.98);
+    }
+
+    .stat-list {
+      margin-bottom: 20px;
+      width: 80%;
+      max-width: 260px;
+      font-family: var(--font-sub);
+      font-size: 1rem;
+    }
+
+    .stat-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .stat-item span:last-child {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: var(--cyan);
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      header {
+        max-width: 360px;
+        padding: 6px 12px;
+      }
+      .brand-title {
+        font-size: 1.05rem;
+      }
+      .theme-banner {
+        font-size: 0.7rem;
+        padding: 3px 8px;
+      }
+      .game-layout {
+        gap: 8px;
+      }
+      .side-panel {
+        width: 85px;
+        gap: 6px;
+      }
+      .panel-card {
+        padding: 6px;
+      }
+      .card-label {
+        font-size: 0.58rem;
+        letter-spacing: 1px;
+      }
+      .card-value {
+        font-size: 1.05rem;
+      }
+      #holdCanvas {
+        width: 75px;
+        height: 60px;
+      }
+      #nextCanvas {
+        width: 75px;
+        height: 200px;
+      }
+      .canvas-stack {
+        width: 250px;
+        height: 500px;
+      }
+      .controls-bar {
+        display: none;
+      }
+      .touch-controls {
+        display: flex;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .canvas-stack {
+        width: 210px;
+        height: 420px;
+      }
+      .side-panel {
+        width: 72px;
+      }
+      #holdCanvas {
+        width: 62px;
+        height: 50px;
+      }
+      #nextCanvas {
+        width: 62px;
+        height: 165px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Ambient Dynamic Space Canvas -->
+  <canvas id="bgCanvas"></canvas>
+  <!-- CRT Scanlines Overlay -->
+  <div class="scanlines"></div>
+  <!-- Fullscreen Flash / Heatwave Overlay -->
+  <div id="flashOverlay"></div>
+
+  <!-- Game App Container (Screen Shake is applied here) -->
+  <div id="gameApp">
+    
+    <!-- Header -->
+    <header>
+      <div class="brand-title">
+        <span>CYBER BURST</span>
+        <span class="burst-badge">FX ED.</span>
+      </div>
+
+      <div class="theme-banner" id="themeBanner">
+        <span class="theme-indicator-dot"></span>
+        <span id="themeName">NEON CYBER</span>
+      </div>
+
+      <div class="header-actions">
+        <button class="icon-btn" id="soundBtn" title="音声 ON/OFF">
+          <span id="soundIcon">🔊</span>
+        </button>
+        <button class="icon-btn" id="shakeBtn" title="画面の揺れ ON/OFF">
+          <span id="shakeIcon">📳 SHAKE</span>
+        </button>
+        <button class="icon-btn" id="pauseBtn" title="一時停止 (P)">
+          <span>⏸</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Game Area -->
+    <div class="game-layout">
+      
+      <!-- Left Panel (Hold & Stats) -->
+      <div class="side-panel">
+        <div class="panel-card">
+          <div class="card-label">HOLD</div>
+          <canvas id="holdCanvas" width="110" height="90"></canvas>
+        </div>
+
+        <div class="panel-card">
+          <div class="card-label">SCORE</div>
+          <div class="card-value" id="scoreVal">0</div>
+        </div>
+
+        <div class="panel-card">
+          <div class="card-label">LEVEL</div>
+          <div class="card-value" id="levelVal">1</div>
+          <div class="progress-wrap" title="Next Theme in...">
+            <div class="progress-bar" id="themeProgressBar"></div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="card-label">LINES</div>
+          <div class="card-value" id="linesVal">0</div>
+          <div class="b2b-badge" id="b2bBadge">B2B ACTIVE</div>
+        </div>
+
+        <div class="panel-card">
+          <div class="card-label">COMBO</div>
+          <div class="card-value" id="comboVal">0</div>
+        </div>
+      </div>
+
+      <!-- Center Panel (Main Tetris Field + FX Layer) -->
+      <div class="stage-wrapper" id="stageWrapper">
+        <div class="canvas-stack">
+          <canvas id="gameCanvas" width="320" height="640"></canvas>
+          <canvas id="fxCanvas" width="320" height="640"></canvas>
+
+          <!-- Start Screen Overlay -->
+          <div class="modal-overlay" id="startOverlay">
+            <h1 class="modal-title">CYBER BURST</h1>
+            <p class="modal-sub">
+              公式ガイドライン準拠 (SRS・7-Bag)<br>
+              消去ごとに大爆発！10ラインでテーマ進化<br>
+              Web Audio 完全合成サウンド
+            </p>
+            <button class="big-btn" id="startBtn">START GAME</button>
+          </div>
+
+          <!-- Pause Screen Overlay -->
+          <div class="modal-overlay hidden" id="pauseOverlay">
+            <h2 class="modal-title">PAUSED</h2>
+            <p class="modal-sub">ゲーム一時停止中</p>
+            <button class="big-btn" id="resumeBtn">RESUME</button>
+          </div>
+
+          <!-- Game Over Screen Overlay -->
+          <div class="modal-overlay hidden" id="gameOverOverlay">
+            <h2 class="modal-title" style="color:#ff0055;">GAME OVER</h2>
+            <div class="stat-list">
+              <div class="stat-item">
+                <span>FINAL SCORE</span>
+                <span id="finalScoreVal">0</span>
+              </div>
+              <div class="stat-item">
+                <span>HIGH SCORE</span>
+                <span id="highScoreVal">0</span>
+              </div>
+              <div class="stat-item">
+                <span>TOTAL LINES</span>
+                <span id="finalLinesVal">0</span>
+              </div>
+              <div class="stat-item">
+                <span>MAX COMBO</span>
+                <span id="finalComboVal">0</span>
+              </div>
+            </div>
+            <button class="big-btn" id="retryBtn">PLAY AGAIN</button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Right Panel (Next Queue & High Score) -->
+      <div class="side-panel">
+        <div class="panel-card">
+          <div class="card-label">NEXT</div>
+          <canvas id="nextCanvas" width="110" height="320"></canvas>
+        </div>
+
+        <div class="panel-card">
+          <div class="card-label">HIGH SCORE</div>
+          <div class="card-value" id="topScoreVal" style="color:var(--yellow); font-size:1.15rem;">0</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- PC Key Controls Guide -->
+    <div class="controls-bar">
+      <div><span class="key-badge">←</span> <span class="key-badge">→</span> 移動</div>
+      <div><span class="key-badge">↓</span> ソフトドロップ</div>
+      <div><span class="key-badge">SPACE</span> ハードドロップ</div>
+      <div><span class="key-badge">↑</span> / <span class="key-badge">X</span> 右回転</div>
+      <div><span class="key-badge">Z</span> 左回転</div>
+      <div><span class="key-badge">A</span> 180°回転</div>
+      <div><span class="key-badge">C</span> / <span class="key-badge">SHIFT</span> ホールド</div>
+    </div>
+
+    <!-- Mobile Touch Controls -->
+    <div class="touch-controls" id="touchControls">
+      <div class="touch-row">
+        <button class="t-btn" id="tHold">HOLD</button>
+        <button class="t-btn hard-drop" id="tHard">HARD DROP</button>
+        <button class="t-btn" id="tRotR">↻ ROT R</button>
+      </div>
+      <div class="touch-row">
+        <button class="t-btn" id="tLeft">◀ LEFT</button>
+        <button class="t-btn" id="tDown">▼ SOFT</button>
+        <button class="t-btn" id="tRight">RIGHT ▶</button>
+        <button class="t-btn" id="tRotL">↺ ROT L</button>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    /* ==========================================================================
+       CYBER BURST TETRIS - Complete Implementation
+       - Tetris Guideline: 10x20 Field, 7-Bag, SRS with Wall Kicks, Lock Delay,
+         Hold, Ghost Piece, DAS/ARR, T-Spin Detection, B2B, Combo, Scoring
+       - 6 Dynamic FX Themes (every 10 lines):
+         1. Neon Cyber (0-9)
+         2. Solar Inferno / Plasma (10-19)
+         3. Crystal Prism (20-29)
+         4. Retro 8-Bit Arcade (30-39)
+         5. Quantum Void & Singularity (40-49)
+         6. Hyper Supernova Overdrive (50+)
+       - Procedural Web Audio:
+         - Dynamic Korobeiniki synthwave BGM with multi-layer instruments and accelerating BPM
+         - Procedural SFX for Move, Rotate, Hard Drop, T-Spin, Combos, Explosions
+       ========================================================================== */
+
+    (() => {
+      'use strict';
+
+      /* ------------------------------------------------------------------------
+         1. CONSTANTS & THEMES
+         ------------------------------------------------------------------------ */
+      const COLS = 10;
+      const ROWS = 20;
+      const HIDDEN_ROWS = 20;
+      const TOTAL_ROWS = ROWS + HIDDEN_ROWS;
+
+      // Tetrimino specifications (Guideline colors & orientations)
+      const TETRIMINOS = {
+        I: {
+          color: '#00f0f0',
+          glow: '#00ffff',
+          shapes: [
+            [[0,0,0,0], [1,1,1,1], [0,0,0,0], [0,0,0,0]],
+            [[0,0,1,0], [0,0,1,0], [0,0,1,0], [0,0,1,0]],
+            [[0,0,0,0], [0,0,0,0], [1,1,1,1], [0,0,0,0]],
+            [[0,1,0,0], [0,1,0,0], [0,1,0,0], [0,1,0,0]]
+          ]
+        },
+        J: {
+          color: '#2060ff',
+          glow: '#4080ff',
+          shapes: [
+            [[1,0,0], [1,1,1], [0,0,0]],
+            [[0,1,1], [0,1,0], [0,1,0]],
+            [[0,0,0], [1,1,1], [0,0,1]],
+            [[0,1,0], [0,1,0], [1,1,0]]
+          ]
+        },
+        L: {
+          color: '#ff8800',
+          glow: '#ffa020',
+          shapes: [
+            [[0,0,1], [1,1,1], [0,0,0]],
+            [[0,1,0], [0,1,0], [0,1,1]],
+            [[0,0,0], [1,1,1], [1,0,0]],
+            [[1,1,0], [0,1,0], [0,1,0]]
+          ]
+        },
+        O: {
+          color: '#ffe600',
+          glow: '#ffff33',
+          shapes: [
+            [[1,1], [1,1]],
+            [[1,1], [1,1]],
+            [[1,1], [1,1]],
+            [[1,1], [1,1]]
+          ]
+        },
+        S: {
+          color: '#00ff66',
+          glow: '#33ff88',
+          shapes: [
+            [[0,1,1], [1,1,0], [0,0,0]],
+            [[0,1,0], [0,1,1], [0,0,1]],
+            [[0,0,0], [0,1,1], [1,1,0]],
+            [[1,0,0], [1,1,0], [0,1,0]]
+          ]
+        },
+        T: {
+          color: '#c000ff',
+          glow: '#e033ff',
+          shapes: [
+            [[0,1,0], [1,1,1], [0,0,0]],
+            [[0,1,0], [0,1,1], [0,1,0]],
+            [[0,0,0], [1,1,1], [0,1,0]],
+            [[0,1,0], [1,1,0], [0,1,0]]
+          ]
+        },
+        Z: {
+          color: '#ff1744',
+          glow: '#ff4060',
+          shapes: [
+            [[1,1,0], [0,1,1], [0,0,0]],
+            [[0,0,1], [0,1,1], [0,1,0]],
+            [[0,0,0], [1,1,0], [0,1,1]],
+            [[0,1,0], [1,1,0], [1,0,0]]
+          ]
+        }
+      };
+
+      // Guideline Super Rotation System (SRS) Wall Kick Data
+      // Note: Coordinates in [dx, dy] where dx is right+, dy is down+
+      const SRS_KICKS_JLSTZ = {
+        '0->1': [[0,0], [-1,0], [-1,-1], [0,2], [-1,2]],
+        '1->0': [[0,0], [1,0], [1,1], [0,-2], [1,-2]],
+        '1->2': [[0,0], [1,0], [1,1], [0,-2], [1,-2]],
+        '2->1': [[0,0], [-1,0], [-1,-1], [0,2], [-1,2]],
+        '2->3': [[0,0], [1,0], [1,-1], [0,2], [1,2]],
+        '3->2': [[0,0], [-1,0], [-1,1], [0,-2], [-1,-2]],
+        '3->0': [[0,0], [-1,0], [-1,1], [0,-2], [-1,-2]],
+        '0->3': [[0,0], [1,0], [1,-1], [0,2], [1,2]]
+      };
+
+      const SRS_KICKS_I = {
+        '0->1': [[0,0], [-2,0], [1,0], [-2,1], [1,-2]],
+        '1->0': [[0,0], [2,0], [-1,0], [2,-1], [-1,2]],
+        '1->2': [[0,0], [-1,0], [2,0], [-1,-2], [2,1]],
+        '2->1': [[0,0], [1,0], [-2,0], [1,2], [-2,-1]],
+        '2->3': [[0,0], [2,0], [-1,0], [2,-1], [-1,2]],
+        '3->2': [[0,0], [-2,0], [1,0], [-2,1], [1,-2]],
+        '3->0': [[0,0], [1,0], [-2,0], [1,2], [-2,-1]],
+        '0->3': [[0,0], [-1,0], [2,0], [-1,-2], [2,1]]
+      };
+
+      // 6 Distinctive Visual Themes changing every 10 lines
+      const THEMES = [
+        {
+          id: 0,
+          name: "NEON CYBER",
+          glow: "#00f0ff",
+          bgGrad: ["#050818", "#0b1233"],
+          particleTypes: ['laser', 'spark', 'ring'],
+          colors: ['#00f0ff', '#ff0077', '#00ffcc', '#ffffff'],
+          shakeMult: 1.0,
+          burstCount: 35
+        },
+        {
+          id: 1,
+          name: "SOLAR PLASMA",
+          glow: "#ff5500",
+          bgGrad: ["#180805", "#33120b"],
+          particleTypes: ['fire', 'flame_ember', 'plasma_ring'],
+          colors: ['#ff3300', '#ff8800', '#ffe600', '#ffffff'],
+          shakeMult: 1.3,
+          burstCount: 50
+        },
+        {
+          id: 2,
+          name: "CRYSTAL PRISM",
+          glow: "#a800ff",
+          bgGrad: ["#10051e", "#250c45"],
+          particleTypes: ['shard', 'polygon', 'shimmer'],
+          colors: ['#00ffea', '#ff00d4', '#7b00ff', '#ffffff'],
+          shakeMult: 1.4,
+          burstCount: 65
+        },
+        {
+          id: 3,
+          name: "RETRO 8-BIT",
+          glow: "#00ff66",
+          bgGrad: ["#03140a", "#092e17"],
+          particleTypes: ['voxel', 'pixel_burst', 'star'],
+          colors: ['#00ff66', '#ffff00', '#ff0055', '#00e5ff'],
+          shakeMult: 1.6,
+          burstCount: 80
+        },
+        {
+          id: 4,
+          name: "QUANTUM VOID",
+          glow: "#8000ff",
+          bgGrad: ["#080016", "#140030"],
+          particleTypes: ['implosion', 'singularity', 'void_ray'],
+          colors: ['#7928ca', '#ff0080', '#00dfd8', '#ffffff'],
+          shakeMult: 1.9,
+          burstCount: 100
+        },
+        {
+          id: 5,
+          name: "HYPER SUPERNOVA",
+          glow: "#ffd700",
+          bgGrad: ["#1f1400", "#382500"],
+          particleTypes: ['all'],
+          colors: ['#ffe600', '#ff0055', '#00f0ff', '#ffffff', '#ff8800'],
+          shakeMult: 2.3,
+          burstCount: 140
+        }
+      ];
+
+      /* ------------------------------------------------------------------------
+         2. PROCEDURAL WEB AUDIO SYNTHESIZER & SOUND ENGINE
+         ------------------------------------------------------------------------ */
+      class SoundEngine {
+        constructor() {
+          this.ctx = null;
+          this.masterGain = null;
+          this.bgmGain = null;
+          this.sfxGain = null;
+          this.isMuted = false;
+          this.bpm = 136;
+          this.isPlayingBGM = false;
+          this.bgmStep = 0;
+          this.nextNoteTime = 0;
+          this.timerID = null;
+
+          // Korobeiniki Melody & Harmony Data
+          // Format: [pitch (Hz or note name), duration in 16th notes]
+          this.melody = [
+            ['E5', 4], ['B4', 2], ['C5', 2], ['D5', 4], ['C5', 2], ['B4', 2],
+            ['A4', 4], ['A4', 2], ['C5', 2], ['E5', 4], ['D5', 2], ['C5', 2],
+            ['B4', 6], ['C5', 2], ['D5', 4], ['E5', 4],
+            ['C5', 4], ['A4', 4], ['A4', 8],
+            ['D5', 4], ['F5', 2], ['A5', 4], ['G5', 2], ['F5', 2],
+            ['E5', 6], ['C5', 2], ['E5', 4], ['D5', 2], ['C5', 2],
+            ['B4', 4], ['B4', 2], ['C5', 2], ['D5', 4], ['E5', 4],
+            ['C5', 4], ['A4', 4], ['A4', 8]
+          ];
+
+          // Bass progression (roots for funky synth bass)
+          this.bassNotes = ['A2', 'E2', 'A2', 'D2', 'A2', 'E2', 'A2', 'A2'];
+          this.arpNotes = ['A3', 'C4', 'E4', 'A4', 'E4', 'C4', 'A3', 'E3'];
+        }
+
+        init() {
+          if (this.ctx) return;
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContext();
+
+          // Master chain with soft limiter
+          this.masterGain = this.ctx.createGain();
+          this.masterGain.gain.setValueAtTime(0.75, this.ctx.currentTime);
+
+          // Dynamics Compressor (master limiter / punch)
+          const comp = this.ctx.createDynamicsCompressor();
+          comp.threshold.setValueAtTime(-14, this.ctx.currentTime);
+          comp.knee.setValueAtTime(10, this.ctx.currentTime);
+          comp.ratio.setValueAtTime(6, this.ctx.currentTime);
+          comp.attack.setValueAtTime(0.003, this.ctx.currentTime);
+          comp.release.setValueAtTime(0.2, this.ctx.currentTime);
+
+          this.bgmGain = this.ctx.createGain();
+          this.bgmGain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+
+          this.sfxGain = this.ctx.createGain();
+          this.sfxGain.gain.setValueAtTime(0.7, this.ctx.currentTime);
+
+          this.bgmGain.connect(this.masterGain);
+          this.sfxGain.connect(this.masterGain);
+          this.masterGain.connect(comp);
+          comp.connect(this.ctx.destination);
+        }
+
+        noteToFreq(note) {
+          const notes = {
+            'A1': 55.0, 'B1': 61.74, 'C2': 65.41, 'D2': 73.42, 'E2': 82.41, 'F2': 87.31, 'G2': 98.0,
+            'A2': 110.0, 'B2': 123.47, 'C3': 130.81, 'D3': 146.83, 'E3': 164.81, 'F3': 174.61, 'G3': 196.0,
+            'A3': 220.0, 'B3': 246.94, 'C4': 261.63, 'D4': 293.66, 'E4': 329.63, 'F4': 349.23, 'G4': 392.0,
+            'A4': 440.0, 'B4': 493.88, 'C5': 523.25, 'D5': 587.33, 'E5': 659.25, 'F5': 698.46, 'G5': 783.99,
+            'A5': 880.0, 'B5': 987.77, 'C6': 1046.5
+          };
+          return notes[note] || 440.0;
+        }
+
+        toggleMute() {
+          this.isMuted = !this.isMuted;
+          if (this.masterGain && this.ctx) {
+            this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : 0.75, this.ctx.currentTime);
+          }
+          return this.isMuted;
+        }
+
+        setBPM(bpm) {
+          this.bpm = Math.max(120, Math.min(220, bpm));
+        }
+
+        // Sidechain Ducking: temporarily dips BGM when big line clears happen
+        duckBGM() {
+          if (!this.ctx || this.isMuted || !this.bgmGain) return;
+          const now = this.ctx.currentTime;
+          this.bgmGain.gain.cancelScheduledValues(now);
+          this.bgmGain.gain.setValueAtTime(0.12, now);
+          this.bgmGain.gain.linearRampToValueAtTime(0.4, now + 0.35);
+        }
+
+        /* --- Dynamic BGM Engine --- */
+        startBGM() {
+          this.init();
+          if (this.ctx.state === 'suspended') {
+            this.ctx.resume();
+          }
+          if (this.isPlayingBGM) return;
+          this.isPlayingBGM = true;
+          this.bgmStep = 0;
+          this.melodyIndex = 0;
+          this.melodyStepTime = 0;
+          this.nextNoteTime = this.ctx.currentTime + 0.05;
+          this.scheduleLoop();
+        }
+
+        stopBGM() {
+          this.isPlayingBGM = false;
+          if (this.timerID) {
+            clearTimeout(this.timerID);
+            this.timerID = null;
+          }
+        }
+
+        scheduleLoop() {
+          if (!this.isPlayingBGM) return;
+          const lookahead = 0.1; // seconds
+          while (this.nextNoteTime < this.ctx.currentTime + lookahead) {
+            this.playBGMStep(this.nextNoteTime, this.bgmStep);
+            const secondsPer16th = (60 / this.bpm) / 4;
+            this.nextNoteTime += secondsPer16th;
+            this.bgmStep = (this.bgmStep + 1) % 64;
+          }
+          this.timerID = setTimeout(() => this.scheduleLoop(), 35);
+        }
+
+        playBGMStep(time, step) {
+          const themeId = gameState ? gameState.theme.id : 0;
+
+          // 1. Kick Drum (Steps 0, 4, 8, 12, etc.)
+          if (step % 4 === 0) {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.frequency.setValueAtTime(140, time);
+            osc.frequency.exponentialRampToValueAtTime(36, time + 0.11);
+            gain.gain.setValueAtTime(0.7, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + 0.14);
+            osc.connect(gain);
+            gain.connect(this.bgmGain);
+            osc.start(time);
+            osc.stop(time + 0.15);
+          }
+
+          // 2. Snare / Clap (Steps 4, 12, 20, etc. on the off-beat 2 and 4)
+          if (step % 8 === 4) {
+            const bufferSize = this.ctx.sampleRate * 0.09;
+            const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+              data[i] = Math.random() * 2 - 1;
+            }
+            const noise = this.ctx.createBufferSource();
+            noise.buffer = buffer;
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'highpass';
+            filter.frequency.setValueAtTime(1100, time);
+
+            const gain = this.ctx.createGain();
+            gain.gain.setValueAtTime(0.4, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + 0.09);
+
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.bgmGain);
+            noise.start(time);
+          }
+
+          // 3. Hi-Hat (Every 2 steps, accented on offbeat)
+          if (step % 2 === 1) {
+            const bufSize = this.ctx.sampleRate * 0.03;
+            const buf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
+            const data = buf.getChannelData(0);
+            for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+            const hat = this.ctx.createBufferSource();
+            hat.buffer = buf;
+            const hpf = this.ctx.createBiquadFilter();
+            hpf.type = 'highpass';
+            hpf.frequency.setValueAtTime(7500, time);
+
+            const hGain = this.ctx.createGain();
+            const vol = (step % 4 === 2) ? 0.28 : 0.15;
+            hGain.gain.setValueAtTime(vol, time);
+            hGain.gain.exponentialRampToValueAtTime(0.001, time + 0.035);
+
+            hat.connect(hpf);
+            hpf.connect(hGain);
+            hGain.connect(this.bgmGain);
+            hat.start(time);
+          }
+
+          // 4. Synth Bass (Driving 16th-note electro arpeggio)
+          const bassBar = Math.floor(step / 8) % this.bassNotes.length;
+          const bassRoot = this.bassNotes[bassBar];
+          const bassOsc = this.ctx.createOscillator();
+          const bassFilter = this.ctx.createBiquadFilter();
+          const bassGain = this.ctx.createGain();
+
+          bassOsc.type = themeId >= 3 ? 'sawtooth' : 'triangle';
+          let bFreq = this.noteToFreq(bassRoot);
+          if (step % 4 === 2) bFreq *= 2; // Octave pop on offbeats
+
+          bassOsc.frequency.setValueAtTime(bFreq, time);
+          bassFilter.type = 'lowpass';
+          bassFilter.frequency.setValueAtTime(themeId >= 2 ? 800 : 500, time);
+
+          bassGain.gain.setValueAtTime(0.35, time);
+          bassGain.gain.exponentialRampToValueAtTime(0.001, time + (60 / this.bpm / 4) * 0.9);
+
+          bassOsc.connect(bassFilter);
+          bassFilter.connect(bassGain);
+          bassGain.connect(this.bgmGain);
+          bassOsc.start(time);
+          bassOsc.stop(time + (60 / this.bpm / 4));
+
+          // 5. High-energy combo arpeggio layer when combo >= 2
+          const combo = gameState ? Math.max(0, gameState.combo) : 0;
+          if (combo >= 2) {
+            const arpNote = this.arpNotes[step % this.arpNotes.length];
+            const arpOsc = this.ctx.createOscillator();
+            const arpGain = this.ctx.createGain();
+            arpOsc.type = 'sine';
+            arpOsc.frequency.setValueAtTime(this.noteToFreq(arpNote) * 2, time);
+            arpGain.gain.setValueAtTime(0.12, time);
+            arpGain.gain.exponentialRampToValueAtTime(0.001, time + (60 / this.bpm / 4) * 0.7);
+            arpOsc.connect(arpGain);
+            arpGain.connect(this.bgmGain);
+            arpOsc.start(time);
+            arpOsc.stop(time + (60 / this.bpm / 4));
+          }
+
+          // 6. Lead Melody (Korobeiniki)
+          if (!this.currentNoteDuration || this.melodyStepTime <= 0) {
+            const noteItem = this.melody[this.melodyIndex % this.melody.length];
+            this.currentNotePitch = noteItem[0];
+            this.currentNoteDuration = noteItem[1];
+            this.melodyStepTime = this.currentNoteDuration;
+            this.melodyIndex++;
+
+            const leadOsc = this.ctx.createOscillator();
+            const leadFilter = this.ctx.createBiquadFilter();
+            const leadGain = this.ctx.createGain();
+
+            leadOsc.type = themeId === 3 ? 'square' : (themeId >= 4 ? 'sawtooth' : 'sawtooth');
+            leadOsc.frequency.setValueAtTime(this.noteToFreq(this.currentNotePitch), time);
+
+            leadFilter.type = 'lowpass';
+            leadFilter.frequency.setValueAtTime(2200 + (themeId * 400), time);
+            leadFilter.Q.setValueAtTime(3, time);
+
+            const durSec = (60 / this.bpm / 4) * this.currentNoteDuration;
+            leadGain.gain.setValueAtTime(0.24, time);
+            leadGain.gain.setValueAtTime(0.22, time + durSec * 0.7);
+            leadGain.gain.exponentialRampToValueAtTime(0.001, time + durSec * 0.98);
+
+            leadOsc.connect(leadFilter);
+            leadFilter.connect(leadGain);
+            leadGain.connect(this.bgmGain);
+            leadOsc.start(time);
+            leadOsc.stop(time + durSec);
+          }
+          this.melodyStepTime--;
+        }
+
+        /* --- Sound Effects --- */
+        playMove() {
+          if (!this.ctx || this.isMuted) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(520, now);
+          osc.frequency.exponentialRampToValueAtTime(800, now + 0.03);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+          osc.connect(gain);
+          gain.connect(this.sfxGain);
+          osc.start(now);
+          osc.stop(now + 0.035);
+        }
+
+        playRotate() {
+          if (!this.ctx || this.isMuted) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(360, now);
+          osc.frequency.exponentialRampToValueAtTime(720, now + 0.05);
+          gain.gain.setValueAtTime(0.18, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+          osc.connect(gain);
+          gain.connect(this.sfxGain);
+          osc.start(now);
+          osc.stop(now + 0.055);
+        }
+
+        playHold() {
+          if (!this.ctx || this.isMuted) return;
+          const now = this.ctx.currentTime;
+          [880, 1320].forEach(f => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(f, now);
+            gain.gain.setValueAtTime(0.18, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+            osc.connect(gain);
+            gain.connect(this.sfxGain);
+            osc.start(now);
+            osc.stop(now + 0.13);
+          });
+        }
+
+        playDrop() {
+          if (!this.ctx || this.isMuted) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(140, now);
+          osc.frequency.exponentialRampToValueAtTime(50, now + 0.05);
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+          osc.connect(gain);
+          gain.connect(this.sfxGain);
+          osc.start(now);
+          osc.stop(now + 0.055);
+        }
+
+        playHardDrop() {
+          if (!this.ctx || this.isMuted) return;
+          const now = this.ctx.currentTime;
+          const sub = this.ctx.createOscillator();
+          const subGain = this.ctx.createGain();
+          sub.type = 'sine';
+          sub.frequency.setValueAtTime(120, now);
+          sub.frequency.exponentialRampToValueAtTime(32, now + 0.15);
+          subGain.gain.setValueAtTime(0.5, now);
+          subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+          sub.connect(subGain);
+          subGain.connect(this.sfxGain);
+          sub.start(now);
+          sub.stop(now + 0.17);
+
+          const click = this.ctx.createOscillator();
+          const clickGain = this.ctx.createGain();
+          click.type = 'triangle';
+          click.frequency.setValueAtTime(1200, now);
+          clickGain.gain.setValueAtTime(0.25, now);
+          clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+          click.connect(clickGain);
+          clickGain.connect(this.sfxGain);
+          click.start(now);
+          click.stop(now + 0.035);
+        }
+
+        playLineClear(lines, isTSpin, isB2B, combo) {
+          if (!this.ctx || this.isMuted) return;
+          this.duckBGM();
+          const now = this.ctx.currentTime;
+          const baseFreq = 440 * Math.pow(1.05946, Math.min(12, combo));
+
+          if (lines === 4) {
+            const chords = [baseFreq, baseFreq * 1.25, baseFreq * 1.5, baseFreq * 2];
+            chords.forEach((freq, idx) => {
+              const osc = this.ctx.createOscillator();
+              const gain = this.ctx.createGain();
+              osc.type = 'sawtooth';
+              osc.frequency.setValueAtTime(freq, now + idx * 0.03);
+              osc.frequency.exponentialRampToValueAtTime(freq * 1.5, now + 0.45);
+
+              gain.gain.setValueAtTime(0.2, now + idx * 0.03);
+              gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+              osc.connect(gain);
+              gain.connect(this.sfxGain);
+              osc.start(now + idx * 0.03);
+              osc.stop(now + 0.52);
+            });
+
+            const sub = this.ctx.createOscillator();
+            const subGain = this.ctx.createGain();
+            sub.type = 'triangle';
+            sub.frequency.setValueAtTime(180, now);
+            sub.frequency.exponentialRampToValueAtTime(25, now + 0.6);
+            subGain.gain.setValueAtTime(0.8, now);
+            subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+            sub.connect(subGain);
+            subGain.connect(this.sfxGain);
+            sub.start(now);
+            sub.stop(now + 0.7);
+
+          } else if (isTSpin) {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(260, now);
+            osc.frequency.exponentialRampToValueAtTime(980, now + 0.25);
+            osc.frequency.exponentialRampToValueAtTime(440, now + 0.45);
+            gain.gain.setValueAtTime(0.35, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.48);
+            osc.connect(gain);
+            gain.connect(this.sfxGain);
+            osc.start(now);
+            osc.stop(now + 0.5);
+
+          } else {
+            const steps = lines === 1 ? [1] : (lines === 2 ? [1, 1.26] : [1, 1.26, 1.5]);
+            steps.forEach((mult, i) => {
+              const osc = this.ctx.createOscillator();
+              const gain = this.ctx.createGain();
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(baseFreq * mult, now + i * 0.02);
+              osc.frequency.exponentialRampToValueAtTime(baseFreq * mult * 2, now + 0.18);
+              gain.gain.setValueAtTime(0.25, now + i * 0.02);
+              gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+              osc.connect(gain);
+              gain.connect(this.sfxGain);
+              osc.start(now + i * 0.02);
+              osc.stop(now + 0.25);
+            });
+          }
+        }
+
+        playLevelUp() {
+          if (!this.ctx || this.isMuted) return;
+          const now = this.ctx.currentTime;
+          const notes = [523.25, 659.25, 783.99, 1046.5, 1318.5];
+          notes.forEach((f, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(f, now + i * 0.06);
+            gain.gain.setValueAtTime(0.25, now + i * 0.06);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.06 + 0.3);
+            osc.connect(gain);
+            gain.connect(this.sfxGain);
+            osc.start(now + i * 0.06);
+            osc.stop(now + i * 0.06 + 0.32);
+          });
+        }
+
+        playGameOver() {
+          if (!this.ctx || this.isMuted) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(360, now);
+          osc.frequency.exponentialRampToValueAtTime(45, now + 0.8);
+          gain.gain.setValueAtTime(0.4, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
+          osc.connect(gain);
+          gain.connect(this.sfxGain);
+          osc.start(now);
+          osc.stop(now + 0.9);
+        }
+      }
+
+      /* ------------------------------------------------------------------------
+         3. PARTICLE & VISUAL FX ENGINE
+         ------------------------------------------------------------------------ */
+      class Particle {
+        constructor(x, y, options = {}) {
+          this.x = x;
+          this.y = y;
+          this.vx = options.vx || (Math.random() - 0.5) * 8;
+          this.vy = options.vy || (Math.random() - 0.5) * 8;
+          this.ax = options.ax || 0;
+          this.ay = options.ay !== undefined ? options.ay : 0.25;
+          this.size = options.size || Math.random() * 5 + 3;
+          this.initialSize = this.size;
+          this.color = options.color || '#00f0ff';
+          this.alpha = 1.0;
+          this.decay = options.decay || Math.random() * 0.02 + 0.015;
+          this.shape = options.shape || 'circle';
+          this.rotation = Math.random() * Math.PI * 2;
+          this.vRot = (Math.random() - 0.5) * 0.2;
+          this.blend = options.blend || 'lighter';
+          this.bounce = options.bounce || 0.5;
+        }
+
+        update() {
+          this.vx += this.ax;
+          this.vy += this.ay;
+          this.x += this.vx;
+          this.y += this.vy;
+          this.rotation += this.vRot;
+          this.alpha -= this.decay;
+          return this.alpha > 0;
+        }
+
+        draw(ctx) {
+          if (this.alpha <= 0) return;
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, this.alpha);
+          ctx.globalCompositeOperation = this.blend;
+          ctx.translate(this.x, this.y);
+          ctx.rotate(this.rotation);
+
+          if (this.shape === 'circle') {
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(0, 0, this.size, 0, Math.PI * 2);
+            ctx.fill();
+
+          } else if (this.shape === 'voxel' || this.shape === 'square') {
+            ctx.fillStyle = this.color;
+            ctx.fillRect(-this.size, -this.size, this.size * 2, this.size * 2);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(-this.size, -this.size, this.size * 2, this.size * 2);
+
+          } else if (this.shape === 'shard') {
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.moveTo(0, -this.size * 1.5);
+            ctx.lineTo(this.size, this.size);
+            ctx.lineTo(-this.size, this.size * 0.8);
+            ctx.closePath();
+            ctx.fill();
+
+          } else if (this.shape === 'star') {
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            for (let i = 0; i < 5; i++) {
+              ctx.lineTo(Math.cos((18 + i * 72) * Math.PI / 180) * this.size,
+                         -Math.sin((18 + i * 72) * Math.PI / 180) * this.size);
+              ctx.lineTo(Math.cos((54 + i * 72) * Math.PI / 180) * (this.size * 0.4),
+                         -Math.sin((54 + i * 72) * Math.PI / 180) * (this.size * 0.4));
+            }
+            ctx.closePath();
+            ctx.fill();
+
+          } else if (this.shape === 'laser') {
+            ctx.strokeStyle = this.color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-this.size * 2, 0);
+            ctx.lineTo(this.size * 2, 0);
+            ctx.stroke();
+          }
+
+          ctx.restore();
+        }
+      }
+
+      class ShockwaveRing {
+        constructor(x, y, color, maxRadius = 120, speed = 8) {
+          this.x = x;
+          this.y = y;
+          this.color = color;
+          this.radius = 4;
+          this.maxRadius = maxRadius;
+          this.speed = speed;
+          this.alpha = 1.0;
+        }
+
+        update() {
+          this.radius += this.speed;
+          this.alpha = 1.0 - (this.radius / this.maxRadius);
+          return this.alpha > 0;
+        }
+
+        draw(ctx) {
+          if (this.alpha <= 0) return;
+          ctx.save();
+          ctx.globalAlpha = this.alpha;
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.strokeStyle = this.color;
+          ctx.lineWidth = Math.max(1, 6 * (1 - this.radius / this.maxRadius));
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+      class FloatingText {
+        constructor(text, x, y, color, fontSize = 22) {
+          this.text = text;
+          this.x = x;
+          this.y = y;
+          this.color = color;
+          this.fontSize = fontSize;
+          this.alpha = 1.0;
+          this.vy = -2.2;
+          this.scale = 0.5;
+        }
+
+        update() {
+          this.y += this.vy;
+          this.scale = Math.min(1.2, this.scale + 0.15);
+          this.alpha -= 0.016;
+          return this.alpha > 0;
+        }
+
+        draw(ctx) {
+          if (this.alpha <= 0) return;
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, this.alpha);
+          ctx.font = `900 ${this.fontSize * this.scale}px 'Orbitron', sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.shadowColor = this.color;
+          ctx.shadowBlur = 15;
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(this.text, this.x, this.y);
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = this.color;
+          ctx.strokeText(this.text, this.x, this.y);
+          ctx.restore();
+        }
+      }
+
+      class FXEngine {
+        constructor(canvas) {
+          this.canvas = canvas;
+          this.ctx = canvas.getContext('2d');
+          this.particles = [];
+          this.rings = [];
+          this.texts = [];
+          this.shakeAmount = 0;
+          this.shakeDecay = 0.88;
+        }
+
+        triggerExplosion(clearedRows, theme, isTetris, isTSpin, combo) {
+          const w = this.canvas.width;
+          const h = this.canvas.height;
+          const rowHeight = h / ROWS;
+          const cellWidth = w / COLS;
+
+          let baseShake = clearedRows.length * 6 * theme.shakeMult;
+          if (isTetris) baseShake *= 2.2;
+          if (isTSpin) baseShake *= 1.8;
+          this.shakeAmount = Math.min(32, this.shakeAmount + baseShake);
+
+          const flashEl = document.getElementById('flashOverlay');
+          if (flashEl) {
+            flashEl.style.backgroundColor = isTetris ? '#ffffff' : theme.glow;
+            flashEl.style.opacity = isTetris ? '0.65' : '0.35';
+            setTimeout(() => { flashEl.style.opacity = '0'; }, 100);
+          }
+
+          if ((isTetris || combo >= 4) && window.confetti) {
+            window.confetti({
+              particleCount: isTetris ? 120 : 60,
+              spread: 80,
+              origin: { y: 0.6 },
+              colors: theme.colors
+            });
+          }
+
+          clearedRows.forEach(r => {
+            const centerY = (r - HIDDEN_ROWS + 0.5) * rowHeight;
+            if (centerY < 0) return;
+
+            this.rings.push(new ShockwaveRing(w / 2, centerY, theme.glow, w * 0.9, 12));
+
+            for (let c = 0; c < COLS; c++) {
+              const centerX = (c + 0.5) * cellWidth;
+              const subCount = Math.floor(theme.burstCount / 10);
+
+              for (let i = 0; i < subCount; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = (Math.random() * 8 + 4) * (isTetris ? 1.5 : 1.0);
+                const color = theme.colors[Math.floor(Math.random() * theme.colors.length)];
+
+                let shape = 'circle';
+                if (theme.id === 1) shape = Math.random() > 0.4 ? 'circle' : 'laser';
+                else if (theme.id === 2) shape = 'shard';
+                else if (theme.id === 3) shape = 'voxel';
+                else if (theme.id === 4) shape = Math.random() > 0.5 ? 'circle' : 'shard';
+                else if (theme.id === 5) {
+                  const shapes = ['circle', 'shard', 'voxel', 'star'];
+                  shape = shapes[Math.floor(Math.random() * shapes.length)];
+                }
+
+                let ax = 0;
+                let ay = 0.28;
+                let vx = Math.cos(angle) * speed;
+                let vy = Math.sin(angle) * speed;
+
+                if (theme.id === 4) {
+                  ax = (w / 2 - centerX) * 0.015;
+                  ay = 0;
+                }
+
+                this.particles.push(new Particle(centerX, centerY, {
+                  vx, vy, ax, ay,
+                  color,
+                  size: Math.random() * 5 + 3,
+                  decay: Math.random() * 0.02 + 0.012,
+                  shape
+                }));
+              }
+            }
+          });
+
+          const textY = (clearedRows[0] - HIDDEN_ROWS + 0.5) * rowHeight;
+          if (isTetris) {
+            this.texts.push(new FloatingText("TETRIS!", w / 2, textY, "#ffe600", 30));
+          } else if (isTSpin) {
+            this.texts.push(new FloatingText("T-SPIN!", w / 2, textY, "#ff00d4", 26));
+          } else if (clearedRows.length === 3) {
+            this.texts.push(new FloatingText("TRIPLE!", w / 2, textY, "#00f0ff", 22));
+          } else if (clearedRows.length === 2) {
+            this.texts.push(new FloatingText("DOUBLE!", w / 2, textY, "#00ff66", 20));
+          }
+
+          if (combo > 1) {
+            this.texts.push(new FloatingText(`${combo} REN!`, w / 2, textY + 28, "#ff7700", 18));
+          }
+        }
+
+        updateAndDraw() {
+          this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+          for (let i = this.rings.length - 1; i >= 0; i--) {
+            if (!this.rings[i].update()) {
+              this.rings.splice(i, 1);
+            } else {
+              this.rings[i].draw(this.ctx);
+            }
+          }
+
+          for (let i = this.particles.length - 1; i >= 0; i--) {
+            if (!this.particles[i].update()) {
+              this.particles.splice(i, 1);
+            } else {
+              this.particles[i].draw(this.ctx);
+            }
+          }
+
+          for (let i = this.texts.length - 1; i >= 0; i--) {
+            if (!this.texts[i].update()) {
+              this.texts.splice(i, 1);
+            } else {
+              this.texts[i].draw(this.ctx);
+            }
+          }
+
+          const gameApp = document.getElementById('gameApp');
+          if (gameApp && gameState && gameState.settings.screenShake) {
+            if (this.shakeAmount > 0.4) {
+              const dx = (Math.random() - 0.5) * this.shakeAmount * 2;
+              const dy = (Math.random() - 0.5) * this.shakeAmount * 2;
+              gameApp.style.transform = `translate(${dx}px, ${dy}px)`;
+              this.shakeAmount *= this.shakeDecay;
+            } else {
+              gameApp.style.transform = 'translate(0px, 0px)';
+              this.shakeAmount = 0;
+            }
+          }
+        }
+      }
+
+      /* ------------------------------------------------------------------------
+         4. TETRIS ENGINE (GUIDELINE SRS, 7-BAG, ROTATIONS, DAS, COMBO)
+         ------------------------------------------------------------------------ */
+      class TetrisGame {
+        constructor() {
+          this.grid = Array.from({ length: TOTAL_ROWS }, () => Array(COLS).fill(null));
+          this.bag = [];
+          this.queue = [];
+          this.currentPiece = null;
+          this.currentX = 0;
+          this.currentY = 0;
+          this.currentRot = 0;
+
+          this.holdPiece = null;
+          this.canHold = true;
+
+          this.score = 0;
+          this.level = 1;
+          this.lines = 0;
+          this.combo = -1;
+          this.backToBack = false;
+
+          this.isGameOver = false;
+          this.isPaused = false;
+          this.isRunning = false;
+
+          this.dropInterval = 1000;
+          this.lastDropTime = 0;
+          this.lockDelay = 500;
+          this.lockTimer = null;
+          this.lockResets = 0;
+          this.maxLockResets = 15;
+          this.lastActionWasRotate = false;
+
+          this.theme = THEMES[0];
+
+          this.settings = {
+            screenShake: true,
+            sound: true
+          };
+
+          this.highScore = parseInt(localStorage.getItem('cyber_tetris_highscore') || '0', 10);
+        }
+
+        init() {
+          this.reset();
+        }
+
+        reset() {
+          this.grid = Array.from({ length: TOTAL_ROWS }, () => Array(COLS).fill(null));
+          this.bag = [];
+          this.queue = [];
+          this.score = 0;
+          this.level = 1;
+          this.lines = 0;
+          this.combo = -1;
+          this.backToBack = false;
+          this.isGameOver = false;
+          this.isPaused = false;
+          this.holdPiece = null;
+          this.canHold = true;
+          this.lockResets = 0;
+          this.lastActionWasRotate = false;
+          this.theme = THEMES[0];
+          this.updateDropInterval();
+
+          this.refillQueue();
+          this.spawnPiece();
+          this.updateTheme();
+        }
+
+        refillQueue() {
+          while (this.queue.length < 7) {
+            if (this.bag.length === 0) {
+              const types = ['I', 'J', 'L', 'O', 'S', 'T', 'Z'];
+              for (let i = types.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [types[i], types[j]] = [types[j], types[i]];
+              }
+              this.bag = types;
+            }
+            this.queue.push(this.bag.pop());
+          }
+        }
+
+        spawnPiece(type = null) {
+          this.refillQueue();
+          const pType = type || this.queue.shift();
+          this.currentPiece = {
+            type: pType,
+            ...TETRIMINOS[pType]
+          };
+          this.currentRot = 0;
+          this.currentX = pType === 'O' ? 4 : 3;
+          this.currentY = HIDDEN_ROWS - 2;
+
+          this.canHold = true;
+          this.lockTimer = null;
+          this.lockResets = 0;
+          this.lastActionWasRotate = false;
+
+          if (this.checkCollision(this.currentPiece.shapes[this.currentRot], this.currentX, this.currentY)) {
+            this.gameOver();
+          }
+        }
+
+        checkCollision(shape, posX, posY) {
+          for (let r = 0; r < shape.length; r++) {
+            for (let c = 0; c < shape[r].length; c++) {
+              if (shape[r][c]) {
+                const targetX = posX + c;
+                const targetY = posY + r;
+
+                if (targetX < 0 || targetX >= COLS || targetY >= TOTAL_ROWS) {
+                  return true;
+                }
+                if (targetY >= 0 && this.grid[targetY][targetX]) {
+                  return true;
+                }
+              }
+            }
+          }
+          return false;
+        }
+
+        move(dx) {
+          if (this.isGameOver || this.isPaused || !this.currentPiece) return false;
+          const shape = this.currentPiece.shapes[this.currentRot];
+          if (!this.checkCollision(shape, this.currentX + dx, this.currentY)) {
+            this.currentX += dx;
+            this.lastActionWasRotate = false;
+            this.resetLockDelayOnMove();
+            soundEngine.playMove();
+            return true;
+          }
+          return false;
+        }
+
+        rotate(direction) {
+          if (this.isGameOver || this.isPaused || !this.currentPiece) return false;
+          if (this.currentPiece.type === 'O') return true;
+
+          const prevRot = this.currentRot;
+          const nextRot = (this.currentRot + direction + 4) % 4;
+          const nextShape = this.currentPiece.shapes[nextRot];
+          const kickKey = `${prevRot}->${nextRot}`;
+
+          const kickTable = (this.currentPiece.type === 'I') ? SRS_KICKS_I[kickKey] : SRS_KICKS_JLSTZ[kickKey];
+          if (!kickTable) return false;
+
+          for (let i = 0; i < kickTable.length; i++) {
+            const [dx, dy] = kickTable[i];
+            if (!this.checkCollision(nextShape, this.currentX + dx, this.currentY + dy)) {
+              this.currentX += dx;
+              this.currentY += dy;
+              this.currentRot = nextRot;
+              this.lastActionWasRotate = true;
+              this.resetLockDelayOnMove();
+              soundEngine.playRotate();
+              return true;
+            }
+          }
+          return false;
+        }
+
+        resetLockDelayOnMove() {
+          const shape = this.currentPiece.shapes[this.currentRot];
+          const onGround = this.checkCollision(shape, this.currentX, this.currentY + 1);
+
+          if (onGround) {
+            if (this.lockResets < this.maxLockResets) {
+              this.lockTimer = Date.now();
+              this.lockResets++;
+            }
+          } else {
+            this.lockTimer = null;
+          }
+        }
+
+        softDrop() {
+          if (this.isGameOver || this.isPaused || !this.currentPiece) return false;
+          const shape = this.currentPiece.shapes[this.currentRot];
+          if (!this.checkCollision(shape, this.currentX, this.currentY + 1)) {
+            this.currentY += 1;
+            this.score += 1;
+            this.lastActionWasRotate = false;
+            soundEngine.playDrop();
+            return true;
+          } else {
+            if (!this.lockTimer) {
+              this.lockTimer = Date.now();
+            }
+          }
+          return false;
+        }
+
+        hardDrop() {
+          if (this.isGameOver || this.isPaused || !this.currentPiece) return;
+          const shape = this.currentPiece.shapes[this.currentRot];
+          let dropDistance = 0;
+
+          while (!this.checkCollision(shape, this.currentX, this.currentY + 1)) {
+            this.currentY += 1;
+            dropDistance++;
+          }
+
+          this.score += dropDistance * 2;
+          soundEngine.playHardDrop();
+          this.lockPiece();
+        }
+
+        getGhostY() {
+          if (!this.currentPiece) return this.currentY;
+          const shape = this.currentPiece.shapes[this.currentRot];
+          let ghostY = this.currentY;
+          while (!this.checkCollision(shape, this.currentX, ghostY + 1)) {
+            ghostY++;
+          }
+          return ghostY;
+        }
+
+        hold() {
+          if (!this.canHold || this.isGameOver || this.isPaused || !this.currentPiece) return;
+          soundEngine.playHold();
+          const currentType = this.currentPiece.type;
+
+          if (this.holdPiece) {
+            const nextSpawn = this.holdPiece;
+            this.holdPiece = currentType;
+            this.spawnPiece(nextSpawn);
+          } else {
+            this.holdPiece = currentType;
+            this.spawnPiece();
+          }
+          this.canHold = false;
+        }
+
+        checkTSpin() {
+          if (!this.currentPiece || this.currentPiece.type !== 'T' || !this.lastActionWasRotate) {
+            return false;
+          }
+          const corners = [
+            [this.currentX, this.currentY],
+            [this.currentX + 2, this.currentY],
+            [this.currentX, this.currentY + 2],
+            [this.currentX + 2, this.currentY + 2]
+          ];
+
+          let occupiedCorners = 0;
+          corners.forEach(([cx, cy]) => {
+            if (cx < 0 || cx >= COLS || cy >= TOTAL_ROWS || (cy >= 0 && this.grid[cy][cx])) {
+              occupiedCorners++;
+            }
+          });
+
+          return occupiedCorners >= 3;
+        }
+
+        lockPiece() {
+          const shape = this.currentPiece.shapes[this.currentRot];
+          const color = this.currentPiece.color;
+          const isTSpin = this.checkTSpin();
+
+          for (let r = 0; r < shape.length; r++) {
+            for (let c = 0; c < shape[r].length; c++) {
+              if (shape[r][c]) {
+                const targetY = this.currentY + r;
+                const targetX = this.currentX + c;
+                if (targetY >= 0 && targetY < TOTAL_ROWS) {
+                  this.grid[targetY][targetX] = color;
+                }
+              }
+            }
+          }
+
+          this.clearLines(isTSpin);
+        }
+
+        clearLines(isTSpin) {
+          const clearedRows = [];
+
+          for (let r = TOTAL_ROWS - 1; r >= 0; r--) {
+            if (this.grid[r].every(cell => cell !== null)) {
+              clearedRows.push(r);
+            }
+          }
+
+          const lineCount = clearedRows.length;
+
+          if (lineCount > 0) {
+            this.combo++;
+            const isTetris = lineCount === 4;
+            const isDifficult = isTetris || isTSpin;
+
+            let baseScore = 0;
+            if (isTSpin) {
+              if (lineCount === 1) baseScore = 800;
+              else if (lineCount === 2) baseScore = 1200;
+              else if (lineCount === 3) baseScore = 1600;
+            } else {
+              if (lineCount === 1) baseScore = 100;
+              else if (lineCount === 2) baseScore = 300;
+              else if (lineCount === 3) baseScore = 500;
+              else if (lineCount === 4) baseScore = 800;
+            }
+
+            let b2bBonus = 1.0;
+            if (isDifficult) {
+              if (this.backToBack) {
+                b2bBonus = 1.5;
+                const b2bEl = document.getElementById('b2bBadge');
+                if (b2bEl) b2bEl.style.display = 'block';
+              }
+              this.backToBack = true;
+            } else {
+              this.backToBack = false;
+              const b2bEl = document.getElementById('b2bBadge');
+              if (b2bEl) b2bEl.style.display = 'none';
+            }
+
+            const comboScore = Math.max(0, this.combo) * 50 * this.level;
+            const totalAdd = Math.floor(baseScore * this.level * b2bBonus + comboScore);
+            this.score += totalAdd;
+
+            fxEngine.triggerExplosion(clearedRows, this.theme, isTetris, isTSpin, this.combo);
+            soundEngine.playLineClear(lineCount, isTSpin, this.backToBack, this.combo);
+
+            clearedRows.sort((a, b) => a - b);
+            clearedRows.forEach(r => {
+              this.grid.splice(r, 1);
+              this.grid.unshift(Array(COLS).fill(null));
+            });
+
+            this.lines += lineCount;
+            this.checkLevelProgression();
+
+          } else {
+            this.combo = -1;
+            if (isTSpin) {
+              this.score += 400 * this.level;
+              soundEngine.playLineClear(0, true, false, 0);
+            }
+          }
+
+          this.spawnPiece();
+        }
+
+        checkLevelProgression() {
+          const newLevel = Math.floor(this.lines / 10) + 1;
+          if (newLevel !== this.level) {
+            this.level = newLevel;
+            soundEngine.playLevelUp();
+            this.updateTheme();
+            this.updateDropInterval();
+          }
+        }
+
+        updateTheme() {
+          const themeIndex = Math.min(THEMES.length - 1, Math.floor(this.lines / 10));
+          this.theme = THEMES[themeIndex];
+
+          soundEngine.setBPM(134 + (themeIndex * 8));
+
+          const themeNameEl = document.getElementById('themeName');
+          const bannerEl = document.getElementById('themeBanner');
+          const stageEl = document.getElementById('stageWrapper');
+
+          if (themeNameEl) themeNameEl.textContent = this.theme.name;
+          if (bannerEl) {
+            bannerEl.style.borderColor = this.theme.glow;
+            bannerEl.style.boxShadow = `0 0 15px ${this.theme.glow}`;
+          }
+          if (stageEl) {
+            stageEl.style.borderColor = this.theme.glow;
+            stageEl.style.boxShadow = `0 0 35px ${this.theme.glow}, inset 0 0 25px rgba(0,0,0,0.8)`;
+          }
+
+          document.documentElement.style.setProperty('--theme-glow', this.theme.glow);
+        }
+
+        updateDropInterval() {
+          this.dropInterval = Math.max(70, 1000 * Math.pow(0.82, this.level - 1));
+        }
+
+        update(time) {
+          if (this.isGameOver || this.isPaused || !this.isRunning) return;
+
+          if (time - this.lastDropTime > this.dropInterval) {
+            this.lastDropTime = time;
+            const shape = this.currentPiece.shapes[this.currentRot];
+            if (!this.checkCollision(shape, this.currentX, this.currentY + 1)) {
+              this.currentY += 1;
+              this.lastActionWasRotate = false;
+            }
+          }
+
+          if (this.currentPiece) {
+            const shape = this.currentPiece.shapes[this.currentRot];
+            const onGround = this.checkCollision(shape, this.currentX, this.currentY + 1);
+
+            if (onGround) {
+              if (!this.lockTimer) {
+                this.lockTimer = time;
+              } else if (time - this.lockTimer > this.lockDelay) {
+                this.lockPiece();
+              }
+            } else {
+              this.lockTimer = null;
+            }
+          }
+        }
+
+        gameOver() {
+          this.isGameOver = true;
+          this.isRunning = false;
+          soundEngine.playGameOver();
+          soundEngine.stopBGM();
+
+          if (this.score > this.highScore) {
+            this.highScore = this.score;
+            localStorage.setItem('cyber_tetris_highscore', this.highScore.toString());
+          }
+
+          document.getElementById('finalScoreVal').textContent = this.score;
+          document.getElementById('highScoreVal').textContent = this.highScore;
+          document.getElementById('finalLinesVal').textContent = this.lines;
+          document.getElementById('finalComboVal').textContent = Math.max(0, this.combo);
+          document.getElementById('gameOverOverlay').classList.remove('hidden');
+        }
+      }
+
+      /* ------------------------------------------------------------------------
+         5. GRAPHICS RENDERING & UI UPDATES
+         ------------------------------------------------------------------------ */
+      const gameCanvas = document.getElementById('gameCanvas');
+      const gameCtx = gameCanvas.getContext('2d');
+      const holdCanvas = document.getElementById('holdCanvas');
+      const holdCtx = holdCanvas.getContext('2d');
+      const nextCanvas = document.getElementById('nextCanvas');
+      const nextCtx = nextCanvas.getContext('2d');
+      const bgCanvas = document.getElementById('bgCanvas');
+      const bgCtx = bgCanvas.getContext('2d');
+
+      const soundEngine = new SoundEngine();
+      const fxEngine = new FXEngine(document.getElementById('fxCanvas'));
+      const gameState = new TetrisGame();
+
+      function resizeBg() {
+        bgCanvas.width = window.innerWidth;
+        bgCanvas.height = window.innerHeight;
+      }
+      window.addEventListener('resize', resizeBg);
+      resizeBg();
+
+      // Theme-specific ambient background particles
+      const bgParticles = Array.from({ length: 90 }, () => ({
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: Math.random() * 0.5 + 0.2,
+        size: Math.random() * 2.5 + 0.8,
+        alpha: Math.random() * 0.8 + 0.2
+      }));
+
+      let bgTime = 0;
+      function renderBackground() {
+        bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+        const theme = gameState.theme;
+        const w = bgCanvas.width;
+        const h = bgCanvas.height;
+        bgTime += 0.02;
+
+        // Base radial gradient
+        const grad = bgCtx.createRadialGradient(w / 2, h / 2, 50, w / 2, h / 2, w * 0.85);
+        grad.addColorStop(0, theme.bgGrad[1]);
+        grad.addColorStop(1, theme.bgGrad[0]);
+        bgCtx.fillStyle = grad;
+        bgCtx.fillRect(0, 0, w, h);
+
+        // Theme 0: Synthwave perspective 3D grid
+        if (theme.id === 0) {
+          bgCtx.save();
+          bgCtx.strokeStyle = 'rgba(0, 240, 255, 0.12)';
+          bgCtx.lineWidth = 1.5;
+          const horizon = h * 0.65;
+          for (let x = -w * 0.5; x <= w * 1.5; x += 90) {
+            bgCtx.beginPath();
+            bgCtx.moveTo(w / 2, horizon);
+            bgCtx.lineTo(x, h);
+            bgCtx.stroke();
+          }
+          const gridOffset = (bgTime * 35) % 40;
+          for (let y = horizon; y <= h; y += 18) {
+            const p = (y - horizon) / (h - horizon);
+            const lineY = horizon + Math.pow(p, 1.8) * (h - horizon) + gridOffset * p;
+            if (lineY <= h) {
+              bgCtx.beginPath();
+              bgCtx.moveTo(0, lineY);
+              bgCtx.lineTo(w, lineY);
+              bgCtx.stroke();
+            }
+          }
+          bgCtx.restore();
+        }
+        // Theme 1: Rising Solar Magma Embers
+        else if (theme.id === 1) {
+          bgCtx.save();
+          bgCtx.fillStyle = '#ff6600';
+          bgParticles.forEach(p => {
+            p.y -= (p.vy + 0.8);
+            if (p.y < 0) p.y = h;
+            bgCtx.globalAlpha = p.alpha * 0.7;
+            bgCtx.beginPath();
+            bgCtx.arc(p.x, p.y, p.size * 1.4, 0, Math.PI * 2);
+            bgCtx.fill();
+          });
+          bgCtx.restore();
+        }
+        // Theme 2: Rotating Prism Geometry
+        else if (theme.id === 2) {
+          bgCtx.save();
+          bgCtx.strokeStyle = 'rgba(168, 0, 255, 0.15)';
+          bgCtx.lineWidth = 2;
+          for (let i = 0; i < 4; i++) {
+            const r = 160 + i * 90;
+            bgCtx.save();
+            bgCtx.translate(w / 2, h / 2);
+            bgCtx.rotate(bgTime * 0.15 * (i % 2 === 0 ? 1 : -1));
+            bgCtx.beginPath();
+            for (let j = 0; j < 6; j++) {
+              const a = (j * Math.PI * 2) / 6;
+              const px = Math.cos(a) * r;
+              const py = Math.sin(a) * r;
+              if (j === 0) bgCtx.moveTo(px, py);
+              else bgCtx.lineTo(px, py);
+            }
+            bgCtx.closePath();
+            bgCtx.stroke();
+            bgCtx.restore();
+          }
+          bgCtx.restore();
+        }
+        // Theme 3: Retro 8-bit Warp Stars
+        else if (theme.id === 3) {
+          bgCtx.save();
+          bgCtx.fillStyle = '#00ff66';
+          bgParticles.forEach(p => {
+            p.y += (p.vy + 2.5);
+            if (p.y > h) p.y = 0;
+            bgCtx.globalAlpha = p.alpha;
+            bgCtx.fillRect(p.x, p.y, p.size * 2, p.size * 2);
+          });
+          bgCtx.restore();
+        }
+        // Theme 4: Quantum Gravitational Spiral
+        else if (theme.id === 4) {
+          bgCtx.save();
+          bgCtx.strokeStyle = 'rgba(153, 0, 255, 0.18)';
+          bgCtx.lineWidth = 2;
+          bgCtx.translate(w / 2, h / 2);
+          for (let i = 0; i < 3; i++) {
+            bgCtx.rotate(bgTime * 0.2 + i);
+            bgCtx.beginPath();
+            for (let a = 0; a < Math.PI * 6; a += 0.1) {
+              const r = a * 24;
+              const x = Math.cos(a) * r;
+              const y = Math.sin(a) * r;
+              if (a === 0) bgCtx.moveTo(x, y);
+              else bgCtx.lineTo(x, y);
+            }
+            bgCtx.stroke();
+          }
+          bgCtx.restore();
+        }
+        // Theme 5: Supernova Divine Rays & Cosmic Radiance
+        else if (theme.id === 5) {
+          bgCtx.save();
+          bgCtx.translate(w / 2, h / 2);
+          for (let i = 0; i < 12; i++) {
+            bgCtx.rotate((Math.PI * 2) / 12);
+            const rayGrad = bgCtx.createLinearGradient(0, 0, w * 0.8, 0);
+            rayGrad.addColorStop(0, 'rgba(255, 230, 0, 0.18)');
+            rayGrad.addColorStop(1, 'rgba(255, 0, 119, 0)');
+            bgCtx.fillStyle = rayGrad;
+            bgCtx.beginPath();
+            bgCtx.moveTo(0, 0);
+            bgCtx.lineTo(w * 0.8, -40);
+            bgCtx.lineTo(w * 0.8, 40);
+            bgCtx.closePath();
+            bgCtx.fill();
+          }
+          bgCtx.restore();
+        }
+
+        // Ambient twinkle stars
+        bgCtx.fillStyle = '#ffffff';
+        bgParticles.forEach(p => {
+          p.y += p.vy;
+          if (p.y > h) p.y = 0;
+          bgCtx.globalAlpha = p.alpha;
+          bgCtx.beginPath();
+          bgCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          bgCtx.fill();
+        });
+        bgCtx.globalAlpha = 1.0;
+      }
+
+      function drawBlock(ctx, x, y, size, color, isGhost = false) {
+        if (isGhost) {
+          ctx.save();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(x + 1.5, y + 1.5, size - 3, size - 3);
+          ctx.fillStyle = color;
+          ctx.globalAlpha = 0.18;
+          ctx.fillRect(x + 2, y + 2, size - 4, size - 4);
+          ctx.restore();
+          return;
+        }
+
+        ctx.save();
+        const grad = ctx.createLinearGradient(x, y, x + size, y + size);
+        grad.addColorStop(0, '#ffffff');
+        grad.addColorStop(0.3, color);
+        grad.addColorStop(1, '#050515');
+
+        ctx.fillStyle = grad;
+        ctx.fillRect(x + 1, y + 1, size - 2, size - 2);
+
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 1.5, y + 1.5, size - 3, size - 3);
+        ctx.restore();
+      }
+
+      function renderBoard() {
+        const w = gameCanvas.width;
+        const h = gameCanvas.height;
+        const cellW = w / COLS;
+        const cellH = h / ROWS;
+
+        gameCtx.clearRect(0, 0, w, h);
+
+        gameCtx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+        gameCtx.lineWidth = 1;
+        for (let c = 0; c <= COLS; c++) {
+          gameCtx.beginPath();
+          gameCtx.moveTo(c * cellW, 0);
+          gameCtx.lineTo(c * cellW, h);
+          gameCtx.stroke();
+        }
+        for (let r = 0; r <= ROWS; r++) {
+          gameCtx.beginPath();
+          gameCtx.moveTo(0, r * cellH);
+          gameCtx.lineTo(w, r * cellH);
+          gameCtx.stroke();
+        }
+
+        for (let r = HIDDEN_ROWS; r < TOTAL_ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            const color = gameState.grid[r][c];
+            if (color) {
+              const drawY = (r - HIDDEN_ROWS) * cellH;
+              const drawX = c * cellW;
+              drawBlock(gameCtx, drawX, drawY, cellW, color);
+            }
+          }
+        }
+
+        if (gameState.currentPiece && !gameState.isGameOver) {
+          const shape = gameState.currentPiece.shapes[gameState.currentRot];
+          const color = gameState.currentPiece.color;
+
+          const ghostY = gameState.getGhostY();
+          if (ghostY !== gameState.currentY) {
+            for (let r = 0; r < shape.length; r++) {
+              for (let c = 0; c < shape[r].length; c++) {
+                if (shape[r][c]) {
+                  const targetY = ghostY + r - HIDDEN_ROWS;
+                  const targetX = gameState.currentX + c;
+                  if (targetY >= 0) {
+                    drawBlock(gameCtx, targetX * cellW, targetY * cellH, cellW, color, true);
+                  }
+                }
+              }
+            }
+          }
+
+          for (let r = 0; r < shape.length; r++) {
+            for (let c = 0; c < shape[r].length; c++) {
+              if (shape[r][c]) {
+                const targetY = gameState.currentY + r - HIDDEN_ROWS;
+                const targetX = gameState.currentX + c;
+                if (targetY >= 0) {
+                  drawBlock(gameCtx, targetX * cellW, targetY * cellH, cellW, color);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      function renderHold() {
+        holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
+        if (!gameState.holdPiece) return;
+
+        const piece = TETRIMINOS[gameState.holdPiece];
+        const shape = piece.shapes[0];
+        const size = Math.floor(holdCanvas.width / 5);
+        const offsetX = (holdCanvas.width - shape[0].length * size) / 2;
+        const offsetY = (holdCanvas.height - shape.length * size) / 2;
+
+        holdCtx.save();
+        if (!gameState.canHold) holdCtx.globalAlpha = 0.45;
+        for (let r = 0; r < shape.length; r++) {
+          for (let c = 0; c < shape[r].length; c++) {
+            if (shape[r][c]) {
+              drawBlock(holdCtx, offsetX + c * size, offsetY + r * size, size, piece.color);
+            }
+          }
+        }
+        holdCtx.restore();
+      }
+
+      function renderNext() {
+        nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+        const queueToDraw = gameState.queue.slice(0, 5);
+        const size = Math.floor(nextCanvas.width / 5.2);
+        const slotHeight = nextCanvas.height / 5;
+
+        queueToDraw.forEach((type, index) => {
+          const piece = TETRIMINOS[type];
+          const shape = piece.shapes[0];
+          const offsetX = (nextCanvas.width - shape[0].length * size) / 2;
+          const offsetY = index * slotHeight + (slotHeight - shape.length * size) / 2;
+
+          for (let r = 0; r < shape.length; r++) {
+            for (let c = 0; c < shape[r].length; c++) {
+              if (shape[r][c]) {
+                drawBlock(nextCtx, offsetX + c * size, offsetY + r * size, size, piece.color);
+              }
+            }
+          }
+        });
+      }
+
+      function updateHUD() {
+        document.getElementById('scoreVal').textContent = gameState.score;
+        document.getElementById('levelVal').textContent = gameState.level;
+        document.getElementById('linesVal').textContent = gameState.lines;
+        document.getElementById('comboVal').textContent = Math.max(0, gameState.combo);
+        document.getElementById('topScoreVal').textContent = gameState.highScore;
+
+        const progress = (gameState.lines % 10) * 10;
+        const bar = document.getElementById('themeProgressBar');
+        if (bar) bar.style.width = `${progress}%`;
+      }
+
+      /* ------------------------------------------------------------------------
+         6. USER INPUT HANDLING (KEYBOARD DAS & TOUCH CONTROLS)
+         ------------------------------------------------------------------------ */
+      const keysDown = {};
+      const dasState = {
+        left: { timer: null, interval: null },
+        right: { timer: null, interval: null },
+        down: { timer: null, interval: null }
+      };
+
+      const DAS_DELAY = 140;
+      const ARR_INTERVAL = 24;
+      const SDF_INTERVAL = 28;
+
+      function handleKeyDown(e) {
+        // Prevent window scrolling on game keys
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
+          e.preventDefault();
+        }
+
+        if (e.repeat) return;
+        keysDown[e.code] = true;
+
+        if (gameState.isGameOver) return;
+
+        if (soundEngine.ctx && soundEngine.ctx.state === 'suspended') {
+          soundEngine.ctx.resume();
+        }
+
+        switch (e.code) {
+          case 'ArrowLeft':
+            gameState.move(-1);
+            clearTimeout(dasState.left.timer);
+            clearInterval(dasState.left.interval);
+            dasState.left.timer = setTimeout(() => {
+              dasState.left.interval = setInterval(() => {
+                if (keysDown['ArrowLeft']) {
+                  gameState.move(-1);
+                } else {
+                  clearInterval(dasState.left.interval);
+                }
+              }, ARR_INTERVAL);
+            }, DAS_DELAY);
+            break;
+
+          case 'ArrowRight':
+          case 'KeyD':
+            gameState.move(1);
+            clearTimeout(dasState.right.timer);
+            clearInterval(dasState.right.interval);
+            dasState.right.timer = setTimeout(() => {
+              dasState.right.interval = setInterval(() => {
+                if (keysDown['ArrowRight'] || keysDown['KeyD']) {
+                  gameState.move(1);
+                } else {
+                  clearInterval(dasState.right.interval);
+                }
+              }, ARR_INTERVAL);
+            }, DAS_DELAY);
+            break;
+
+          case 'ArrowDown':
+          case 'KeyS':
+            gameState.softDrop();
+            clearTimeout(dasState.down.timer);
+            clearInterval(dasState.down.interval);
+            dasState.down.timer = setTimeout(() => {
+              dasState.down.interval = setInterval(() => {
+                if (keysDown['ArrowDown'] || keysDown['KeyS']) {
+                  gameState.softDrop();
+                } else {
+                  clearInterval(dasState.down.interval);
+                }
+              }, SDF_INTERVAL);
+            }, 60);
+            break;
+
+          case 'Space':
+            gameState.hardDrop();
+            break;
+
+          case 'ArrowUp':
+          case 'KeyX':
+          case 'KeyK':
+            gameState.rotate(1); // Clockwise
+            break;
+
+          case 'KeyZ':
+          case 'KeyJ':
+          case 'ControlLeft':
+            gameState.rotate(-1); // Counter-Clockwise
+            break;
+
+          case 'KeyA':
+            // 180-degree rotation (SRS 180 flip)
+            gameState.rotate(1);
+            gameState.rotate(1);
+            break;
+
+          case 'KeyC':
+          case 'ShiftLeft':
+          case 'ShiftRight':
+          case 'KeyH':
+            gameState.hold();
+            break;
+
+          case 'KeyP':
+          case 'Escape':
+            togglePause();
+            break;
+
+          case 'KeyR':
+            restartGame();
+            break;
+        }
+      }
+
+      function handleKeyUp(e) {
+        keysDown[e.code] = false;
+        if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
+          clearTimeout(dasState.left.timer);
+          clearInterval(dasState.left.interval);
+        }
+        if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+          clearTimeout(dasState.right.timer);
+          clearInterval(dasState.right.interval);
+        }
+        if (e.code === 'ArrowDown' || e.code === 'KeyS') {
+          clearTimeout(dasState.down.timer);
+          clearInterval(dasState.down.interval);
+        }
+      }
+
+      window.addEventListener('keydown', handleKeyDown);
+      window.addEventListener('keyup', handleKeyUp);
+
+      function bindTouchButton(id, onAction) {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+
+        const trigger = (e) => {
+          e.preventDefault();
+          if (soundEngine.ctx && soundEngine.ctx.state === 'suspended') {
+            soundEngine.ctx.resume();
+          }
+          onAction();
+        };
+
+        btn.addEventListener('touchstart', trigger, { passive: false });
+        btn.addEventListener('mousedown', trigger);
+      }
+
+      bindTouchButton('tLeft', () => gameState.move(-1));
+      bindTouchButton('tRight', () => gameState.move(1));
+      bindTouchButton('tDown', () => gameState.softDrop());
+      bindTouchButton('tHard', () => gameState.hardDrop());
+      bindTouchButton('tRotR', () => gameState.rotate(1));
+      bindTouchButton('tRotL', () => gameState.rotate(-1));
+      bindTouchButton('tHold', () => gameState.hold());
+
+      /* ------------------------------------------------------------------------
+         7. APP CONTROLLER & MAIN LOOP
+         ------------------------------------------------------------------------ */
+      function startGame() {
+        document.getElementById('startOverlay').classList.add('hidden');
+        document.getElementById('gameOverOverlay').classList.add('hidden');
+        document.getElementById('pauseOverlay').classList.add('hidden');
+
+        soundEngine.init();
+        soundEngine.startBGM();
+
+        gameState.reset();
+        gameState.isRunning = true;
+      }
+
+      function togglePause() {
+        if (!gameState.isRunning && !gameState.isPaused) return;
+        gameState.isPaused = !gameState.isPaused;
+        const pEl = document.getElementById('pauseOverlay');
+
+        if (gameState.isPaused) {
+          pEl.classList.remove('hidden');
+          soundEngine.stopBGM();
+        } else {
+          pEl.classList.add('hidden');
+          soundEngine.startBGM();
+        }
+      }
+
+      function restartGame() {
+        document.getElementById('gameOverOverlay').classList.add('hidden');
+        document.getElementById('pauseOverlay').classList.add('hidden');
+        soundEngine.startBGM();
+        gameState.reset();
+        gameState.isRunning = true;
+      }
+
+      document.getElementById('startBtn').addEventListener('click', startGame);
+      document.getElementById('resumeBtn').addEventListener('click', togglePause);
+      document.getElementById('retryBtn').addEventListener('click', restartGame);
+      document.getElementById('pauseBtn').addEventListener('click', togglePause);
+
+      document.getElementById('soundBtn').addEventListener('click', () => {
+        const muted = soundEngine.toggleMute();
+        document.getElementById('soundIcon').textContent = muted ? '🔇' : '🔊';
+      });
+
+      document.getElementById('shakeBtn').addEventListener('click', () => {
+        gameState.settings.screenShake = !gameState.settings.screenShake;
+        const btn = document.getElementById('shakeIcon');
+        btn.textContent = gameState.settings.screenShake ? '📳 SHAKE' : '🚫 SHAKE';
+      });
+
+      let lastFrameTime = performance.now();
+      function mainLoop(now) {
+        requestAnimationFrame(mainLoop);
+
+        const delta = now - lastFrameTime;
+        lastFrameTime = now;
+
+        renderBackground();
+
+        if (gameState.isRunning && !gameState.isPaused) {
+          gameState.update(now);
+        }
+
+        renderBoard();
+        renderHold();
+        renderNext();
+        updateHUD();
+        fxEngine.updateAndDraw();
+      }
+
+      document.getElementById('topScoreVal').textContent = gameState.highScore;
+      renderBackground();
+      renderBoard();
+      requestAnimationFrame(mainLoop);
+
+    })();
+  </script>
+</body>
+</html>
