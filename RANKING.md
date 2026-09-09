@@ -21,6 +21,7 @@ gemma4 > gpt56luna
 gemma4 > haiku45
 gemma4 > minimaxm27
 gemma4 > minimaxm3
+gemma4 > nemotron3super
 gemma4 > qwen36
 gemma4 > qwen3coder
 gemma4 > qwen3codernext

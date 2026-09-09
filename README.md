@@ -47,6 +47,7 @@ python3 build_index.py     # regenerate index.html and the table in README
 | 26 | [minimax/minimax-m3:free](minimaxm3-202609032151/index.html) | - | openrouter | pi-agent | 2026-09-03 21:51 | 7m05s | 13.0k | 104 | F | 0 | NA | NA |
 | 27 | [Qwen3-Coder-30B-A3B-Instruct](qwen3coder-202609061228/index.html) | 30B-A3B | llama.cpp | pi-agent | 2026-09-06 12:28 | 1m10s | 4.8k | 69 | F | 0 | NA | NA |
 | 28 | [MiniMax-M2.7](minimaxm27-202609061312/index.html) | 230B-A10B | llama.cpp | pi-agent | 2026-09-06 13:12 | 8m49s | 9.1k | 17 | F | 0 | NA | NA |
+| 29 | [Nemotron-3-Super-120B-A12B](nemotron3super-202609092217/index.html) | 120B-A12B | llama.cpp | pi-agent | 2026-09-09 22:17 | 9m53s | 9.0k | 15 | F | 0 | NA | NA |
 <!-- index:end -->
 
 Run `build_index.py` before committing / pushing.
