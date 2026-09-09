@@ -11,6 +11,11 @@ tier や点数とは別に、直接比べた結果で順位を決める。
 
 ```
 opus5 > sonnet5
+opus5 > gpt6astra   # effect が派手
+fable51 > qwen38flashnext   # effect が派手
+qwen38flashnext > opus5   # effect が全画面に広がり、種類も多い
+gpt6astra > glm53flash   # glm は派手で特に花火の effect は素晴らしいが、ハードドロップの effect がバグっているのと種類が少ない
+glm53flash > sonnet5   # sonnet も派手だが、派手さが単調なのと BGM がメロディになっていない
 
 # gemma4 を基準にする。F は全部 gemma4 より下
 gemma4 > devstral2
