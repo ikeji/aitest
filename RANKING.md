@@ -11,4 +11,17 @@ tier や点数とは別に、直接比べた結果で順位を決める。
 
 ```
 opus5 > sonnet5
+
+# gemma4 を基準にする。F は全部 gemma4 より下
+gemma4 > devstral2
+gemma4 > glm45air
+gemma4 > glm47flash
+gemma4 > gpt54mini
+gemma4 > gpt56luna
+gemma4 > haiku45
+gemma4 > minimaxm27
+gemma4 > minimaxm3
+gemma4 > qwen36
+gemma4 > qwen3coder
+gemma4 > qwen3codernext
 ```

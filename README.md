@@ -36,8 +36,8 @@ python3 build_index.py     # regenerate index.html and the table in README
 | 15 | [gpt-oss-120b](gptoss120b-202609051948/index.html) | 117B-A5B | llama.cpp | pi-agent | 2026-09-05 19:48 | 0m58s | 2.5k | 43 | C | 2 | 1 | 0 |
 | 16 | [Qwen3-Next-80B-A3B-Thinking](qwen3next-202609052353/index.html) | 80B-A3B | llama.cpp | pi-agent | 2026-09-05 23:53 | 3m31s | 10.3k | 49 | C | 2 | 0 | 0 |
 | 17 | [gemini-3.6-flash-high](gemini36flash-202609082352/index.html) | - | google | antigravity-cli | 2026-09-08 23:52 | 2m57s | - | - | C | 1 | 3 | 2 |
-| 18 | [GLM-4.7-Flash](glm47flash-202609052329/index.html) | 30B-A3B | llama.cpp | pi-agent | 2026-09-05 23:29 | 2m28s | 6.5k | 44 | C | 1 | 1 | 1 |
-| 19 | [gpt-5.6-luna](gpt56luna-202609032300/index.html) | - | openai | codex | 2026-09-03 23:00 | 1m47s | 5.0k | 46 | F | 1 | 1 | 1 |
+| 18 | [gpt-5.6-luna](gpt56luna-202609032300/index.html) | - | openai | codex | 2026-09-03 23:00 | 1m47s | 5.0k | 46 | F | 1 | 1 | 1 |
+| 19 | [GLM-4.7-Flash](glm47flash-202609052329/index.html) | 30B-A3B | llama.cpp | pi-agent | 2026-09-05 23:29 | 2m28s | 6.5k | 44 | F | 1 | 1 | 1 |
 | 20 | [Qwen3-Coder-Next](qwen3codernext-202609052344/index.html) | 80B-A3B | llama.cpp | pi-agent | 2026-09-05 23:44 | 4m19s | 11.3k | 44 | F | 1 | NA | 1 |
 | 21 | [Devstral-2-123B-Instruct](devstral2-202609051948/index.html) | 123B | llama.cpp | pi-agent | 2026-09-05 19:48 | 25m33s | 4.3k | 3 | F | 1 | NA | 0 |
 | 22 | [gpt-5.4-mini](gpt54mini-202609032210/index.html) | - | openai | codex | 2026-09-03 22:10 | 7m06s | 28.4k | 67 | F | 1 | NA | NA |
