@@ -153,6 +153,82 @@ def load_yaml(path):
         return _simple_yaml(text)
 
 
+# ---------- 順位付け (RANKING.md) ----------
+
+RANK_LINE = re.compile(r"^\s*([\w.\-]+(?:\s*>\s*[\w.\-]+)+)\s*(?:#.*)?$")
+
+
+def load_ranking(root):
+    """RANKING.md の `a > b > c` 行を (a, b) のペアに展開して返す。"""
+    path = os.path.join(root, "RANKING.md")
+    pairs = []
+    if not os.path.isfile(path):
+        return pairs
+    for line in open(path, encoding="utf-8"):
+        m = RANK_LINE.match(line)
+        if not m:
+            continue
+        names = [x.strip() for x in m.group(1).split(">")]
+        pairs += list(zip(names, names[1:]))
+    return pairs
+
+
+def resolve_run(name, rows):
+    for r in rows:
+        if r["dir"] == name or r["dir"].split("-2026")[0] == name:
+            return r["dir"]
+    return None
+
+
+def order_rows(rows, pairs):
+    """RANKING.md の制約を満たす順に並べ、rank を振る (Kahn 法)。
+
+    制約で決まらないところは tier → rules/effects/sound → date の順。制約は tier をまたいでも有効。"""
+    def _num(v):
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return -1  # NA / 未採点は最後
+
+    def key(r):
+        return (
+            -TIER_ORDER.get(str(r.get("tier") or "").upper(), 0),
+            -_num(r.get("rules")), -_num(r.get("effects")), -_num(r.get("sound")),
+            str(r.get("date") or ""),
+        )
+
+    by_dir = {r["dir"]: r for r in rows}
+    edges = {d: set() for d in by_dir}  # a -> {b}: a を b より上に
+    for a, b in pairs:
+        ra, rb = resolve_run(a, rows), resolve_run(b, rows)
+        if not ra or not rb:
+            print(f"!! RANKING.md: 不明な run: {a if not ra else b}", file=sys.stderr)
+            continue
+        edges[ra].add(rb)
+    indeg = {d: 0 for d in by_dir}
+    for a in edges:
+        for b in edges[a]:
+            indeg[b] += 1
+    out = []
+    remaining = set(by_dir)
+    while remaining:
+        ready = [d for d in remaining if indeg[d] == 0]
+        if not ready:  # 循環: 警告して制約を捨てる
+            print(f"!! RANKING.md: 循環あり、残りは制約を無視: {sorted(remaining)}", file=sys.stderr)
+            ready = list(remaining)
+            for d in remaining:
+                edges[d] = set()
+                indeg[d] = 0
+        pick = min(ready, key=lambda d: key(by_dir[d]))
+        out.append(by_dir[pick])
+        remaining.discard(pick)
+        for b in edges[pick]:
+            indeg[b] -= 1
+    for i, r in enumerate(out, 1):
+        r["rank"] = i
+    return out
+
+
 # ---------- 収集 ----------
 def collect(root):
     rows = []
@@ -186,18 +262,7 @@ def collect(root):
         if not has_env and not row["has_index"] and not row["has_idea"]:
             continue  # 無関係なディレクトリ
         rows.append(row)
-    def _num(v):
-        try:
-            return int(v)
-        except (TypeError, ValueError):
-            return -1  # NA / 未採点は最後
-
-    rows.sort(key=lambda r: (
-        -TIER_ORDER.get(str(r.get("tier") or "").upper(), 0),
-        -_num(r.get("rules")), -_num(r.get("effects")), -_num(r.get("sound")),
-        str(r.get("date") or ""),
-    ))
-    return rows
+    return order_rows(rows, load_ranking(root))
 
 
 # ---------- HTML ----------
@@ -222,6 +287,7 @@ td.model{white-space:normal;min-width:260px;max-width:520px}
 .score{font-size:12px;margin-top:2px}
 .score b{font-weight:700}
 td.tier{text-align:center;vertical-align:middle;font-size:28px;font-weight:800;line-height:1;width:48px;padding:6px 8px}
+td.tier .rank{display:block;font-size:11px;font-weight:400;color:var(--dim)}
 td.tier-S{color:#ff7b72}td.tier-A{color:#d29922}td.tier-B{color:#3fb950}td.tier-C{color:#79b8ff}td.tier-F{color:var(--dim)}
 small.sub{color:var(--dim);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}
 a{color:#79b8ff;text-decoration:none}a:hover{text-decoration:underline}
@@ -285,10 +351,10 @@ def cell(key, row):
     if key in SCORE_KEYS:
         if v is None or v == "":
             cls = "tier empty" if key == "tier" else "empty"
-            return f'<td data-sort="-1" class="{cls}">-</td>'
+            return f'<td data-sort="{-row["rank"] if key == "tier" else -1}" class="{cls}">-</td>'
         sv = str(v).upper()
         if key == "tier":
-            return f'<td data-sort="{TIER_ORDER.get(sv, 0)}" class="tier tier-{esc(sv)}">{esc(sv)}</td>'
+            return f'<td data-sort="{-row["rank"]}" class="tier tier-{esc(sv)}">{esc(sv)}<small class="rank">#{row["rank"]}</small></td>'
         if sv == "NA":
             return '<td data-sort="-0.5" class="empty">NA</td>'
         return f'<td data-sort="{esc(v)}" class="num">{esc(v)}</td>'
@@ -366,7 +432,7 @@ def render(rows, root):
 </head>
 <body>
 <h1>aitest index</h1>
-<div class="meta">generated {now} · <a href="IDEA.md">IDEA.md</a> · <a href="SCORING.md">SCORING.md</a></div>
+<div class="meta">generated {now} · <a href="IDEA.md">IDEA.md</a> · <a href="SCORING.md">SCORING.md</a> · <a href="RANKING.md">RANKING.md</a></div>
 <div class="summary">{summary}</div>
 <input id="filter" type="search" placeholder="filter (model, provider, harness ...)">
 <div class="wrap"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>
@@ -388,7 +454,7 @@ def update_readme(rows, root):
         text = f.read()
     if README_START not in text or README_END not in text:
         return False
-    lines = ["| model | params | provider | harness | date | time | out tokens | tps | tier | rules | effects | sound |", "|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    lines = ["| # | model | params | provider | harness | date | time | out tokens | tps | tier | rules | effects | sound |", "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
         name = r.get("model") or r["dir"]
         link = f"[{name}]({r['dir']}/index.html)" if r["has_index"] else f"{name} (no index.html)"
@@ -398,7 +464,7 @@ def update_readme(rows, root):
             f"{int(r['output_tokens']) / 1000:.1f}k" if r.get("output_tokens") is not None else "-",
             str(r["tps"]) if r.get("tps") is not None else "-",
         ])
-        lines.append(f"| {link} | {r.get('params') or '-'} | {r.get('provider') or '-'} | {r.get('harness') or '-'} | {r.get('date') or '-'} | {st} | {sc} |")
+        lines.append(f"| {r['rank']} | {link} | {r.get('params') or '-'} | {r.get('provider') or '-'} | {r.get('harness') or '-'} | {r.get('date') or '-'} | {st} | {sc} |")
     before = text[: text.index(README_START) + len(README_START)]
     after = text[text.index(README_END):]
     with open(path, "w", encoding="utf-8") as f:
