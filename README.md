@@ -31,12 +31,12 @@ python3 build_index.py     # regenerate index.html and the table in README
 | 10 | [deepseek-v4-flash](deepseekv4flash-202609050207/index.html) | 284B-A13B | llama.cpp | pi-agent | 2026-09-05 02:07 | 58m34s | 48.0k | 14 | B | 4 | 1 | 0 |
 | 11 | [gpt-5.6-terra](gpt56terra-202609032330/index.html) | - | openai | codex | 2026-09-03 23:30 | 2m19s | 6.3k | 45 | B | 3 | 2 | 1 |
 | 12 | [Hy4 preview](hy4preview-202609100110/index.html) | - | - | - | 2026-09-10 01:10 | 21m14s | - | - | B | 2 | 3 | 3 |
-| 13 | [Qwen3.8-27B](qwen38-202609022255/index.html) | 27B | llama.cpp | pi-agent | 2026-09-02 22:55 | 2h54m | 116.7k | 12 | B | 1 | 4 | 4 |
-| 14 | [Muse Spark 1.3](musespark13-202609100052/index.html) | - | - | - | 2026-09-10 00:52 | 2m53s | - | - | B | 1 | 4 | 3 |
-| 15 | [gemini-3.8-flash-high](gemini38flash-202609082157/index.html) | - | google | antigravity-cli | 2026-09-08 21:57 | 22m45s | - | - | B | 1 | 4 | 2 |
-| 16 | [gemini-3.7-flash-high](gemini37flash-202609082346/index.html) | - | google | antigravity-cli | 2026-09-08 23:46 | 7m16s | - | - | B | 1 | 3 | 3 |
-| 17 | [gpt-oss-120b](gptoss120b-202609051948/index.html) | 117B-A5B | llama.cpp | pi-agent | 2026-09-05 19:48 | 0m58s | 2.5k | 43 | C | 2 | 1 | 0 |
-| 18 | [Qwen3-Next-80B-A3B-Thinking](qwen3next-202609052353/index.html) | 80B-A3B | llama.cpp | pi-agent | 2026-09-05 23:53 | 3m31s | 10.3k | 49 | C | 2 | 0 | 0 |
+| 13 | [gpt-oss-120b](gptoss120b-202609051948/index.html) | 117B-A5B | llama.cpp | pi-agent | 2026-09-05 19:48 | 0m58s | 2.5k | 43 | C | 2 | 1 | 0 |
+| 14 | [Qwen3-Next-80B-A3B-Thinking](qwen3next-202609052353/index.html) | 80B-A3B | llama.cpp | pi-agent | 2026-09-05 23:53 | 3m31s | 10.3k | 49 | C | 2 | 0 | 0 |
+| 15 | [Qwen3.8-27B](qwen38-202609022255/index.html) | 27B | llama.cpp | pi-agent | 2026-09-02 22:55 | 2h54m | 116.7k | 12 | C | 1 | 4 | 4 |
+| 16 | [Muse Spark 1.3](musespark13-202609100052/index.html) | - | - | - | 2026-09-10 00:52 | 2m53s | - | - | C | 1 | 4 | 3 |
+| 17 | [gemini-3.8-flash-high](gemini38flash-202609082157/index.html) | - | google | antigravity-cli | 2026-09-08 21:57 | 22m45s | - | - | C | 1 | 4 | 2 |
+| 18 | [gemini-3.7-flash-high](gemini37flash-202609082346/index.html) | - | google | antigravity-cli | 2026-09-08 23:46 | 7m16s | - | - | C | 1 | 3 | 3 |
 | 19 | [gemini-3.6-flash-high](gemini36flash-202609082352/index.html) | - | google | antigravity-cli | 2026-09-08 23:52 | 2m57s | - | - | C | 1 | 3 | 2 |
 | 20 | [gpt-5.6-luna](gpt56luna-202609032300/index.html) | - | openai | codex | 2026-09-03 23:00 | 1m47s | 5.0k | 46 | F | 1 | 1 | 1 |
 | 21 | [GLM-4.7-Flash](glm47flash-202609052329/index.html) | 30B-A3B | llama.cpp | pi-agent | 2026-09-05 23:29 | 2m28s | 6.5k | 44 | F | 1 | 1 | 1 |
