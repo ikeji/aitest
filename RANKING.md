@@ -17,6 +17,14 @@ qwen38flashnext > opus5   # effect が全画面に広がり、種類も多い
 gpt6astra > glm53flash   # glm は派手で特に花火の effect は素晴らしいが、ハードドロップの effect がバグっているのと種類が少ない
 glm53flash > sonnet5   # sonnet も派手だが、派手さが単調なのと BGM がメロディになっていない
 
+# tier B
+deepseekv4flash > deepseekv41flash   # rules 優先
+hy4preview > gpt56terra
+deepseekv4flash > gemma4
+deepseekv4flash > gpt55
+hy4preview > deepseekv41flash
+gpt55 > gemma4
+
 # gemma4 を基準にする。F は全部 gemma4 より下
 gemma4 > devstral2
 gemma4 > glm45air
