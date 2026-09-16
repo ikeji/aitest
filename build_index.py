@@ -258,6 +258,8 @@ def collect(root):
         row["has_index"] = os.path.isfile(idx)
         row["size"] = os.path.getsize(idx) if row["has_index"] else None
         row["has_idea"] = os.path.isfile(os.path.join(d, "IDEA.md"))
+        # index.html 以外の .html (fixed.html など) もリンクする
+        row["other_html"] = sorted(f for f in os.listdir(d) if f.endswith(".html") and f != "index.html" and not f.startswith("."))
         row["extra"] = {k: v for k, v in env.items() if k not in row and k not in ("score", "stats")}
         if not has_env and not row["has_index"] and not row["has_idea"]:
             continue  # 無関係なディレクトリ
@@ -337,6 +339,9 @@ def cell(key, row):
             label = f'<b>{label}</b> <span class="missing">(no index.html)</span>'
         mf = row.get("model_file")
         sub = f'<br><small class="sub">{esc(mf)}</small>' if mf else ""
+        if row.get("other_html"):
+            links = " · ".join(f'<a href="{esc(row["dir"])}/{esc(f)}">{esc(f)}</a>' for f in row["other_html"])
+            sub += f'<br><small class="sub">also: {links}</small>'
         notes = row.get("notes")
         parts = [score_label(k, row.get(k)) for k in ("rules", "effects", "sound")]
         parts = [x for x in parts if x]
@@ -458,6 +463,8 @@ def update_readme(rows, root):
     for r in rows:
         name = r.get("model") or r["dir"]
         link = f"[{name}]({r['dir']}/index.html)" if r["has_index"] else f"{name} (no index.html)"
+        if r.get("other_html"):
+            link += " (" + ", ".join(f"[{f}]({r['dir']}/{f})" for f in r["other_html"]) + ")"
         sc = " | ".join("-" if r.get(k) is None else str(r.get(k)) for k in SCORE_KEYS)
         st = " | ".join([
             fmt_time(r["time"]) if r.get("time") is not None else "-",

@@ -20,7 +20,7 @@ python3 build_index.py     # regenerate index.html and the table in README
 | # | model | params | provider | harness | date | time | out tokens | tps | tier | rules | effects | sound |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 1 | [claude-fable-5-1](fable51-202609022125/index.html) | - | anthropic | claude-code | 2026-09-02 21:25 | 27m53s | 122.4k | 82 | S | 4 | 4 | 4 |
-| 2 | [Qwen3.8-Flash-Next](qwen38flashnext-202609051658/index.html) | 177B-A7B | llama.cpp | pi-agent | 2026-09-05 16:58 | 6h54m | 259.8k | 11 | A | 4 | 4 | 3 |
+| 2 | [Qwen3.8-Flash-Next](qwen38flashnext-202609051658/index.html) ([test.html](qwen38flashnext-202609051658/test.html)) | 177B-A7B | llama.cpp | pi-agent | 2026-09-05 16:58 | 6h54m | 259.8k | 11 | A | 4 | 4 | 3 |
 | 3 | [claude-opus-5](opus5-202609022218/index.html) | - | anthropic | claude-code | 2026-09-02 22:18 | 15m56s | 77.1k | 84 | A | 4 | 3 | 4 |
 | 4 | [gpt-6-astra](gpt6astra-202609071051/index.html) | - | openai | codex | 2026-09-07 10:51 | 10m19s | - | - | A | 4 | 3 | 4 |
 | 5 | [GLM-5.3-Flash (max thinking)](glm53flash-202609090231/index.html) | 321B-A17B | - | opencode | 2026-09-09 02:31 | 55m38s | - | - | A | 4 | 3 | 3 |
@@ -53,7 +53,7 @@ python3 build_index.py     # regenerate index.html and the table in README
 | 32 | [Qwen3-Coder-30B-A3B-Instruct](qwen3coder-202609061228/index.html) | 30B-A3B | llama.cpp | pi-agent | 2026-09-06 12:28 | 1m10s | 4.8k | 69 | F | 0 | NA | NA |
 | 33 | [MiniMax-M2.7](minimaxm27-202609061312/index.html) | 230B-A10B | llama.cpp | pi-agent | 2026-09-06 13:12 | 8m49s | 9.1k | 17 | F | 0 | NA | NA |
 | 34 | [Nemotron-3-Super-120B-A12B](nemotron3super-202609092217/index.html) | 120B-A12B | llama.cpp | pi-agent | 2026-09-09 22:17 | 9m53s | 9.0k | 15 | F | 0 | NA | NA |
-| 35 | [deepseekv41flash-202609161830](deepseekv41flash-202609161830/index.html) | - | - | - | - | - | - | - | - | - | - | - |
+| 35 | [DeepSeek-V4.1-Flash](deepseekv41flash-202609161830/index.html) ([fixed.html](deepseekv41flash-202609161830/fixed.html)) | - | deepseek | Deepseek Harness | 2026-09-16 18:30 | 56m11s | 293.2k | 282 | F | 0 | NA | NA |
 <!-- index:end -->
 
 Run `build_index.py` before committing / pushing.
