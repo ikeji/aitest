@@ -18,6 +18,7 @@ gpt6astra > glm53flash   # glm は派手で特に花火の effect は素晴ら�
 glm53flash > sonnet5   # sonnet も派手だが、派手さが単調なのと BGM がメロディになっていない
 glm53flash > grok46
 grok46 > sonnet5
+grok46 > qwen38-202609160535   # EXL3 版。qwen38 だけだと 9/2 の GGUF 版と曖昧なのでフルネーム
 
 # tier B
 deepseekv4flash > deepseekv41flash   # rules 優先
