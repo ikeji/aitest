@@ -13,6 +13,7 @@ env.yml の例:
     harness: claude-code
     date: "2026-09-02 22:18"
     notes: ""
+    links: [fixed.html]    # index.html 以外にリンクしたいファイル (任意)
     score: {tier: A, rules: 4, effects: 3, sound: 3, bugs: "", notes: ""}   # SCORING.md
     stats: {time: 1073, gen_time: 917, turns: 22, output_tokens: 77287, tps: 84, sessions: 2}  # collect_stats.py
 
@@ -258,9 +259,12 @@ def collect(root):
         row["has_index"] = os.path.isfile(idx)
         row["size"] = os.path.getsize(idx) if row["has_index"] else None
         row["has_idea"] = os.path.isfile(os.path.join(d, "IDEA.md"))
-        # index.html 以外の .html (fixed.html など) もリンクする
-        row["other_html"] = sorted(f for f in os.listdir(d) if f.endswith(".html") and f != "index.html" and not f.startswith("."))
-        row["extra"] = {k: v for k, v in env.items() if k not in row and k not in ("score", "stats")}
+        # env.yml の links: に列挙したファイル (fixed.html など) を index.html の横にリンクする
+        links = env.get("links")
+        if isinstance(links, str):  # 内蔵パーサでは "[a, b]" が文字列で来るので分解する
+            links = [x.strip() for x in links.strip("[]").split(",") if x.strip()]
+        row["other_html"] = [x for x in (links or []) if isinstance(x, str)]
+        row["extra"] = {k: v for k, v in env.items() if k not in row and k not in ("score", "stats", "links")}
         if not has_env and not row["has_index"] and not row["has_idea"]:
             continue  # 無関係なディレクトリ
         rows.append(row)
