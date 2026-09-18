@@ -28,6 +28,7 @@ from datetime import datetime
 
 COLUMNS = [
     ("tier", "tier"),
+    ("play", ""),
     ("model", "model"),
     ("params", "params"),
     ("provider", "provider"),
@@ -293,6 +294,11 @@ td.model{white-space:normal;min-width:260px;max-width:520px}
 .score{font-size:12px;margin-top:2px}
 .score b{font-weight:700}
 td.tier{text-align:center;vertical-align:middle;font-size:28px;font-weight:800;line-height:1;width:48px;padding:6px 8px}
+td.play{vertical-align:middle}
+a.btn{display:block;width:fit-content;padding:5px 8px;font-size:13px;border-radius:6px;background:#238636;color:#fff;font-weight:600;text-decoration:none;text-align:center;white-space:nowrap}
+a.btn:hover{background:#2ea043}
+a.btn.alt{margin-top:4px;background:transparent;color:var(--dim);border:1px solid var(--line);font-weight:400;font-size:12px}
+a.btn.alt:hover{color:#fff;border-color:#2ea043}
 td.tier .rank{display:block;font-size:11px;font-weight:400;color:var(--dim)}
 td.tier-S{color:#ff7b72}td.tier-A{color:#d29922}td.tier-B{color:#3fb950}td.tier-C{color:#79b8ff}td.tier-F{color:var(--dim)}
 small.sub{color:var(--dim);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}
@@ -335,6 +341,13 @@ def esc(v):
 
 def cell(key, row):
     v = row.get(key)
+    if key == "play":
+        if not row["has_index"]:
+            return '<td class="play empty">-</td>'
+        btns = f'<a class="btn" href="{esc(row["dir"])}/index.html">&#9654; Play</a>'
+        for f in row.get("other_html") or []:
+            btns += f'<a class="btn alt" href="{esc(row["dir"])}/{esc(f)}" title="{esc(f)}">&#9654; {esc(os.path.splitext(f)[0])}</a>'
+        return f'<td class="play">{btns}</td>'
     if key == "model":
         label = esc(v) or "-"
         if row["has_index"]:
