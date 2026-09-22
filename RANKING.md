@@ -27,6 +27,8 @@ deepseekv4flash > gemma4
 deepseekv4flash > gpt55
 hy4preview > deepseekv41flash
 gpt55 > gemma4
+grok47 > gemma4
+gpt55 > grok47
 
 # gemma4 を基準にする。F は全部 gemma4 より下
 gemma4 > devstral2
