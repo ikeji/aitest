@@ -46,4 +46,5 @@ gemma4 > nemotron3super
 gemma4 > qwen36
 gemma4 > qwen3coder
 gemma4 > qwen3codernext
+gemma4 > spacebunny
 ```

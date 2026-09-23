@@ -57,6 +57,7 @@ python3 build_index.py     # regenerate index.html and the table in README
 | 36 | [MiniMax-M2.7](minimaxm27-202609061312/index.html) | 230B-A10B | llama.cpp | pi-agent | 2026-09-06 13:12 | 8m49s | 9.1k | 17 | F | 0 | NA | NA |
 | 37 | [Nemotron-3-Super-120B-A12B](nemotron3super-202609092217/index.html) | 120B-A12B | llama.cpp | pi-agent | 2026-09-09 22:17 | 9m53s | 9.0k | 15 | F | 0 | NA | NA |
 | 38 | [DeepSeek-V4.1-Flash](deepseekv41flash-202609161830/index.html) ([fixed.html](deepseekv41flash-202609161830/fixed.html)) | 552B-A16B | deepseek | Deepseek Harness | 2026-09-16 18:30 | 56m11s | 293.2k | 282 | F | 0 | NA | NA |
+| 39 | [spacebunny](spacebunny-202609240045/index.html) | - | - | - | 2026-09-24 00:45 | - | - | - | F | 0 | NA | NA |
 <!-- index:end -->
 
 Run `build_index.py` before committing / pushing.
