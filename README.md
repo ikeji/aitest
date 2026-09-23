@@ -21,7 +21,7 @@ python3 build_index.py     # regenerate index.html and the table in README
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 1 | [claude-fable-5-1](fable51-202609022125/index.html) | - | anthropic | claude-code | 2026-09-02 21:25 | 27m53s | 122.4k | 82 | S | 4 | 4 | 4 |
 | 2 | [claude-opus-5-5](opus55-202609231032/index.html) | - | anthropic | claude-code | 2026-09-23 10:32 | 14m30s | 88.6k | 116 | A | 4 | 4 | 3 |
-| 3 | [MiMo-v2.6pro](mimo26pro-202609231046/index.html) | - | - | opencode | 2026-09-23 10:46 | 36m14s | - | - | A | 4 | 4 | 3 |
+| 3 | [MiMo-v2.6pro](mimo26pro-202609231046/index.html) | 1020B-A42B | - | opencode | 2026-09-23 10:46 | 36m14s | - | - | A | 4 | 4 | 3 |
 | 4 | [Qwen3.8-Flash-Next](qwen38flashnext-202609051658/index.html) | 177B-A7B | llama.cpp | pi-agent | 2026-09-05 16:58 | 6h54m | 259.8k | 11 | A | 4 | 4 | 3 |
 | 5 | [claude-opus-5](opus5-202609022218/index.html) | - | anthropic | claude-code | 2026-09-02 22:18 | 15m56s | 77.1k | 84 | A | 4 | 3 | 4 |
 | 6 | [gpt-6-astra](gpt6astra-202609071051/index.html) | - | openai | codex | 2026-09-07 10:51 | 10m19s | - | - | A | 4 | 3 | 4 |
@@ -33,8 +33,8 @@ python3 build_index.py     # regenerate index.html and the table in README
 | 12 | [gpt-5.5](gpt55-202609032230/index.html) | - | openai | codex | 2026-09-03 22:30 | 4m40s | 13.7k | 49 | B | 4 | 3 | 0 |
 | 13 | [Grok 4.7 (High Fast)](grok47-202609220234/index.html) | - | - | opencode | 2026-09-22 02:34 | 35m45s | - | - | B | 3 | 4 | 3 |
 | 14 | [gemma-4-26B-A4B-it](gemma4-202609022143/index.html) | 26B-A4B | llama.cpp | pi-agent | 2026-09-02 21:43 | 4m52s | 18.4k | 63 | B | 4 | 1 | 1 |
-| 15 | [Hy4 preview](hy4preview-202609100110/index.html) | - | - | opencode | 2026-09-10 01:10 | 21m14s | - | - | B | 2 | 3 | 3 |
-| 16 | [DeepSeek-V4.1-Flash](deepseekv41flash-202609111136/index.html) | - | - | opencode | 2026-09-11 11:36 | - | - | - | B | 3 | 4 | 2 |
+| 15 | [Hy4 preview](hy4preview-202609100110/index.html) | 770B-A49B | - | opencode | 2026-09-10 01:10 | 21m14s | - | - | B | 2 | 3 | 3 |
+| 16 | [DeepSeek-V4.1-Flash](deepseekv41flash-202609111136/index.html) | 552B-A16B | - | opencode | 2026-09-11 11:36 | - | - | - | B | 3 | 4 | 2 |
 | 17 | [gpt-oss-120b](gptoss120b-202609051948/index.html) | 117B-A5B | llama.cpp | pi-agent | 2026-09-05 19:48 | 0m58s | 2.5k | 43 | C | 2 | 1 | 0 |
 | 18 | [Qwen3-Next-80B-A3B-Thinking](qwen3next-202609052353/index.html) | 80B-A3B | llama.cpp | pi-agent | 2026-09-05 23:53 | 3m31s | 10.3k | 49 | C | 2 | 0 | 0 |
 | 19 | [Qwen3.8-27B](qwen38-202609022255/index.html) | 27B | llama.cpp | pi-agent | 2026-09-02 22:55 | 2h54m | 116.7k | 12 | C | 1 | 4 | 4 |
@@ -52,11 +52,11 @@ python3 build_index.py     # regenerate index.html and the table in README
 | 31 | [GLM-4.5-Air](glm45air-202609052311/index.html) | 106B-A12B | llama.cpp | pi-agent | 2026-09-05 23:11 | 5m16s | 5.2k | 17 | F | 0 | NA | 0 |
 | 32 | [Qwen3.6-35B-A3B](qwen36-202609022233/index.html) | 35B-A3B | llama.cpp | pi-agent | 2026-09-02 22:33 | 4m32s | 15.0k | 55 | F | 0 | NA | NA |
 | 33 | [claude-haiku-4-5](haiku45-202609022307/index.html) | - | anthropic | claude-code | 2026-09-02 23:07 | 4m32s | 22.9k | 92 | F | 0 | NA | NA |
-| 34 | [minimax/minimax-m3:free](minimaxm3-202609032151/index.html) | - | openrouter | pi-agent | 2026-09-03 21:51 | 7m05s | 13.0k | 104 | F | 0 | NA | NA |
+| 34 | [minimax/minimax-m3:free](minimaxm3-202609032151/index.html) | 428B-A23B | openrouter | pi-agent | 2026-09-03 21:51 | 7m05s | 13.0k | 104 | F | 0 | NA | NA |
 | 35 | [Qwen3-Coder-30B-A3B-Instruct](qwen3coder-202609061228/index.html) | 30B-A3B | llama.cpp | pi-agent | 2026-09-06 12:28 | 1m10s | 4.8k | 69 | F | 0 | NA | NA |
 | 36 | [MiniMax-M2.7](minimaxm27-202609061312/index.html) | 230B-A10B | llama.cpp | pi-agent | 2026-09-06 13:12 | 8m49s | 9.1k | 17 | F | 0 | NA | NA |
 | 37 | [Nemotron-3-Super-120B-A12B](nemotron3super-202609092217/index.html) | 120B-A12B | llama.cpp | pi-agent | 2026-09-09 22:17 | 9m53s | 9.0k | 15 | F | 0 | NA | NA |
-| 38 | [DeepSeek-V4.1-Flash](deepseekv41flash-202609161830/index.html) ([fixed.html](deepseekv41flash-202609161830/fixed.html)) | - | deepseek | Deepseek Harness | 2026-09-16 18:30 | 56m11s | 293.2k | 282 | F | 0 | NA | NA |
+| 38 | [DeepSeek-V4.1-Flash](deepseekv41flash-202609161830/index.html) ([fixed.html](deepseekv41flash-202609161830/fixed.html)) | 552B-A16B | deepseek | Deepseek Harness | 2026-09-16 18:30 | 56m11s | 293.2k | 282 | F | 0 | NA | NA |
 <!-- index:end -->
 
 Run `build_index.py` before committing / pushing.
