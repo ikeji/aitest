@@ -20,6 +20,8 @@ glm53flash > grok46
 grok46 > sonnet5
 grok46 > qwen38-202609160535   # EXL3 版。qwen38 だけだと 9/2 の GGUF 版と曖昧なのでフルネーム
 opus55 > qwen38flashnext   # effect は opus55 が上。BGM はどちらも同じシーケンスの繰り返しだが opus55 はテンポが速くなっていく
+mimo26pro > qwen38flashnext
+opus55 > mimo26pro
 
 # tier B
 deepseekv4flash > deepseekv41flash   # rules 優先
