@@ -176,10 +176,13 @@ def load_ranking(root):
 
 
 def resolve_run(name, rows):
-    for r in rows:
-        if r["dir"] == name or r["dir"].split("-2026")[0] == name:
-            return r["dir"]
-    return None
+    hits = [r["dir"] for r in rows if r["dir"] == name]
+    if not hits:
+        hits = [r["dir"] for r in rows if r["dir"].split("-2026")[0] == name]
+    if len(hits) > 1:
+        print(f"!! RANKING.md: {name} は曖昧 ({', '.join(hits)})。フルネームで書いてください", file=sys.stderr)
+        return ""  # 曖昧: 呼び出し側は「不明」とは別に扱う
+    return hits[0] if hits else None
 
 
 def order_rows(rows, pairs):
@@ -204,7 +207,8 @@ def order_rows(rows, pairs):
     for a, b in pairs:
         ra, rb = resolve_run(a, rows), resolve_run(b, rows)
         if not ra or not rb:
-            print(f"!! RANKING.md: 不明な run: {a if not ra else b}", file=sys.stderr)
+            if ra is None or rb is None:
+                print(f"!! RANKING.md: 不明な run: {a if ra is None else b}", file=sys.stderr)
             continue
         edges[ra].add(rb)
     indeg = {d: 0 for d in by_dir}

@@ -22,13 +22,15 @@ grok46 > qwen38-202609160535   # EXL3 版。qwen38 だけだと 9/2 の GGUF 版
 opus55 > qwen38flashnext   # effect は opus55 が上。BGM はどちらも同じシーケンスの繰り返しだが opus55 はテンポが速くなっていく
 mimo26pro > qwen38flashnext
 opus55 > mimo26pro
+spacebunny-202609240250 > qwen38-202609160535   # Max think 版。00:45 の run と曖昧なのでフルネーム
+grok46 > spacebunny-202609240250
 
 # tier B
-deepseekv4flash > deepseekv41flash   # rules 優先
+deepseekv4flash > deepseekv41flash-202609111136   # rules 優先。9/11 の opencode 版 (9/16 の Deepseek Harness 版と曖昧なのでフルネーム)
 hy4preview > gpt56terra
 deepseekv4flash > gemma4
 deepseekv4flash > gpt55
-hy4preview > deepseekv41flash
+hy4preview > deepseekv41flash-202609111136
 gpt55 > gemma4
 grok47 > gemma4
 gpt55 > grok47
@@ -46,5 +48,5 @@ gemma4 > nemotron3super
 gemma4 > qwen36
 gemma4 > qwen3coder
 gemma4 > qwen3codernext
-gemma4 > spacebunny
+gemma4 > spacebunny-202609240045   # 00:45 の run。02:50 の Max think 版と曖昧なのでフルネーム
 ```
