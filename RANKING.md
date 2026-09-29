@@ -24,6 +24,9 @@ mimo26pro > qwen38flashnext
 opus55 > mimo26pro
 spacebunny-202609240250 > qwen38-202609160535   # Max think 版。00:45 の run と曖昧なのでフルネーム
 grok46 > spacebunny-202609240250
+sonnet55 > qwen38flashnext
+sonnet55 > mimo26pro
+opus55 > sonnet55
 
 # tier B
 deepseekv4flash > deepseekv41flash-202609111136   # rules 優先。9/11 の opencode 版 (9/16 の Deepseek Harness 版と曖昧なのでフルネーム)
