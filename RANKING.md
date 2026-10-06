@@ -52,4 +52,6 @@ gemma4 > qwen36
 gemma4 > qwen3coder
 gemma4 > qwen3codernext
 gemma4 > spacebunny-202609240045   # 00:45 の run。02:50 の Max think 版と曖昧なのでフルネーム
+gemma4 > bigpickle
+gemma4 > fledgealpha
 ```

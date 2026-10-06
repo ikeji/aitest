@@ -10,9 +10,11 @@
     pi-agent    ~/.pi/agent/sessions/*/*.jsonl      (先頭行の cwd で run を特定)
     claude-code ~/.claude/projects/*/*.jsonl         (各行の cwd で run を特定)
     codex       ~/.codex/sessions/**/*.jsonl         (session_meta の cwd で run を特定)
+    opencode    ~/.local/share/opencode/opencode.db  (session_v2.directory で run を特定)
 
 run の特定は cwd の basename が run ディレクトリ名 (例 qwen38-202609022255) か、
-そのタイムスタンプを除いた名前 (qwen38) に一致するもの。同じ run に複数セッションが
+そのタイムスタンプを除いた名前 (qwen38)、または同じタイムスタンプ (-202609022255) で
+終わる名前 (実行後にリネームした場合) に一致するもの。同じ run に複数セッションが
 あるのは途中で止めてやり直した場合なので、最後 (開始が最も遅い) のセッションだけを
 採用し、sessions に試行回数を記録する。
 
@@ -48,6 +50,11 @@ def match_run(cwd, runs):
     for d in runs:
         if b == d or b == run_key(d):
             return d
+    m = re.search(r"-(\d{12})$", b)
+    if m:
+        for d in runs:
+            if d.endswith("-" + m.group(1)):
+                return d
     return None
 
 
@@ -153,6 +160,37 @@ def parse_codex(path):
     return first, time, turns, out, gen
 
 
+def parse_opencode(path):
+    """path は "opencode.db::<session_id>"。"""
+    import sqlite3
+    db, sid = path.split("::", 1)
+    c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    row = c.execute("select tokens_output, tokens_reasoning from session_v2 where id=?", (sid,)).fetchone()
+    out = (row[0] or 0) + (row[1] or 0) if row else 0
+    first = last = prev = None
+    turns = 0
+    gen = 0.0
+    for (typ, data) in c.execute("select type, data from session_message where session_id=? order by seq", (sid,)):
+        d = json.loads(data or "{}")
+        t = d.get("time") or {}
+        created = t.get("created")
+        if created is None:
+            continue
+        created /= 1000
+        if typ == "user":
+            first = first if first is not None else created
+            prev = created
+        elif typ == "assistant":
+            done = (t.get("completed") or t.get("streamed") or created) / 1000
+            turns += 1
+            if prev is not None:
+                gen += done - prev
+            last = done
+            prev = done
+    time = (last - first) if first is not None and last is not None else 0
+    return first, time, turns, out, gen
+
+
 # --- ログの列挙 -----------------------------------------------------------------------------------
 
 def find_sessions(runs):
@@ -178,10 +216,18 @@ def find_sessions(runs):
         d = match_run((head.get("payload") or {}).get("cwd", ""), runs)
         if d:
             found[d].append(("codex", f))
+    db = f"{HOME}/.local/share/opencode/opencode.db"
+    if os.path.isfile(db):
+        import sqlite3
+        c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        for sid, directory in c.execute("select id, directory from session_v2 where parent_id is null"):
+            d = match_run(directory or "", runs)
+            if d:
+                found[d].append(("opencode", f"{db}::{sid}"))
     return found
 
 
-PARSERS = {"pi": parse_pi, "claude": parse_claude, "codex": parse_codex}
+PARSERS = {"pi": parse_pi, "claude": parse_claude, "codex": parse_codex, "opencode": parse_opencode}
 
 
 def collect(run, sessions):

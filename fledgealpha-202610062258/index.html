@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>派手エフェクト・テトリス</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#0a0a12;
+    color:#eee;
+    font-family:'Segoe UI','Hiragino Sans',Meiryo,sans-serif;
+    display:flex; justify-content:center; align-items:center;
+    min-height:100vh; overflow:hidden;
+  }
+  #wrap { display:flex; gap:16px; align-items:flex-start; padding:16px; }
+  canvas { background:#111; border-radius:8px; display:block; }
+  #board { box-shadow:0 0 30px rgba(80,120,255,.35); }
+  .panel { width:120px; }
+  .panel h3 { font-size:12px; letter-spacing:2px; color:#9ab; margin-bottom:4px; }
+  .panel .box { background:#161622; border-radius:8px; padding:8px; margin-bottom:12px; min-height:70px;
+                border:1px solid #2a2a3a; }
+  #score { font-size:24px; font-weight:bold; color:#ffd75e; font-variant-numeric:tabular-nums; }
+  #hiscore { font-size:14px; color:#8aa; }
+  #msg { text-align:center; margin-top:10px; font-size:13px; color:#aaa; line-height:1.6; }
+  #bigmsg {
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:56px; font-weight:bold; color:#fff; text-shadow:0 0 20px #f0f,0 0 40px #f0f;
+    pointer-events:none; opacity:0; transition:opacity .2s;
+  }
+  #help { color:#667; font-size:11px; line-height:1.7; }
+  kbd { background:#222; border:1px solid #444; border-radius:4px; padding:0 5px; font-size:11px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="panel">
+    <h3>HOLD</h3>
+    <div class="box"><canvas id="hold" width="104" height="70"></canvas></div>
+    <h3>SCORE</h3>
+    <div class="box">
+      <div id="score">0</div>
+      <div id="hiscore">BEST 0</div>
+      <div>LINES <span id="lines">0</span></div>
+      <div>LEVEL <span id="level">1</span></div>
+      <div>COMBO <span id="combo">-</span></div>
+    </div>
+    <div id="help">
+      <kbd>←→</kbd> move <kbd>↑</kbd>/<kbd>X</kbd> CW<br>
+      <kbd>Z</kbd> CCW <kbd>↓</kbd> soft drop<br>
+      <kbd>Space</kbd> hard drop <kbd>C</kbd> hold<br>
+      <kbd>P</kbd> pause <kbd>R</kbd> restart<br>
+      <kbd>M</kbd> mute
+    </div>
+  </div>
+  <canvas id="board" width="300" height="600"></canvas>
+  <div class="panel">
+    <h3>NEXT</h3>
+    <div class="box"><canvas id="next" width="104" height="360"></canvas></div>
+    <div id="msg">クリック or Space で開始</div>
+  </div>
+</div>
+<div id="bigmsg"></div>
+
+<script>
+'use strict';
+/* ================= 定数 ================= */
+const COLS = 10, ROWS = 20, HIDDEN = 2;
+const CELL = 30;
+const COLORS = [null,'#00e5ff','#ffe500','#c050ff','#00ff66','#ff3b3b','#2e6bff','#ff9500'];
+const PIECES = {
+  I:[[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+     [[0,0,1,0],[0,0,1,0],[0,0,1,0],[0,0,1,0]],
+     [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+     [[0,1,0,0],[0,1,0,0],[0,1,0,0],[0,1,0,0]]],
+  O:[[[1,1],[1,1]],[[1,1],[1,1]],[[1,1],[1,1]],[[1,1],[1,1]]],
+  T:[[[0,1,0],[1,1,1],[0,0,0]],[[0,1,0],[0,1,1],[0,1,0]],[[0,0,0],[1,1,1],[0,1,0]],[[0,1,0],[1,1,0],[0,1,0]]],
+  S:[[[0,1,1],[1,1,0],[0,0,0]],[[0,1,0],[0,1,1],[0,0,1]],[[0,0,0],[0,1,1],[1,1,0]],[[1,0,0],[1,1,0],[0,1,0]]],
+  Z:[[[1,1,0],[0,1,1],[0,0,0]],[[0,0,1],[0,1,1],[0,1,0]],[[0,0,0],[1,1,0],[0,1,1]],[[0,1,0],[1,1,0],[1,0,0]]],
+  J:[[[1,0,0],[1,1,1],[0,0,0]],[[0,1,1],[0,1,0],[0,1,0]],[[0,0,0],[1,1,1],[0,0,1]],[[0,1,0],[0,1,0],[1,1,0]]],
+  L:[[[0,0,1],[1,1,1],[0,0,0]],[[0,1,0],[0,1,0],[0,1,1]],[[0,0,0],[1,1,1],[1,0,0]],[[1,1,0],[0,1,0],[0,1,0]]]
+};
+const TYPES = Object.keys(PIECES);
+const IDX = {}; TYPES.forEach((t,i)=>IDX[t]=i+1);
+// SRS wall kicks
+const KICKS = {
+  normal: {
+    '0>1':[[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]], '1>0':[[0,0],[1,0],[1,-1],[0,2],[1,2]],
+    '1>2':[[0,0],[1,0],[1,-1],[0,2],[1,2]],   '2>1':[[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+    '2>3':[[0,0],[1,0],[1,1],[0,-2],[1,-2]],  '3>2':[[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+    '3>0':[[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],'0>3':[[0,0],[1,0],[1,1],[0,-2],[1,-2]]
+  },
+  I: {
+    '0>1':[[0,0],[-2,0],[1,0],[-2,-1],[1,2]],'1>0':[[0,0],[2,0],[-1,0],[2,1],[-1,-2]],
+    '1>2':[[0,0],[-1,0],[2,0],[-1,2],[2,-1]],'2>1':[[0,0],[1,0],[-2,0],[1,-2],[-2,1]],
+    '2>3':[[0,0],[2,0],[-1,0],[2,1],[-1,-2]],'3>2':[[0,0],[-2,0],[1,0],[-2,-1],[1,2]],
+    '3>0':[[0,0],[1,0],[-2,0],[1,-2],[-2,1]],'0>3':[[0,0],[-1,0],[2,0],[-1,2],[2,-1]]
+  }
+};
+
+/* ================= 状態 ================= */
+const board = document.getElementById('board').getContext('2d');
+const holdC = document.getElementById('hold').getContext('2d');
+const nextC = document.getElementById('next').getContext('2d');
+let grid, cur, bag, nextQ, holdPiece, holdUsed;
+let score, hiscore = 0, lines, level, combo, b2b;
+let dropTimer, lockTimer, softDropping, gameState; // 'menu','play','pause','over'
+let lastRotateKick = null; // {x,y,rot,type}
+try { hiscore = +localStorage.getItem('effectTetrisHi') || 0; } catch(e){}
+
+/* ================= 7-bag ================= */
+function refill(){
+  bag = TYPES.slice();
+  for(let i=bag.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[bag[i],bag[j]]=[bag[j],bag[i]];}
+  while(nextQ.length<6) nextQ.push(bag.pop());
+}
+function newPiece(){
+  if(bag.length===0) refill();
+  const type = nextQ.shift();
+  if(bag.length===0) refill();
+  while(nextQ.length<6) nextQ.push(bag.pop());
+  cur = {type, rot:0, x: type==='I'?3:3, y:0, cells:PIECES[type][0]};
+  if(type!=='I'&&type!=='O') cur.x = 3;
+  if(type==='O') cur.x = 4;
+  cur.y = 0;
+  lastRotateKick = null;
+  holdUsed = false;
+  lockTimer = 0;
+  if(collides(cur.x,cur.y,cur.rot)) { gameOver(); }
+}
+function collides(x,y,rot){
+  const m = PIECES[cur.type][rot];
+  for(let r=0;r<m.length;r++)for(let c=0;c<m[r].length;c++){
+    if(!m[r][c]) continue;
+    const nx=x+c, ny=y+r;
+    if(nx<0||nx>=COLS||ny>=ROWS+HIDDEN) return true;
+    if(ny>=0 && ny<ROWS && grid[ny][nx]) return true;
+  }
+  return false;
+}
+
+/* ================= ローテーション(SRS) ================= */
+function rotate(dir){ // dir: 1 CW, -1 CCW
+  const from = cur.rot, to = (cur.rot + dir + 4) % 4;
+  const key = from + '>' + to;
+  let kicks = KICKS.normal[key];
+  if(cur.type==='I') kicks = KICKS.I[key];
+  if(cur.type==='O') { cur.rot = to; return; }
+  for(const [kx,ky] of kicks){
+    // SRS kick y は上が正なので盤面座標(下が正)では反転
+    if(!collides(cur.x+kx, cur.y-ky, to)){
+      cur.x += kx; cur.y -= ky; cur.rot = to;
+      lastRotateKick = {type:cur.type, kickIndex: kicks.indexOf([kx,ky]) };
+      lockReset();
+      return;
+    }
+  }
+}
+function isTSpin(){
+  if(cur.type!=='T') return null;
+  // T-Spin判定: 中心の斜め4隅のうち3つ以上が埋まっている
+  const m = PIECES.T[cur.rot];
+  let cr=0, cc=0;
+  for(let r=0;r<3;r++)for(let c=0;c<3;c++) if(m[r][c]===1 && r===1&&c===1){cr=r;cc=c;}
+  const corners=[[0,0],[0,2],[2,0],[2,2]];
+  let filled=0;
+  for(const [dr,dc] of corners){
+    const nx=cur.x+dc, ny=cur.y+dr;
+    if(nx<0||nx>=COLS||ny>=ROWS||(ny>=0&&grid[ny][nx])||ny<0) filled++;
+  }
+  if(filled<3) return null;
+  return 'spin';
+}
+
+/* ================= 移動・ドロップ ================= */
+function move(dx){
+  if(!collides(cur.x+dx,cur.y,cur.rot)){ cur.x+=dx; lastRotateKick=null; lockReset(); }
+}
+function softDrop(){
+  if(!collides(cur.x,cur.y+1,cur.rot)){ cur.y++; score+=1; return true; }
+  return false;
+}
+function hardDrop(){
+  let d=0;
+  while(!collides(cur.x,cur.y+1,cur.rot)){cur.y++;d++;}
+  score += d*2;
+  lock();
+}
+function ghostY(){
+  let y=cur.y;
+  while(!collides(cur.x,y+1,cur.rot)) y++;
+  return y;
+}
+function lockReset(){
+  lockTimer = 0;
+}
+function lock(){
+  const m = PIECES[cur.type][cur.rot];
+  const spin = isTSpin();
+  const cells=[];
+  for(let r=0;r<m.length;r++)for(let c=0;c<m[r].length;c++){
+    if(!m[r][c]) continue;
+    const nx=cur.x+c, ny=cur.y+r;
+    if(ny<0){ gameOver(); return; }
+    grid[ny][nx] = IDX[cur.type];
+    cells.push([nx,ny]);
+  }
+  SFX.lock();
+  const cleared = clearLines();
+  if(cleared>0){
+    scoreLines(cleared, spin, cells);
+  } else {
+    if(spin) { /* T-Spin with no clear = rare */ }
+    combo = 0; b2b = b2b && false; // reset b2b? guideline: non-tetris line? no clear keeps b2b? Actually b2b resets on non-clearing move? No—b2b only continues on tetris/tspin clears; a non-clearing lock ends the chain? Guideline: b2b persists only through consecutive tetris/tspin clears. Any other result ends it.
+    b2b = false;
+  }
+  newPiece();
+}
+function clearLines(){
+  const full=[];
+  for(let r=0;r<ROWS;r++) if(grid[r].every(v=>v)) full.push(r);
+  if(full.length===0) return 0;
+  // エフェクト用に消去セルを収集
+  const cells=[];
+  for(const r of full) for(let c=0;c<COLS;c++) cells.push([c,r,grid[r][c]]);
+  spawnExplosion(cells, full.length);
+  for(const r of full){ grid.splice(r,1); grid.unshift(new Array(COLS).fill(0)); }
+  return full.length;
+}
+
+/* ================= スコア(Guideline準拠) ================= */
+function scoreLines(n, spin, cells){
+  let base = 0, label='';
+  const isTetris = (n===4);
+  if(spin==='spin'){
+    base = n===0?400 : n===1?800 : n===2?1200 : n===3?1600 : 0;
+    label = 'T-SPIN' + (n?(' '+['','SINGLE','DOUBLE','TRIPLE'][n]):'');
+  } else {
+    base = [0,100,300,500,800][n];
+    label = ['','SINGLE','DOUBLE','TRIPLE','TETRIS!'][n];
+  }
+  if(base===0) return;
+  const special = isTetris || (spin==='spin' && n>0);
+  const b2bNow = special && b2b; // 直前もspecial clearならB2Bボーナス
+  if(special) b2b = true; else b2b = false;
+  combo++;
+  const gained = Math.floor(base * level * (b2bNow ? 1.5 : 1));
+  score += gained + (combo>1 ? 50*(combo-1)*level : 0);
+  lines += n;
+  const oldLevel = level;
+  level = Math.floor(lines/10)+1;
+  SFX.clear(n, spin);
+  bigText(label + (b2bNow ? ' B2B!' : ''));
+  if(n===4||spin==='spin') effectBurst(n);
+  if(level>oldLevel) { bigText('LEVEL '+level); SFX.levelup(); onLevelTheme(); }
+  comboText();
+  updateHud();
+}
+
+/* ================= エフェクト ================= */
+const fxCanvas = document.createElement('canvas');
+fxCanvas.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:50;';
+document.body.appendChild(fxCanvas);
+const fx = fxCanvas.getContext('2d');
+let particles=[], flashes=[], shake=0, shakeT=0;
+function resizeFx(){ fxCanvas.width=innerWidth; fxCanvas.height=innerHeight; }
+addEventListener('resize', resizeFx); resizeFx();
+
+function boardRect(){ return document.getElementById('board').getBoundingClientRect(); }
+function cellPx(cx,cy){
+  const r=boardRect();
+  return [r.left+cx*CELL, r.top+cy*CELL];
+}
+function spawnExplosion(cells, n){
+  const theme = Math.floor(lines/10); // 10ラインごとに切替
+  shake = Math.min(20, 8+n*4); shakeT = 30;
+  for(const [x,y,v] of cells){
+    const [px,py] = cellPx(x,y);
+    const col = COLORS[v] || '#fff';
+    const count = theme===0?6 : theme===1?10 : theme===2?14 : 18;
+    for(let i=0;i<count;i++){
+      const a = Math.random()*Math.PI*2, sp = (1+Math.random()*4)*(theme>=2?1.6:1);
+      particles.push({x:px+CELL/2,y:py+CELL/2,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-2,
+        life:40+Math.random()*30, col: Math.random()<0.3?'#fff':col,
+        size:2+Math.random()*4, theme});
+    }
+    if(theme>=3) flashes.push({x:px+CELL/2,y:py+CELL/2,r:4,vr:1.2,life:20,col});
+  }
+  if(theme>=1) flashes.push({full:true, life:10, a:0.25});
+}
+function effectBurst(n){
+  // テトリス・Tスピン用の追加バースト
+  const r=boardRect();
+  for(let i=0;i<(n===4?120:80);i++){
+    const a=Math.random()*Math.PI*2, sp=2+Math.random()*6;
+    particles.push({x:r.left+r.width/2,y:r.top+r.height/2,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,
+      life:60+Math.random()*40, col:`hsl(${Math.random()*360},100%,60%)`, size:3+Math.random()*5, theme:4});
+  }
+  flashes.push({full:true, life:16, a:0.5});
+}
+function updateFx(){
+  fx.clearRect(0,0,fxCanvas.width,fxCanvas.height);
+  if(shakeT>0){ shakeT--; }
+  for(const p of particles){
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.15; p.life--;
+    const alpha = Math.max(0, p.life/60);
+    fx.globalAlpha = alpha;
+    if(p.theme===2){ fx.fillStyle=p.col; fx.fillRect(p.x,p.y,p.size*1.6,p.size*0.6); }
+    else if(p.theme===3){ fx.beginPath(); fx.arc(p.x,p.y,p.size/2,0,7); fx.fillStyle=p.col; fx.fill(); }
+    else { fx.fillStyle=p.col; fx.fillRect(p.x,p.y,p.size,p.size); }
+  }
+  particles = particles.filter(p=>p.life>0);
+  for(const f of flashes){
+    f.life--;
+    if(f.full){ fx.globalAlpha=f.a*(f.life/16); fx.fillStyle='#fff'; fx.fillRect(0,0,fxCanvas.width,fxCanvas.height); }
+    else { f.r+=f.vr*8; fx.globalAlpha=Math.max(0,f.life/20)*0.6; fx.strokeStyle=f.col; fx.lineWidth=3;
+      fx.beginPath(); fx.arc(f.x,f.y,f.r,0,7); fx.stroke(); }
+  }
+  flashes = flashes.filter(f=>f.life>0);
+  fx.globalAlpha=1;
+}
+let theme = 0;
+function onLevelTheme(){ theme = Math.floor(lines/10); }
+
+function bigText(t){
+  const el=document.getElementById('bigmsg');
+  el.textContent=t; el.style.opacity=1;
+  clearTimeout(el._t); el._t=setTimeout(()=>el.style.opacity=0, 700);
+}
+function comboText(){
+  if(combo>1) document.getElementById('combo').textContent = combo;
+  else document.getElementById('combo').textContent = '-';
+}
+
+/* ================= SFX / BGM (WebAudio合成) ================= */
+const AC = window.AudioContext||window.webkitAudioContext;
+let actx=null, master, musicGain, sfxGain, muted=false;
+function initAudio(){
+  if(actx) return;
+  actx = new AC();
+  master = actx.createGain(); master.gain.value=0.5; master.connect(actx.destination);
+  musicGain = actx.createGain(); musicGain.gain.value=0.35; musicGain.connect(master);
+  sfxGain = actx.createGain(); sfxGain.gain.value=0.5; sfxGain.connect(master);
+  startBGM();
+}
+function beep(freq, dur, type='square', gain=0.3, dest=null, when=0){
+  if(!actx||muted) return;
+  const t=actx.currentTime+when;
+  const o=actx.createOscillator(), g=actx.createGain();
+  o.type=type; o.frequency.setValueAtTime(freq,t);
+  g.gain.setValueAtTime(gain,t);
+  g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+  o.connect(g); g.connect(dest||sfxGain);
+  o.start(t); o.stop(t+dur+0.02);
+}
+const SFX = {
+  move(){beep(220,0.05,'square',0.1);},
+  rotate(){beep(440,0.06,'square',0.12);},
+  lock(){beep(160,0.08,'triangle',0.2);},
+  hard(){beep(90,0.12,'sawtooth',0.25);},
+  hold(){beep(660,0.07,'sine',0.15);},
+  clear(n,spin){
+    const base=[0,523,659,784,1047][n]||523;
+    for(let i=0;i<n+1;i++) beep(base*Math.pow(1.122,i),0.12,'square',0.2,sfxGain,i*0.05);
+    if(spin) beep(1319,0.3,'sine',0.2,sfxGain,0.1);
+  },
+  levelup(){[523,659,784,1047,1319].forEach((f,i)=>beep(f,0.15,'square',0.2,sfxGain,i*0.08));},
+  over(){[400,300,200,120].forEach((f,i)=>beep(f,0.3,'sawtooth',0.2,sfxGain,i*0.2));}
+};
+// 簡易BGM: コロブチカ風ループ
+const MELODY=[659,494,523,587,523,494,440,440,523,659,587,523,494,523,587,659,523,440,440,0,587,698,880,784,698,659,523,659,587,523,494,523,587,659,523,440,440,0];
+let bgmTimer=null, mIdx=0;
+function startBGM(){
+  if(bgmTimer) clearInterval(bgmTimer);
+  mIdx=0;
+  const step = ()=>{ if(muted||!actx) return;
+    const f=MELODY[mIdx%MELODY.length];
+    if(f) beep(f,0.22,'square',0.12,musicGain);
+    beep(f? f/2 : 0, 0.22, 'triangle', 0.1, musicGain);
+    mIdx++;
+  };
+  bgmTimer=setInterval(step, 160);
+}
+
+/* ================= 描画 ================= */
+function drawGrid(){
+  board.fillStyle='#111'; board.fillRect(0,0,300,600);
+  board.strokeStyle='#1e1e2c';
+  for(let x=0;x<=COLS;x++){board.beginPath();board.moveTo(x*CELL,0);board.lineTo(x*CELL,ROWS*CELL);board.stroke();}
+  for(let y=0;y<=ROWS;y++){board.beginPath();board.moveTo(0,y*CELL);board.lineTo(COLS*CELL,y*CELL);board.stroke();}
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++) if(grid[r][c]) drawCell(board,c,r,COLORS[grid[r][c]]);
+}
+function drawCell(ctx,x,y,col,alpha=1){
+  ctx.globalAlpha=alpha;
+  ctx.fillStyle=col; ctx.fillRect(x*CELL+1,y*CELL+1,CELL-2,CELL-2);
+  ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.fillRect(x*CELL+1,y*CELL+1,CELL-2,5);
+  ctx.globalAlpha=1;
+}
+function drawPiece(ctx, type, cx, cy, scale=1){
+  const m=PIECES[type][0]; const col=COLORS[IDX[type]];
+  ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);
+  const s=20;
+  // center
+  let w=0,h=0;
+  m.forEach(r=>r.forEach(v=>v&&(w++)));
+  const ox=(ctx.canvas.width - m[0].length*s)/2, oy=(ctx.canvas.height - m.length*s)/2;
+  for(let r=0;r<m.length;r++)for(let c=0;c<m[r].length;c++) if(m[r][c]){
+    ctx.fillStyle=col; ctx.fillRect(ox+c*s+1,oy+r*s+1,s-2,s-2);
+    ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.fillRect(ox+c*s+1,oy+r*s+1,s-2,4);
+  }
+}
+function render(){
+  board.save();
+  if(shakeT>0){ board.translate((Math.random()-0.5)*shake,(Math.random()-0.5)*shake); }
+  drawGrid();
+  if(cur && gameState==='play'){
+    // ghost
+    const gy=ghostY();
+    const m=PIECES[cur.type][cur.rot];
+    for(let r=0;r<m.length;r++)for(let c=0;c<m[r].length;c++) if(m[r][c]){
+      board.globalAlpha=0.2; board.fillStyle=COLORS[IDX[cur.type]];
+      board.fillRect((cur.x+c)*CELL+1,(gy+r)*CELL+1,CELL-2,CELL-2);
+      board.globalAlpha=1;
+    }
+    for(let r=0;r<m.length;r++)for(let c=0;c<m[r].length;c++) if(m[r][c]&&cur.y+r>=0) drawCell(board,cur.x+c,cur.y+r,COLORS[IDX[cur.type]]);
+  }
+  board.restore();
+  if(holdPiece) drawPiece(holdC, holdPiece); else holdC.clearRect(0,0,104,70);
+  nextC.clearRect(0,0,104,360);
+  nextQ.slice(0,5).forEach((t,i)=>{
+    const tmp=document.createElement('canvas'); tmp.width=104; tmp.height=72;
+    const c2=tmp.getContext('2d'); drawPiece(c2,t); nextC.drawImage(tmp,0,i*72);
+  });
+}
+
+/* ================= ゲームループ ================= */
+let lastTime=0, acc=0;
+function gravityInterval(){ return Math.max(50, 800*Math.pow(0.85, level-1)); }
+function update(t){
+  requestAnimationFrame(update);
+  const dt=t-lastTime; lastTime=t;
+  updateFx();
+  if(gameState!=='play'){ render(); return; }
+  const g=softDropping? 30 : gravityInterval();
+  acc+=dt;
+  if(acc>=g){
+    acc=0;
+    if(!collides(cur.x,cur.y+1,cur.rot)){ cur.y++; lastRotateKick=null; }
+    else { lockTimer+=g; if(lockTimer>=500){ lock(); } }
+  } else if(collides(cur.x,cur.y+1,cur.rot)){
+    lockTimer+=dt;
+    if(lockTimer>=500){ lock(); }
+  }
+  render();
+}
+
+/* ================= 操作・状態 ================= */
+function hold(){
+  if(holdUsed) return;
+  holdUsed=true;
+  const t=cur.type;
+  if(holdPiece){ const h=holdPiece; holdPiece=t;
+    cur={type:h,rot:0,x:h==='O'?4:3,y:0}; if(collides(cur.x,cur.y,cur.rot)) gameOver();
+  } else { holdPiece=t; newPiece(); }
+  SFX.hold();
+}
+function start(){
+  initAudio();
+  grid=Array.from({length:ROWS},()=>new Array(COLS).fill(0));
+  nextQ=[]; bag=[]; score=0; lines=0; level=1; combo=0; b2b=false;
+  holdPiece=null; holdUsed=false; softDropping=false; gameState='play';
+  document.getElementById('msg').textContent='';
+  newPiece();
+  updateHud();
+}
+function gameOver(){
+  gameState='over'; SFX.over();
+  document.getElementById('msg').textContent='GAME OVER — Spaceで再開';
+  if(score>hiscore){hiscore=score; try{localStorage.setItem('effectTetrisHi',hiscore);}catch(e){}}
+  updateHud();
+}
+function updateHud(){
+  document.getElementById('score').textContent=score;
+  document.getElementById('hiscore').textContent='BEST '+hiscore;
+  document.getElementById('lines').textContent=lines;
+  document.getElementById('level').textContent=level;
+}
+
+addEventListener('keydown',e=>{
+  if(e.repeat) { if(gameState==='play'&&e.key==='ArrowLeft')move(-1); else if(e.key==='ArrowRight')move(1); else if(e.key==='ArrowDown')softDropping=true; return; }
+  switch(e.key){
+    case 'ArrowLeft': if(gameState==='play'){move(-1);SFX.move();} break;
+    case 'ArrowRight': if(gameState==='play'){move(1);SFX.move();} break;
+    case 'ArrowDown': softDropping=true; break;
+    case 'ArrowUp': case 'x': case 'X': if(gameState==='play'){rotate(1);SFX.rotate();} break;
+    case 'z': case 'Z': if(gameState==='play'){rotate(-1);SFX.rotate();} break;
+    case ' ':
+      e.preventDefault();
+      if(gameState==='menu'||gameState==='over') start();
+      else if(gameState==='play'){hardDrop();SFX.hard();}
+      else if(gameState==='pause') gameState='play';
+      break;
+    case 'c': case 'C': if(gameState==='play') hold(); break;
+    case 'p': case 'P': if(gameState==='play')gameState='pause'; else if(gameState==='pause')gameState='play'; break;
+    case 'r': case 'R': start(); break;
+    case 'm': case 'M': muted=!muted; break;
+  }
+});
+addEventListener('keyup',e=>{ if(e.key==='ArrowDown') softDropping=false; });
+addEventListener('click',()=>{ if(gameState==='menu'||gameState==='over') start(); initAudio(); });
+
+gameState='menu';
+grid=Array.from({length:ROWS},()=>new Array(COLS).fill(0));
+nextQ=[]; bag=[]; score=0; lines=0; level=1; combo=0; b2b=false;
+refill(); nextQ.length=0; refill();
+requestAnimationFrame(update);
+</script>
+</body>
+</html>
