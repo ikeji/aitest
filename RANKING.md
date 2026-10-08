@@ -39,6 +39,7 @@ grok47 > gemma4
 gpt55 > grok47
 mimo26flash > gemma4
 grok47 > mimo26flash
+haiku55 > deepseekv4flash
 
 # gemma4 を基準にする。F は全部 gemma4 より下
 gemma4 > devstral2
