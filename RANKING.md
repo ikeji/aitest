@@ -19,14 +19,18 @@ glm53flash > sonnet5   # sonnet も派手だが、派手さが単調なのと BG
 glm53flash > grok46
 grok46 > sonnet5
 grok46 > qwen38-202609160535   # EXL3 版。qwen38 だけだと 9/2 の GGUF 版と曖昧なのでフルネーム
-opus55 > qwen38flashnext   # effect は opus55 が上。BGM はどちらも同じシーケンスの繰り返しだが opus55 はテンポが速くなっていく
+opus55-202609231032 > qwen38flashnext   # effect は opus55 が上。BGM はどちらも同じシーケンスの繰り返しだが opus55 はテンポが速くなっていく
 mimo26pro > qwen38flashnext
-opus55 > mimo26pro
+opus55-202609231032 > mimo26pro
 spacebunny-202609240250 > qwen38-202609160535   # Max think 版。00:45 の run と曖昧なのでフルネーム
 grok46 > spacebunny-202609240250
 sonnet55 > qwen38flashnext
 sonnet55 > mimo26pro
-opus55 > sonnet55
+opus55-202609231032 > sonnet55
+opus55-202610141029 > qwen38flashnext   # 10/14 の 2 回目の run
+opus55-202610141029 > mimo26pro
+opus55-202610141029 > sonnet55
+opus55-202609231032 > opus55-202610141029   # 同じモデルの 2 回。9/23 の方が上
 
 # tier B
 deepseekv4flash > deepseekv41flash-202609111136   # rules 優先。9/11 の opencode 版 (9/16 の Deepseek Harness 版と曖昧なのでフルネーム)
@@ -57,4 +61,6 @@ gemma4 > qwen3codernext
 gemma4 > spacebunny-202609240045   # 00:45 の run。02:50 の Max think 版と曖昧なのでフルネーム
 gemma4 > bigpickle
 gemma4 > fledgealpha
+gemma4 > sarashina3mini
+gemma4 > sarashina3nano
 ```
