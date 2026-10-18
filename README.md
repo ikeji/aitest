@@ -68,6 +68,8 @@ python3 build_index.py     # regenerate index.html and the table in README
 | 47 | [big-pickle](bigpickle-202610062305/index.html) | - | opencode | opencode | 2026-10-06 23:05 | 15m36s | 18.9k | 20 | F | 0 | NA | NA |
 | 48 | [Sarashina3 mini](sarashina3mini-202610141030/index.html) | - | sarashina | pi-agent | 2026-10-14 10:30 | 0m12s | 0.9k | 73 | F | 0 | NA | NA |
 | 49 | [Sarashina3 nano](sarashina3nano-202610141031/index.html) | - | sarashina | pi-agent | 2026-10-14 10:31 | 0m01s | 0.3k | 243 | F | 0 | NA | NA |
+| 50 | [Nemotron-3.5-Super-VL](nemotron35supervl-202610182358/index.html) | 120B-A12B | openrouter | pi-agent | 2026-10-18 23:58 | 11m18s | 8.8k | 67 | F | 0 | NA | NA |
+| 51 | [North Mini Code](northminicode-202610190006/index.html) | 30B-A3B | openrouter | pi-agent | 2026-10-19 00:06 | 1m02s | 9.2k | 149 | F | 0 | NA | NA |
 <!-- index:end -->
 
 Run `build_index.py` before committing / pushing.

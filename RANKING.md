@@ -63,4 +63,6 @@ gemma4 > bigpickle
 gemma4 > fledgealpha
 gemma4 > sarashina3mini
 gemma4 > sarashina3nano
+gemma4 > nemotron35supervl
+gemma4 > northminicode
 ```

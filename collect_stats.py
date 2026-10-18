@@ -35,6 +35,7 @@ import sys
 from datetime import datetime
 
 HOME = os.path.expanduser("~")
+TIME_WINDOW = 15 * 60  # 秒。時刻ベースの照合で許す前後の幅
 
 
 def ts(s):
@@ -191,39 +192,162 @@ def parse_opencode(path):
     return first, time, turns, out, gen
 
 
+# --- 最初の依頼文 (時刻ベース照合の確認用) ----------------------------------------------------
+
+def _text(content):
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return " ".join(x.get("text", "") for x in content if isinstance(x, dict))
+    return ""
+
+
+def first_prompt(kind, path):
+    try:
+        if kind == "pi":
+            for line in open(path, encoding="utf-8"):
+                d = json.loads(line)
+                if d.get("type") == "message" and d["message"].get("role") == "user":
+                    return _text(d["message"].get("content"))
+        elif kind == "claude":
+            for line in open(path, encoding="utf-8"):
+                d = json.loads(line)
+                if d.get("type") == "user" and not d.get("isSidechain"):
+                    t = _text((d.get("message") or {}).get("content"))
+                    if t and not t.startswith("<"):
+                        return t
+        elif kind == "codex":
+            for line in open(path, encoding="utf-8"):
+                d = json.loads(line)
+                p = d.get("payload") or {}
+                if d.get("type") == "event_msg" and p.get("type") == "user_message":
+                    return p.get("message", "")
+        elif kind == "opencode":
+            import sqlite3
+            db, sid = path.split("::", 1)
+            c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+            for (data,) in c.execute("select data from session_message where session_id=? and type='user' order by seq limit 1", (sid,)):
+                return json.loads(data or "{}").get("text", "")
+    except Exception:
+        pass
+    return ""
+
+
+def session_model(kind, path):
+    """セッションで使ったモデル ID (分からなければ "")。"""
+    try:
+        if kind == "pi":
+            model = ""
+            for line in open(path, encoding="utf-8"):
+                d = json.loads(line)
+                if d.get("type") == "model_change":
+                    model = d.get("modelId") or model
+                elif d.get("type") == "message" and d["message"].get("role") == "assistant":
+                    model = d["message"].get("model") or model
+                    break
+            return model
+        if kind == "claude":
+            for line in open(path, encoding="utf-8"):
+                d = json.loads(line)
+                if d.get("type") == "assistant":
+                    m = (d.get("message") or {}).get("model")
+                    if m:
+                        return m
+        elif kind == "codex":
+            for line in open(path, encoding="utf-8"):
+                m = re.search(r'"model":"([^"]+)"', line)
+                if m:
+                    return m.group(1)
+        elif kind == "opencode":
+            import sqlite3
+            db, sid = path.split("::", 1)
+            c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+            row = c.execute("select model from session_v2 where id=?", (sid,)).fetchone()
+            if row and row[0]:
+                return json.loads(row[0]).get("id", "")
+    except Exception:
+        pass
+    return ""
+
+
+def _norm(x):
+    return re.sub(r"[^a-z0-9]", "", x.lower())
+
+
+def model_matches(run, model):
+    """run ディレクトリ名の先頭 (qwen38flashnext) がモデル ID (Qwen3.8-Flash-Next) に含まれるか。"""
+    k, m = _norm(run_key(run)), _norm(model)
+    return bool(k and m) and (k in m or m in k)
+
+
+def dir_time(run):
+    m = re.search(r"-(\d{12})$", run)
+    return datetime.strptime(m.group(1), "%Y%m%d%H%M").timestamp() if m else None
+
+
 # --- ログの列挙 -----------------------------------------------------------------------------------
 
 def find_sessions(runs):
     found = {d: [] for d in runs}
+    unmatched = []  # 名前で run に紐付かなかったセッション (時刻ベース照合の候補)
+
+    def note(kind, f, d):
+        if d:
+            found[d].append((kind, f))
+        else:
+            unmatched.append((kind, f))
     for f in glob.glob(f"{HOME}/.pi/agent/sessions/*/*.jsonl"):
         with open(f, encoding="utf-8") as fh:
             head = json.loads(fh.readline() or "{}")
-        d = match_run(head.get("cwd", ""), runs)
-        if d:
-            found[d].append(("pi", f))
+        note("pi", f, match_run(head.get("cwd", ""), runs))
     for f in glob.glob(f"{HOME}/.claude/projects/*/*.jsonl"):
         with open(f, encoding="utf-8") as fh:
             for line in fh:
                 m = re.search(r'"cwd":"([^"]*)"', line)
                 if m:
-                    d = match_run(m.group(1), runs)
-                    if d:
-                        found[d].append(("claude", f))
+                    note("claude", f, match_run(m.group(1), runs))
                     break
     for f in glob.glob(f"{HOME}/.codex/sessions/**/*.jsonl", recursive=True):
         with open(f, encoding="utf-8") as fh:
             head = json.loads(fh.readline() or "{}")
-        d = match_run((head.get("payload") or {}).get("cwd", ""), runs)
-        if d:
-            found[d].append(("codex", f))
+        note("codex", f, match_run((head.get("payload") or {}).get("cwd", ""), runs))
     db = f"{HOME}/.local/share/opencode/opencode.db"
     if os.path.isfile(db):
         import sqlite3
         c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
         for sid, directory in c.execute("select id, directory from session_v2 where parent_id is null"):
-            d = match_run(directory or "", runs)
-            if d:
-                found[d].append(("opencode", f"{db}::{sid}"))
+            note("opencode", f"{db}::{sid}", match_run(directory or "", runs))
+    # 時刻ベースの照合 (名前で見つからなかった run だけ)
+    cands = []
+    for kind, f in unmatched:
+        try:
+            start, t, n, o, g = PARSERS[kind](f)
+        except Exception:
+            continue
+        if start is None or not o:
+            continue
+        cands.append((start, start + t, kind, f))
+    for d in runs:
+        if found[d]:
+            continue
+        ts = dir_time(d)
+        if ts is None:
+            continue
+        hits = [(abs(st - ts), st, en, kind, f) for st, en, kind, f in cands
+                if st - TIME_WINDOW <= ts <= en + TIME_WINDOW and "IDEA" in first_prompt(kind, f)]
+        by_model = [h for h in hits if model_matches(d, session_model(h[3], h[4]))]
+        if by_model:
+            hits = by_model
+        elif len(hits) > 1:
+            print(f"!! {d}: 時刻の合うセッションが複数あり、モデル名でも絞れないので未照合: "
+                  + ", ".join(f"{session_model(k, f) or k}@{datetime.fromtimestamp(st):%H:%M}" for _, st, _, k, f in hits), file=sys.stderr)
+            continue
+        if hits:
+            hits.sort()
+            _, st, en, kind, f = hits[0]
+            found[d].append((kind, f))
+            cands = [c for c in cands if c[3] != f]
+            print(f"   {d}: 時刻で照合 -> {kind} {session_model(kind, f)} {datetime.fromtimestamp(st):%m-%d %H:%M}〜{datetime.fromtimestamp(en):%H:%M}", file=sys.stderr)
     return found
 
 

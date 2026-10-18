@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>派手エフェクト・テトリス</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .game-container {
+            position: relative;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        #gameCanvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #000;
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8);
+        }
+
+        .info-panel {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .score-display {
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        .effect-display {
+            color: #ff00ff;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 0 0 10px #ff00ff;
+            animation: rainbow 2s infinite;
+        }
+
+        @keyframes rainbow {
+            0% { filter: hue-rotate(0deg); }
+            100% { filter: hue-rotate(360deg); }
+        }
+
+        .controls {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .control-button {
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            border: none;
+            color: white;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .control-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+        }
+
+        .control-button:active {
+            transform: translateY(1px);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            font-size: 24px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+        }
+
+        .final-score {
+            color: #ff6b6b;
+            font-size: 30px;
+            margin: 20px 0;
+        }
+
+        /* Explosion effects */
+        .explosion {
+            position: absolute;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            animation: explode 0.5s ease-out forwards;
+        }
+
+        @keyframes explode {
+            0% {
+                transform: translate(0, 0) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--tx), var(--ty)) scale(0);
+                opacity: 0;
+            }
+        }
+
+        /* Different explosion styles */
+        .explosion.style1 {
+            background: radial-gradient(circle, #ff6b6b, #ff4444, transparent);
+        }
+
+        .explosion.style2 {
+            background: radial-gradient(circle, #4ecdc4, #44c7ff, transparent);
+        }
+
+        .explosion.style3 {
+            background: radial-gradient(circle, #ffeaa7, #fdcb6e, transparent);
+        }
+
+        .explosion.style4 {
+            background: radial-gradient(circle, #a29bfe, #6c5ce7, transparent);
+        }
+
+        /* T-spin effect */
+        .t-spin-effect {
+            animation: tSpin 0.3s ease-in-out infinite;
+        }
+
+        @keyframes tSpin {
+            0%, 100% { transform: rotate(0deg) scale(1); }
+            25% { transform: rotate(5deg) scale(1.1); }
+            75% { transform: rotate(-5deg) scale(1.1); }
+        }
+
+        /* Tetris effect */
+        .tetris-effect {
+            animation: tetris 0.2s ease-in-out infinite;
+        }
+
+        @keyframes tetris {
+            0%, 100% { filter: brightness(1); }
+            50% { filter: brightness(1.5) drop-shadow(0 0 10px #ffff00); }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+        
+        <div class="game-over hidden" id="gameOver">
+            <div>ゲームオーバー</div>
+            <div class="final-score">スコア: 0</div>
+            <button class="control-button" onclick="restartGame()">もう一度</button>
+        </div>
+
+        <div class="info-panel">
+            <div class="score-display">スコア: <span id="score">0</span></div>
+            <div class="effect-display" id="effectDisplay">消去エフェクト: ノーマル</div>
+        </div>
+
+        <div class="controls">
+            <button class="control-button" onclick="togglePause()">一時停止</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let gameRunning = true;
+        let gamePaused = false;
+        let gameOver = false;
+        let currentEffectStyle = 1;
+        
+        // テトリミノの定義
+        const shapes = [
+            // I
+            [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+            // O
+            [[0,0,0,0],[0,1,1,0],[0,1,1,0],[0,0,0,0]],
+            // T
+            [[0,0,0,0],[0,1,0,0],[1,1,1,0],[0,0,0,0]],
+            // S
+            [[0,0,0,0],[0,1,1,0],[1,1,0,0],[0,0,0,0]],
+            // Z
+            [[0,0,0,0],[1,1,0,0],[0,1,1,0],[0,0,0,0]],
+            // J
+            [[0,0,0,0],[1,0,0,0],[1,1,1,0],[0,0,0,0]],
+            // L
+            [[0,0,0,0],[0,0,1,0],[1,1,1,0],[0,0,0,0]]
+        ];
+        
+        // ブロックのサイズ
+        const blockSize = 20;
+        const cols = canvas.width / blockSize;
+        const rows = canvas.height / blockSize;
+        
+        // ゲーム盤面
+        let board = Array(rows).fill().map(() => Array(cols).fill(0));
+        
+        // 現在のテトリミノ
+        let currentPiece = null;
+        let currentRotation = 0;
+        let currentX = 0;
+        let currentY = 0;
+        
+        // プレイヤー情報
+        let score = 0;
+        let linesCleared = 0;
+        let highScore = localStorage.getItem('tetrisHighScore') || 0;
+        
+        // 音声システム
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        let currentTime = 0;
+        
+        // 音階とビート
+        const notes = {
+            C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23,
+            G4: 392.00, A4: 440.00, B4: 493.88, C5: 523.25
+        };
+        
+        // 効果音
+        const sounds = {
+            lineClear: () => {
+                const now = audioContext.currentTime;
+                for (let i = 0; i < 4; i++) {
+                    const osc = audioContext.createOscillator();
+                    const gain = audioContext.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioContext.destination);
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(
+                        notes[`C${5 + i}`] * (0.8 + Math.random() * 0.4),
+                        now
+                    );
+                    gain.gain.setValueAtTime(0, now);
+                    gain.gain.linearRampToValueAtTime(0.3, now + 0.01);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                    osc.start(now);
+                    osc.stop(now + 0.2);
+                }
+            },
+            
+            tSpin: () => {
+                const now = audioContext.currentTime;
+                for (let i = 0; i < 3; i++) {
+                    const osc = audioContext.createOscillator();
+                    const gain = audioContext.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioContext.destination);
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(
+                        notes[`E${4 + i}`] * 1.5,
+                        now
+                    );
+                    gain.gain.setValueAtTime(0, now);
+                    gain.gain.linearRampToValueAtTime(0.2, now + 0.01);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                    osc.start(now);
+                    osc.stop(now + 0.15);
+                }
+            },
+            
+            tetris: () => {
+                const now = audioContext.currentTime;
+                for (let i = 0; i < 5; i++) {
+                    const osc = audioContext.createOscillator();
+                    const gain = audioContext.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioContext.destination);
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(
+                        notes[`G${4 + Math.floor(i/2)}`],
+                        now + (i * 0.05)
+                    );
+                    gain.gain.setValueAtTime(0, now + (i * 0.05));
+                    gain.gain.linearRampToValueAtTime(0.15, now + (i * 0.05) + 0.01);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + (i * 0.05) + 0.3);
+                    osc.start(now + (i * 0.05));
+                    osc.stop(now + (i * 0.05) + 0.3);
+                }
+            },
+            
+            bgm: () => {
+                const oscillator = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                oscillator.connect(gain);
+                gain.connect(audioContext.destination);
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(220, audioContext.currentTime);
+                gain.gain.setValueAtTime(0, audioContext.currentTime);
+                gain.gain.linearRampToValueAtTime(0.05, audioContext.currentTime + 2);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 30);
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 30);
+            }
+        };
+        
+        // プレイリスト（1曲のみ、繰り返し再生）
+        let bgmPlaying = false;
+        let bgmSource = null;
+        
+        // 新しいテトリミノを生成
+        function createPiece() {
+            const type = Math.floor(Math.random() * 7);
+            const shape = shapes[type];
+            const piece = {
+                type: type,
+                shape: shape,
+                rotation: 0
+            };
+            return piece;
+        }
+        
+        // テトリミノを回転させる
+        function rotatePiece(piece) {
+            const newShape = Array(piece.shape[0].length).fill().map(() => Array(piece.shape.length).fill(0));
+            for (let i = 0; i < piece.shape.length; i++) {
+                for (let j = 0; j < piece.shape[i].length; j++) {
+                    newShape[j][piece.shape.length - 1 - i] = piece.shape[i][j];
+                }
+            }
+            return { ...piece, shape: newShape, rotation: (piece.rotation + 1) % 4 };
+        }
+        
+        // テトリミノを描画
+        function drawPiece(piece, x, y, context = ctx) {
+            const colors = [
+                '#00f0f0', // I -シアン
+                '#f0f000', // O -黄色
+                '#a000f0', // T -紫
+                '#00f000', // S -緑
+                '#f00000', // Z -赤
+                '#0000f0', // J -青
+                '#f0a000'  // L -オレンジ
+            ];
+            
+            const shape = piece.shape;
+            for (let i = 0; i < shape.length; i++) {
+                for (let j = 0; j < shape[i].length; j++) {
+                    if (shape[i][j]) {
+                        context.fillStyle = colors[piece.type];
+                        context.fillRect((x + j) * blockSize, (y + i) * blockSize, blockSize, blockSize);
+                        context.shadowColor = colors[piece.type];
+                        context.shadowBlur = 10;
+                        context.fillRect((x + j) * blockSize, (y + i) * blockSize, blockSize, blockSize);
+                        context.shadowBlur = 0;
+                    }
+                }
+            }
+        }
+        
+        // ボードを描画
+        function drawBoard() {
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // ボードの境界を描画
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(0, 0, canvas.width, canvas.height);
+            
+            // 固定されたブロックを描画
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    if (board[row][col]) {
+                        ctx.fillStyle = board[row][col];
+                        ctx.fillRect(col * blockSize, row * blockSize, blockSize, blockSize);
+                        ctx.shadowColor = board[row][col];
+                        ctx.shadowBlur = 5;
+                        ctx.fillRect(col * blockSize, row * blockSize, blockSize, blockSize);
+                        ctx.shadowBlur = 0;
+                    }
+                }
+            }
+        }
+        
+        // ラインを消去
+        function clearLines() {
+            let lines = [];
+            for (let row = 0; row < rows; row++) {
+                let full = true;
+                for (let col = 0; col < cols; col++) {
+                    if (!board[row][col]) {
+                        full = false;
+                        break;
+                    }
+                }
+                if (full) {
+                    lines.push(row);
+                }
+            }
+            
+            if (lines.length > 0) {
+                lines.sort((a, b) => b - a);
+                
+                // 効果音とエフェクトを再生
+                if (lines.length === 1) {
+                    // Tスピンの可能性をチェック
+                    const isTSpin = checkTSpin(lines[0]);
+                    if (isTSpin) {
+                        sounds.tSpin();
+                        showTSpinEffect(lines[0]);
+                    } else {
+                        sounds.lineClear();
+                        showLineEffect(lines[0], 'single');
+                    }
+                } else if (lines.length >= 4) {
+                    sounds.tetris();
+                    showLineEffect(lines[0], 'tetris');
+                } else {
+                    sounds.lineClear();
+                    lines.forEach((line, index) => {
+                        setTimeout(() => {
+                            showLineEffect(line, 'multi');
+                        }, index * 100);
+                    });
+                }
+                
+                // ラインを消去
+                for (const row of lines) {
+                    for (let col = 0; col < cols; col++) {
+                        board[row][col] = 0;
+                    }
+                    
+                    // 上のブロックを落とす
+                    for (let r = row; r > 0; r--) {
+                        board[r] = board[r - 1];
+                    }
+                    board[0] = Array(cols).fill(0);
+                }
+                
+                // スコアを計算
+                const baseScore = [0, 100, 300, 500, 800];
+                score += baseScore[lines.length] * (lines.length === 1 ? 1 : (currentEffectStyle + 1));
+                linesCleared += lines.length;
+                
+                // エフェクトスタイルを更新
+                if (linesCleared % 10 === 0 && linesCleared > 0) {
+                    currentEffectStyle = (currentEffectStyle % 4) + 1;
+                    updateEffectDisplay();
+                }
+                
+                updateScoreDisplay();
+                
+                // 新しいテトリミノを生成
+                currentPiece = createPiece();
+                resetPiecePosition();
+                
+                // ゲームオーバーをチェック
+                if (checkGameOver()) {
+                    gameOver = true;
+                    showGameOver();
+                }
+            }
+        }
+        
+        // Tスピンをチェック
+        function checkTSpin(row) {
+            // 簡易的なTスピンチェック - 実際にはより複雑なロジックが必要
+            return false;
+        }
+        
+        // ライン消去エフェクトを表示
+        function showLineEffect(row, type) {
+            const colors = type === 'tetris' ? ['#ff0', '#f0f', '#0ff', '#0f0'] : 
+                           type === 'tspin' ? ['#f00', '#ff0'] : 
+                           ['#00f0f0', '#f0f000', '#a000f0', '#00f000', '#f00000', '#0000f0', '#f0a000'];
+            
+            const explosion = document.createElement('div');
+            explosion.className = `explosion style${currentEffectStyle}`;
+            explosion.style.left = '0';
+            explosion.style.top = row * blockSize + 'px';
+            explosion.style.width = canvas.width + 'px';
+            explosion.style.height = blockSize + 'px';
+            document.querySelector('.game-container').appendChild(explosion);
+            
+            // パーティクルを生成
+            for (let i = 0; i < 20; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * canvas.width + 'px';
+                particle.style.top = row * blockSize + 'px';
+                particle.style.setProperty('--tx', (Math.random() - 0.5) * 200 + 'px');
+                particle.style.setProperty('--ty', (Math.random() - 0.5) * 200 + 'px');
+                particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                explosion.appendChild(particle);
+            }
+            
+            setTimeout(() => {
+                explosion.remove();
+            }, 500);
+        }
+        
+        // Tスピンエフェクトを表示
+        function showTSpinEffect(row) {
+            const tSpinElement = document.createElement('div');
+            tSpinElement.className = 't-spin-effect';
+            tSpinElement.style.position = 'absolute';
+            tSpinElement.style.left = '0';
+            tSpinElement.style.top = row * blockSize + 'px';
+            tSpinElement.style.width = canvas.width + 'px';
+            tSpinElement.style.height = blockSize + 'px';
+            tSpinElement.style.border = '2px solid #ff00ff';
+            tSpinElement.style.boxShadow = '0 0 20px #ff00ff';
+            tSpinElement.style.zIndex = '999';
+            document.querySelector('.game-container').appendChild(tSpinElement);
+            
+            setTimeout(() => {
+                tSpinElement.remove();
+            }, 300);
+        }
+        
+        // テトリスエフェクトを表示
+        function showTetrisEffect() {
+            const tetrisElement = document.createElement('div');
+            tetrisElement.className = 'tetris-effect';
+            tetrisElement.style.position = 'absolute';
+            tetrisElement.style.left = '0';
+            tetrisElement.style.top = '0';
+            tetrisElement.style.width = canvas.width + 'px';
+            tetrisElement.style.height = canvas.height + 'px';
+            tetrisElement.style.zIndex = '998';
+            document.querySelector('.game-container').appendChild(tetrisElement);
+            
+            setTimeout(() => {
+                tetrisElement.remove();
+            }, 200);
+        }
+        
+        // エフェクト表示を更新
+        function updateEffectDisplay() {
+            const effectNames = ['ノーマル', 'エレクトリック', 'サイキック', 'ネオン'];
+            document.getElementById('effectDisplay').textContent = `消去エフェクト: ${effectNames[currentEffectStyle - 1]}`;
+        }
+        
+        // スコアを表示
+        function updateScoreDisplay() {
+            document.getElementById('score').textContent = score;
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('tetrisHighScore', highScore);
+            }
+        }
+        
+        // ゲームオーバーを表示
+        function showGameOver() {
+            document.getElementById('gameOver').classList.remove('hidden');
+            document.getElementById('gameOver').querySelector('.final-score').textContent = `スコア: ${score}`;
+            stopBGM();
+        }
+        
+        // テトリミノの位置をリセット
+        function resetPiecePosition() {
+            currentPiece = createPiece();
+            currentRotation = 0;
+            currentX = Math.floor((cols - 4) / 2);
+            currentY = 0;
+            
+            if (checkCollision(currentPiece, currentX, currentY)) {
+                gameOver = true;
+                showGameOver();
+            }
+        }
+        
+        // コリジョンチェック
+        function checkCollision(piece, x, y) {
+            const shape = piece.shape;
+            for (let i = 0; i < shape.length; i++) {
+                for (let j = 0; j < shape[i].length; j++) {
+                    if (shape[i][j]) {
+                        const newX = x + j;
+                        const newY = y + i;
+                        if (
+                            newX < 0 || newX >= cols ||
+                            newY >= rows ||
+                            (newY >= 0 && board[newY][newX])
+                        ) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+        
+        // テトリミノをボードに固定
+        function fixPiece() {
+            const shape = currentPiece.shape;
+            for (let i = 0; i < shape.length; i++) {
+                for (let j = 0; j < shape[i].length; j++) {
+                    if (shape[i][j]) {
+                        const row = currentY + i;
+                        const col = currentX + j;
+                        if (row >= 0) {
+                            board[row][col] = getPieceColor(currentPiece.type);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // テトリミノの色を取得
+        function getPieceColor(type) {
+            const colors = [
+                '#00f0f0', // I -シアン
+                '#f0f000', // O -黄色
+                '#a000f0', // T -紫
+                '#00f000', // S -緑
+                '#f00000', // Z -赤
+                '#0000f0', // J -青
+                '#f0a000'  // L -オレンジ
+            ];
+            return colors[type];
+        }
+        
+        // ゲームオーバーをチェック
+        function checkGameOver() {
+            for (let col = 0; col < cols; col++) {
+                if (board[0][col]) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        // ゲームを更新
+        function updateGame() {
+            if (!gameRunning || gamePaused || gameOver) return;
+            
+            // テトリミノを1行下に移動
+            const newY = currentY + 1;
+            
+            if (checkCollision(currentPiece, currentX, newY)) {
+                // 衝突した - ボードに固定
+                fixPiece();
+                clearLines();
+                
+                // 新しいテトリミノを生成
+                currentPiece = createPiece();
+                resetPiecePosition();
+            } else {
+                currentY = newY;
+            }
+            
+            // ゲームを描画
+            drawBoard();
+            drawPiece(currentPiece, currentX, currentY);
+        }
+        
+        // BGMを再生
+        function playBGM() {
+            if (bgmPlaying) return;
+            
+            bgmPlaying = true;
+            const now = audioContext.currentTime;
+            
+            // 音楽を生成
+            const oscillator = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            oscillator.connect(gain);
+            gain.connect(audioContext.destination);
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(220, now);
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(0.05, now + 0.5);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 30);
+            oscillator.start(now);
+            oscillator.stop(now + 30);
+            bgmSource = oscillator;
+            
+            // 30秒後に再スタート
+            setTimeout(() => {
+                if (bgmPlaying) playBGM();
+            }, 30000);
+        }
+        
+        // BGMを停止
+        function stopBGM() {
+            bgmPlaying = false;
+            if (bgmSource) {
+                bgmSource.stop();
+                bgmSource = null;
+            }
+        }
+        
+        // 一時停止を切り替え
+        function togglePause() {
+            gamePaused = !gamePaused;
+            if (gamePaused) {
+                stopBGM();
+            } else {
+                playBGM();
+                gameLoop();
+            }
+        }
+        
+        // ゲームをリスタート
+        function restartGame() {
+            // ボードをリセット
+            board = Array(rows).fill().map(() => Array(cols).fill(0));
+            
+            // プレイヤー情報をリセット
+            score = 0;
+            linesCleared = 0;
+            currentEffectStyle = 1;
+            gameOver = false;
+            
+            // ゲームオーバーパネルを非表示
+            document.getElementById('gameOver').classList.add('hidden');
+            
+            // テトリミノを生成
+            currentPiece = createPiece();
+            resetPiecePosition();
+            
+            // スコアを表示
+            updateScoreDisplay();
+            updateEffectDisplay();
+            
+            // BGMを再生
+            playBGM();
+        }
+        
+        // ゲームループ
+        function gameLoop() {
+            if (!gameRunning || gameOver) return;
+            
+            updateGame();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // キー入力
+        document.addEventListener('keydown', (e) => {
+            if (!gameRunning || gameOver || gamePaused) return;
+            
+            switch(e.key) {
+                case 'ArrowLeft':
+                    const newX = currentX - 1;
+                    if (!checkCollision(currentPiece, newX, currentY)) {
+                        currentX = newX;
+                    }
+                    break;
+                case 'ArrowRight':
+                    const newX = currentX + 1;
+                    if (!checkCollision(currentPiece, newX, currentY)) {
+                        currentX = newX;
+                    }
+                    break;
+                case 'ArrowDown':
+                    const newY = currentY + 1;
+                    if (!checkCollision(currentPiece, currentX, newY)) {
+                        currentY = newY;
+                    }
+                    break;
+                case 'ArrowUp':
+                    const rotatedPiece = rotatePiece(currentPiece);
+                    if (!checkCollision(rotatedPiece, currentX, currentY)) {
+                        currentPiece = rotatedPiece;
+                    }
+                    break;
+                case ' ':
+                    // ハードドロップ
+                    while (!checkCollision(currentPiece, currentX, currentY + 1)) {
+                        currentY++;
+                    }
+                    fixPiece();
+                    clearLines();
+                    currentPiece = createPiece();
+                    resetPiecePosition();
+                    break;
+            }
+        });
+        
+        // ゲームを開始
+        function startGame() {
+            playBGM();
+            gameLoop();
+        }
+        
+        // ページが読み込まれたらゲームを開始
+        window.addEventListener('load', () => {
+            startGame();
+        });
+        
+        // ページが非表示になったらBGMを停止
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopBGM();
+            } else {
+                playBGM();
+            }
+        });
+    </script>
+</body>
+</html>

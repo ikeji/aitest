@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>派手エフェクト・テトリス</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #050505;
+    color: #fff;
+    font-family: 'Segoe UI', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+    overflow: hidden;
+    touch-action: none;
+  }
+  #game {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  canvas {
+    display: block;
+    box-shadow: 0 0 60px rgba(0,255,255,0.15);
+    border: 2px solid #333;
+    background: #0a0a0a;
+    image-rendering: pixelated;
+  }
+  #ui {
+    position: absolute;
+    top: 40px;
+    right: 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    text-align: right;
+    z-index: 10;
+  }
+  .ui-block {
+    background: rgba(0,0,0,0.5);
+    padding: 12px 16px;
+    border: 1px solid #444;
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.6);
+  }
+  .ui-label { font-size: 12px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
+  .ui-value { font-size: 24px; font-weight: bold; color: #0ff; margin-top: 4px; text-shadow: 0 0 8px #0ff; }
+  .ui-value.lines { color: #0f0; text-shadow: 0 0 8px #0f0; }
+  .ui-value.level { color: #f0f; text-shadow: 0 0 8px #f0f; }
+  #overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    backdrop-filter: blur(4px);
+  }
+  #overlay.hidden { display: none; }
+  h1 {
+    font-size: 56px;
+    margin-bottom: 12px;
+    letter-spacing: 4px;
+    text-shadow: 0 0 20px #0ff, 0 0 40px #0088ff;
+    background: linear-gradient(to bottom, #fff, #0ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  p { color: #ccc; margin-bottom: 24px; font-size: 16px; }
+  button {
+    padding: 14px 36px;
+    font-size: 20px;
+    font-weight: bold;
+    background: #0ff;
+    color: #000;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    box-shadow: 0 0 20px #0ff;
+    transition: transform 0.1s;
+  }
+  button:active { transform: scale(0.95); }
+  #controls-hint {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #666;
+    font-size: 12px;
+    z-index: 5;
+  }
+  .effect-flash {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.6);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 20;
+  }
+</style>
+</head>
+<body>
+<div id="game">
+  <canvas id="board" width="300" height="600"></canvas>
+  <div id="ui">
+    <div class="ui-block"><div class="ui-label">NEXT</div><canvas id="next" width="120" height="120"></canvas></div>
+    <div class="ui-block"><div class="ui-label">HOLD</div><canvas id="hold" width="120" height="80"></canvas></div>
+    <div class="ui-block"><div class="ui-label">SCORE</div><div class="ui-value" id="score">0</div></div>
+    <div class="ui-block"><div class="ui-label">LINES</div><div class="ui-value lines" id="lines">0</div></div>
+    <div class="ui-block"><div class="ui-label">LEVEL</div><div class="ui-value level" id="level">1</div></div>
+    <div class="ui-block"><div class="ui-label">COMBO</div><div class="ui-value" id="combo">0</div></div>
+  </div>
+  <div id="effect-flash" class="effect-flash"></div>
+  <div id="overlay">
+    <h1>TETRIS</h1>
+    <p>派手エフェクト・テトリス<br>ライン消去で画面が爆発する</p>
+    <button id="startBtn">START</button>
+  </div>
+  <div id="controls-hint">
+    ← → 移動 &nbsp;|&nbsp; ↑ 回転 &nbsp;|&nbsp; ↓ 秒ドロップ &nbsp;|&nbsp; スペース ハードドロップ &nbsp;|&nbsp; C ホールド
+  </div>
+</div>
+
+<script>
+/* ================= 音声合成 (Web Audio API) ================= */
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new AudioCtx();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+function playTone(freq, type, duration, vol = 0.1, when = 0) {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime + when;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t);
+  gain.gain.setValueAtTime(vol, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + duration);
+}
+function playChord(freqs, type, duration, vol = 0.06) {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  freqs.forEach(f => playTone(f, type, duration, vol, 0));
+}
+function sfx(kind) {
+  ensureAudio();
+  switch (kind) {
+    case 'move':   playTone(220, 'square', 0.05, 0.03); break;
+    case 'rotate': playTone(440, 'square', 0.06, 0.04); break;
+    case 'drop':   playTone(110, 'sawtooth', 0.1, 0.05); break;
+    case 'lock':   playTone(150, 'square', 0.08, 0.05); playTone(200, 'square', 0.08, 0.05, 0.04); break;
+    case 'clear':  playTone(523, 'square', 0.1, 0.1); playTone(659, 'square', 0.1, 0.1, 0.05); playTone(784, 'square', 0.15, 0.15, 0.1); break;
+    case 'tetris': playChord([523, 659, 784, 1047], 'square', 0.3, 0.12); break;
+    case 'tspin':  playChord([659, 988, 1319], 'sawtooth', 0.3, 0.12); break;
+    case 'combo':  playTone(880, 'square', 0.15, 0.1); playTone(1108, 'square', 0.15, 0.1, 0.08); break;
+    case 'levelup': playChord([523, 659, 784, 1047], 'square', 0.5, 0.15); break;
+    case 'gameover': playTone(220, 'sawtooth', 0.6, 0.15); playTone(180, 'sawtooth', 0.6, 0.15, 0.2); playTone(150, 'sawtooth', 0.8, 0.15, 0.4); break;
+    case 'hold': playTone(330, 'square', 0.1, 0.05); break;
+  }
+}
+/* BGM */
+let bgmInterval = null;
+function startBGM() { stopBGM(); const base = [261.6, 329.6, 392.0, 523.3]; let i = 0; bgmInterval = setInterval(() => { if (!audioCtx) return; playTone(base[i % 4], 'triangle', 0.4, 0.03); i++; }, 600); }
+function stopBGM() { if (bgmInterval) clearInterval(bgmInterval); bgmInterval = null; }
+
+/* ================= 定数・テトリミノ ================= */
+const COLS = 10, ROWS = 20, BLOCK = 24;
+const SHAPES = {
+  I: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+  O: [[1,1],[1,1]],
+  T: [[0,1,0],[1,1,1],[0,0,0]],
+  S: [[0,1,1],[1,1,0],[0,0,0]],
+  Z: [[1,1,0],[0,1,1],[0,0,0]],
+  J: [[1,0,0],[1,1,1],[0,0,0]],
+  L: [[0,0,1],[1,1,1],[0,0,0]]
+};
+const COLORS = {
+  I: '#0ff', O: '#ff0', T: '#f0f', S: '#0f0', Z: '#f00', J: '#00f', L: '#f90', GRAY: '#666', GHOST: '#333'
+};
+// SRS wall kick data (offsets: [dx, dy])
+const WALL_KICKS = {
+  I: {
+    '0->1': [[0,0],[-2,0],[1,0],[-2,1],[1,-2]],
+    '1->0': [[0,0],[2,0],[-1,0],[2,-1],[-1,2]],
+    '1->2': [[0,0],[-1,0],[2,0],[-1,2],[2,-1]],
+    '2->1': [[0,0],[1,0],[-2,0],[1,-2],[-2,1]],
+    '2->3': [[0,0],[2,0],[-1,0],[2,1],[-1,-2]],
+    '3->2': [[0,0],[-2,0],[1,0],[-2,-1],[1,2]],
+    '3->0': [[0,0],[1,0],[-2,0],[1,2],[-2,-1]],
+    '0->3': [[0,0],[-1,0],[2,0],[-1,-2],[2,1]]
+  },
+  default: {
+    '0->1': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+    '1->0': [[0,0],[1,0],[1,-1],[0,2],[1,2]],
+    '1->2': [[0,0],[1,0],[1,-1],[0,-2],[1,-2]],
+    '2->1': [[0,0],[-1,0],[-1,1],[0,2],[-1,2]],
+    '2->3': [[0,0],[1,0],[1,1],[0,-2],[1,-2]],
+    '3->2': [[0,0],[-1,0],[-1,-1],[0,2],[-1,-2]],
+    '3->0': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+    '0->3': [[0,0],[1,0],[1,-1],[0,2],[1,2]]
+  }
+};
+
+function rotMatrix(m) {
+  const n = m.length, out = Array.from({length: n}, () => Array(n).fill(0));
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) out[x][n-1-y] = m[y][x];
+  return out;
+}
+function rotate(shape, dir) { // dir: 1 CW, -1 CCW
+  let m = shape;
+  for (let i = 0; i < (dir === 1 ? 1 : 3); i++) m = rotMatrix(m);
+  return m;
+}
+
+/* ================= ゲーム本体 ================= */
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+const nextCanvas = document.getElementById('next');
+const nextCtx = nextCanvas.getContext('2d');
+const holdCanvas = document.getElementById('hold');
+const holdCtx = holdCanvas.getContext('2d');
+
+let grid = [];
+let current = null;
+let holdPiece = null;
+let holdUsed = false;
+let nextQueue = [];
+let bag = [];
+let score = 0, lines = 0, level = 1, combo = 0;
+let dropTime = 0, lockTime = 0, lockDelay = 500;
+let softDrop = false;
+let gameOver = false, paused = false, started = false;
+let particles = [];
+let screenFlash = 0;
+let lastTime = 0;
+
+function createGrid() { return Array.from({length: ROWS}, () => Array(COLS).fill(null)); }
+
+function newPiece(type) {
+  const shape = SHAPES[type];
+  const w = shape[0].length;
+  return { type, shape, x: Math.floor(COLS/2) - Math.ceil(w/2), y: -2, rot: 0 };
+}
+
+function refillBag() {
+  const types = 'IOTSZJL'.split('');
+  for (let i = types.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [types[i], types[j]] = [types[j], types[i]];
+  }
+  bag.push(...types);
+}
+function getNext() {
+  if (bag.length === 0) refillBag();
+  return bag.shift();
+}
+function spawn() {
+  if (nextQueue.length < 5) {
+    for (let i = nextQueue.length; i < 5; i++) nextQueue.push(getNext());
+  }
+  const type = nextQueue.shift();
+  while (nextQueue.length < 5) nextQueue.push(getNext());
+  current = newPiece(type);
+  lockTime = 0;
+  holdUsed = false;
+  if (!valid(current)) { gameOver = true; sfx('gameover'); stopBGM(); }
+}
+
+function valid(piece, shape = piece.shape, x = piece.x, y = piece.y) {
+  for (let yy = 0; yy < shape.length; yy++) {
+    for (let xx = 0; xx < shape[yy].length; xx++) {
+      if (!shape[yy][xx]) continue;
+      const gx = x + xx, gy = y + yy;
+      if (gx < 0 || gx >= COLS || gy >= ROWS) return false;
+      if (gy >= 0 && grid[gy][gx]) return false;
+    }
+  }
+  return true;
+}
+
+function tryRotate(dir) {
+  if (!current) return;
+  const newRot = (current.rot + dir + 4) % 4;
+  let newShape = rotate(current.shape, dir);
+  const kicks = WALL_KICKS[current.type][`${current.rot}->${newRot}`] || WALL_KICKS.default[`${current.rot}->${newRot}`];
+  for (const [dx, dy] of kicks) {
+    if (valid(current, newShape, current.x + dx, current.y + dy)) {
+      current.shape = newShape;
+      current.x += dx;
+      current.y += dy;
+      current.rot = newRot;
+      sfx('rotate');
+      lockTime = 0;
+      return;
+    }
+  }
+}
+
+function move(dx, dy) {
+  if (!current || gameOver || paused) return false;
+  if (valid(current, current.shape, current.x + dx, current.y + dy)) {
+    current.x += dx; current.y += dy;
+    if (dy > 0) lockTime = 0;
+    return true;
+  }
+  if (dy > 0) lockCurrent();
+  return false;
+}
+
+function hardDrop() {
+  if (!current || gameOver || paused) return;
+  let dist = 0;
+  while (valid(current, current.shape, current.x, current.y + 1)) { current.y++; dist++; }
+  score += dist * 2;
+  sfx('drop');
+  lockCurrent();
+}
+
+function lockCurrent() {
+  if (!current) return;
+  for (let yy = 0; yy < current.shape.length; yy++) {
+    for (let xx = 0; xx < current.shape[yy].length; xx++) {
+      if (!current.shape[yy][xx]) continue;
+      const gy = current.y + yy, gx = current.x + xx;
+      if (gy >= 0 && gy < ROWS && gx >= 0 && gx < COLS) grid[gy][gx] = current.type;
+    }
+  }
+  sfx('lock');
+  clearLines();
+  spawn();
+}
+
+function clearLines() {
+  let cleared = 0;
+  let tSpin = false;
+  // T-spin check
+  if (current && current.type === 'T') {
+    const corners = [
+      grid[current.y] && grid[current.y][current.x],
+      grid[current.y] && grid[current.y][current.x + 2],
+      grid[current.y + 2] && grid[current.y + 2][current.x],
+      grid[current.y + 2] && grid[current.y + 2][current.x + 2]
+    ].filter(Boolean);
+    if (corners.length >= 3) tSpin = true;
+  }
+  for (let y = ROWS - 1; y >= 0; y--) {
+    if (grid[y].every(Boolean)) {
+      grid.splice(y, 1);
+      grid.unshift(Array(COLS).fill(null));
+      y++;
+      cleared++;
+    }
+  }
+  if (cleared > 0) {
+    combo++;
+    const base = [0, 100, 300, 500, 800];
+    let points = base[cleared] || 1200;
+    if (tSpin) points *= 2;
+    points *= level;
+    if (combo > 1) points += combo * 50;
+    score += points;
+    lines += cleared;
+    level = Math.floor(lines / 10) + 1;
+    updateLevelEffect();
+    sfx(tSpin ? 'tspin' : cleared === 4 ? 'tetris' : cleared > 0 ? 'clear' : 'move');
+    if (combo > 1) sfx('combo');
+    createExplosion(cleared, tSpin);
+    screenFlash = 6;
+  } else {
+    combo = 0;
+  }
+  updateUI();
+}
+
+function updateLevelEffect() {
+  document.getElementById('level').textContent = level;
+  sfx('levelup');
+}
+
+function createExplosion(cleared, tSpin) {
+  const cx = current ? (current.x + current.shape[0].length/2) * BLOCK : 150;
+  const cy = current ? current.y * BLOCK : 300;
+  const count = (cleared * 12) + (tSpin ? 20 : 0) + (level * 3);
+  const hueBase = (level * 30) % 360;
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x: cx, y: cy,
+      vx: (Math.random() - 0.5) * 12 * cleared,
+      vy: (Math.random() - 0.5) * 12 * cleared - 2,
+      life: 1.0,
+      decay: 0.015 + Math.random() * 0.03,
+      color: `hsl(${hueBase + Math.random()*60}, 100%, 60%)`,
+      size: Math.random() * 4 + 2
+    });
+  }
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.4; p.life -= p.decay;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function hold() {
+  if (!current || holdUsed || gameOver || paused) return;
+  sfx('hold');
+  const type = current.type;
+  if (!holdPiece) {
+    holdPiece = type;
+    spawn();
+  } else {
+    const tmp = holdPiece;
+    holdPiece = type;
+    current = newPiece(tmp);
+    if (!valid(current)) { gameOver = true; sfx('gameover'); stopBGM(); }
+  }
+  holdUsed = true;
+  drawHold();
+}
+
+function drawBlock(ctx, x, y, type, alpha = 1) {
+  ctx.fillStyle = COLORS[type];
+  ctx.globalAlpha = alpha;
+  ctx.fillRect(x * BLOCK + 1, y * BLOCK + 1, BLOCK - 2, BLOCK - 2);
+  ctx.globalAlpha = 1;
+}
+
+function draw() {
+  // board
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // grid lines
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= COLS; x++) { ctx.beginPath(); ctx.moveTo(x*BLOCK, 0); ctx.lineTo(x*BLOCK, canvas.height); ctx.stroke(); }
+  for (let y = 0; y <= ROWS; y++) { ctx.beginPath(); ctx.moveTo(0, y*BLOCK); ctx.lineTo(canvas.width, y*BLOCK); ctx.stroke(); }
+  // landed blocks
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) if (grid[y][x]) drawBlock(ctx, x, y, grid[y][x]);
+  // ghost piece
+  if (current && !gameOver) {
+    let gy = current.y;
+    while (valid(current, current.shape, current.x, gy + 1)) gy++;
+    for (let yy = 0; yy < current.shape.length; yy++) {
+      for (let xx = 0; xx < current.shape[yy].length; xx++) {
+        if (!current.shape[yy][xx]) continue;
+        ctx.fillStyle = COLORS.GHOST;
+        ctx.globalAlpha = 0.35;
+        ctx.fillRect((current.x + xx)*BLOCK + 1, (gy + yy)*BLOCK + 1, BLOCK - 2, BLOCK - 2);
+        ctx.globalAlpha = 1;
+      }
+    }
+    // current piece
+    for (let yy = 0; yy < current.shape.length; yy++) {
+      for (let xx = 0; xx < current.shape[yy].length; xx++) {
+        if (!current.shape[yy][xx]) continue;
+        drawBlock(ctx, current.x + xx, current.y + yy, current.type);
+      }
+    }
+  }
+  // particles
+  for (const p of particles) {
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = p.life;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawNext() {
+  nextCtx.fillStyle = '#000'; nextCtx.fillRect(0, 0, 120, 120);
+  for (let i = 0; i < Math.min(3, nextQueue.length); i++) {
+    const type = nextQueue[i];
+    const shape = SHAPES[type];
+    const ox = 60 - (shape[0].length * 10) / 2;
+    const oy = 15 + i * 38;
+    for (let y = 0; y < shape.length; y++) {
+      for (let x = 0; x < shape[y].length; x++) {
+        if (shape[y][x]) {
+          nextCtx.fillStyle = COLORS[type];
+          nextCtx.fillRect(ox + x * 10, oy + y * 10, 8, 8);
+        }
+      }
+    }
+  }
+}
+function drawHold() {
+  holdCtx.fillStyle = '#000'; holdCtx.fillRect(0, 0, 120, 80);
+  if (holdPiece) {
+    const shape = SHAPES[holdPiece];
+    const ox = 60 - (shape[0].length * 10) / 2;
+    const oy = 40 - (shape.length * 10) / 2;
+    for (let y = 0; y < shape.length; y++) {
+      for (let x = 0; x < shape[y].length; x++) {
+        if (shape[y][x]) {
+          holdCtx.fillStyle = COLORS[holdPiece];
+          holdCtx.fillRect(ox + x * 10, oy + y * 10, 8, 8);
+        }
+      }
+    }
+  }
+}
+
+function updateUI() {
+  document.getElementById('score').textContent = score;
+  document.getElementById('lines').textContent = lines;
+  document.getElementById('combo').textContent = combo;
+}
+
+function loop(t) {
+  if (!started) return;
+  const dt = t - lastTime;
+  lastTime = t;
+  if (!paused && !gameOver) {
+    dropTime += dt;
+    const fallSpeed = Math.max(50, 1000 - (level - 1) * 80 - (softDrop ? 900 : 0));
+    if (dropTime >= fallSpeed) { move(0, 1); dropTime = 0; }
+    if (!current) return;
+    lockTime += dt;
+    if (lockTime >= lockDelay) { lockCurrent(); lockTime = 0; }
+  }
+  updateParticles(dt);
+  draw();
+  if (screenFlash > 0) { screenFlash--; const flash = document.getElementById('effect-flash'); flash.style.opacity = screenFlash / 12; }
+  requestAnimationFrame(loop);
+}
+
+/* ================= 入力 ================= */
+function onKey(e) {
+  if (!started) return;
+  if (gameOver) { if (e.code === 'Space') resetGame(); return; }
+  if (e.code === 'Escape') { paused = !paused; return; }
+  if (paused) return;
+  if (e.repeat) return;
+  switch (e.code) {
+    case 'ArrowLeft': e.preventDefault(); move(-1, 0); sfx('move'); break;
+    case 'ArrowRight': e.preventDefault(); move(1, 0); sfx('move'); break;
+    case 'ArrowDown': e.preventDefault(); softDrop = true; sfx('drop'); break;
+    case 'ArrowUp': e.preventDefault(); tryRotate(1); break;
+    case 'Space': e.preventDefault(); hardDrop(); break;
+    case 'KeyC': case 'KeyZ': e.preventDefault(); hold(); break;
+  }
+}
+function onKeyUp(e) {
+  if (e.code === 'ArrowDown') softDrop = false;
+}
+
+window.addEventListener('keydown', onKey);
+window.addEventListener('keyup', onKeyUp);
+
+/* タッチ操作（簡易） */
+const touchZone = canvas;
+let touchStartX = 0;
+touchZone.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, {passive: false});
+touchZone.addEventListener('touchmove', e => { e.preventDefault(); }, {passive: false});
+touchZone.addEventListener('touchend', e => {
+  if (!started || gameOver || paused) return;
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  if (Math.abs(dx) > 30) { move(dx > 0 ? 1 : -1, 0); sfx('move'); }
+}, {passive: false});
+
+function startGame() {
+  ensureAudio();
+  grid = createGrid();
+  score = 0; lines = 0; level = 1; combo = 0;
+  nextQueue = []; bag = []; refillBag();
+  holdPiece = null; holdUsed = false;
+  particles = []; screenFlash = 0;
+  gameOver = false; paused = false; started = true;
+  document.getElementById('overlay').classList.add('hidden');
+  document.getElementById('effect-flash').style.opacity = 0;
+  updateUI();
+  spawn();
+  drawNext(); drawHold();
+  startBGM();
+  lastTime = performance.now();
+  requestAnimationFrame(loop);
+}
+
+function resetGame() { startGame(); }
+
+document.getElementById('startBtn').addEventListener('click', startGame);
+
+// 初期描画
+draw();
+drawNext();
+drawHold();
+</script>
+</body>
+</html>
