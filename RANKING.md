@@ -65,4 +65,5 @@ gemma4 > sarashina3mini
 gemma4 > sarashina3nano
 gemma4 > nemotron35supervl
 gemma4 > northminicode
+gemma4 > minimaxm31flash
 ```
