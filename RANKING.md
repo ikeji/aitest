@@ -31,6 +31,7 @@ opus55-202610141029 > qwen38flashnext   # 10/14 の 2 回目の run
 opus55-202610141029 > mimo26pro
 opus55-202610141029 > sonnet55
 opus55-202609231032 > opus55-202610141029   # 同じモデルの 2 回。9/23 の方が上
+sonnet5 > deepseekv411017
 
 # tier B
 deepseekv4flash > deepseekv41flash-202609111136   # rules 優先。9/11 の opencode 版 (9/16 の Deepseek Harness 版と曖昧なのでフルネーム)
@@ -44,6 +45,8 @@ gpt55 > grok47
 mimo26flash > gemma4
 grok47 > mimo26flash
 haiku55 > deepseekv4flash
+haiku55 > beam
+beam > deepseekv4flash
 
 # gemma4 を基準にする。F は全部 gemma4 より下
 gemma4 > devstral2
