@@ -29,7 +29,7 @@ python3 build_index.py     # regenerate index.html and the table in README
 | 8 | [gpt-6-astra](gpt6astra-202609071051/index.html) | - | openai | codex | 2026-09-07 10:51 | 10m19s | - | - | A | 4 | 3 | 4 |
 | 9 | [GLM-5.3-Flash (max thinking)](glm53flash-202609090231/index.html) | 321B-A17B | - | opencode | 2026-09-09 02:31 | 55m38s | - | - | A | 4 | 3 | 3 |
 | 10 | [Grok 4.6 (Extra High)](grok46-202609130137/index.html) | - | - | opencode | 2026-09-13 01:37 | 29m41s | - | - | A | 4 | 3 | 3 |
-| 11 | [Space Bunny (Max think)](spacebunny-202609240250/index.html) | - | - | - | 2026-09-24 02:50 | 43m21s | - | - | A | 4 | 3 | 3 |
+| 11 | [MiniMax-M3.1-Flash (Space Bunny, Max think)](spacebunny-202609240250/index.html) | 428B-A23B | - | - | 2026-09-24 02:50 | 43m21s | - | - | A | 4 | 3 | 3 |
 | 12 | [Qwen3.8-27B (EXL3 3.5bpw)](qwen38-202609160535/index.html) | 27B | exllamav3 | Deepseek Harness | 2026-09-16 05:35 | 1h02m | - | - | A | 4 | 3 | 3 |
 | 13 | [claude-sonnet-5](sonnet5-202609022244/index.html) | - | anthropic | claude-code | 2026-09-02 22:44 | 17m20s | 87.8k | 100 | A | 4 | 2 | 3 |
 | 14 | [DeepSeek-V4.1-Flash (1017)](deepseekv411017-202610201458/index.html) | 552B-A16B | opencode | opencode | 2026-10-20 14:58 | 1h14m | 190.3k | 43 | A | 4 | 2 | 2 |
@@ -66,7 +66,7 @@ python3 build_index.py     # regenerate index.html and the table in README
 | 45 | [MiniMax-M2.7](minimaxm27-202609061312/index.html) | 230B-A10B | llama.cpp | pi-agent | 2026-09-06 13:12 | 8m49s | 9.1k | 17 | F | 0 | NA | NA |
 | 46 | [Nemotron-3-Super-120B-A12B](nemotron3super-202609092217/index.html) | 120B-A12B | llama.cpp | pi-agent | 2026-09-09 22:17 | 9m53s | 9.0k | 15 | F | 0 | NA | NA |
 | 47 | [DeepSeek-V4.1-Flash](deepseekv41flash-202609161830/index.html) ([fixed.html](deepseekv41flash-202609161830/fixed.html)) | 552B-A16B | deepseek | Deepseek Harness | 2026-09-16 18:30 | 56m11s | 293.2k | 282 | F | 0 | NA | NA |
-| 48 | [spacebunny](spacebunny-202609240045/index.html) | - | - | - | 2026-09-24 00:45 | - | - | - | F | 0 | NA | NA |
+| 48 | [MiniMax-M3.1-Flash (Space Bunny)](spacebunny-202609240045/index.html) | 428B-A23B | - | - | 2026-09-24 00:45 | - | - | - | F | 0 | NA | NA |
 | 49 | [big-pickle](bigpickle-202610062305/index.html) | - | opencode | opencode | 2026-10-06 23:05 | 15m36s | 18.9k | 20 | F | 0 | NA | NA |
 | 50 | [Sarashina3 mini](sarashina3mini-202610141030/index.html) | - | sarashina | pi-agent | 2026-10-14 10:30 | 0m12s | 0.9k | 73 | F | 0 | NA | NA |
 | 51 | [Sarashina3 nano](sarashina3nano-202610141031/index.html) | - | sarashina | pi-agent | 2026-10-14 10:31 | 0m01s | 0.3k | 243 | F | 0 | NA | NA |
