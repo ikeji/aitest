@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>爆発テトリス</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: #05060c;
+    color: #e5e7eb;
+    font-family: "Segoe UI", "Hiragino Sans", Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  #game {
+    position: relative;
+    width: min(92vw, 46vh);
+    aspect-ratio: 1 / 2;
+  }
+  canvas#board {
+    width: 100%;
+    height: 100%;
+    display: block;
+    border-radius: 8px;
+    background: #0b0e1a;
+    touch-action: none;
+  }
+  #hud {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #9ca3af;
+    pointer-events: none;
+    text-shadow: 0 1px 2px rgba(0,0,0,.9);
+  }
+  #hud .val { color: #f9fafb; font-size: 15px; }
+  #overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(4, 6, 14, 0.85);
+    border-radius: 8px;
+    z-index: 5;
+  }
+  #overlay.hidden { display: none; }
+  #overlay .panel { text-align: center; display: flex; flex-direction: column; gap: 14px; align-items: center; padding: 20px; }
+  #overlay h1 { font-size: 30px; color: #fff; text-shadow: 0 0 18px rgba(0, 224, 255, .6); letter-spacing: 2px; }
+  #overlay h2 { font-size: 26px; color: #fff; }
+  #overlay p { color: #9ca3af; font-size: 14px; line-height: 1.6; }
+  #overlay .hint { font-size: 12px; }
+  #btn-start {
+    padding: 12px 34px; font-size: 18px; font-weight: 800; color: #04121a;
+    background: linear-gradient(180deg, #22e6ff, #0090c8);
+    border: none; border-radius: 999px; cursor: pointer;
+    box-shadow: 0 0 24px rgba(0, 224, 255, .5);
+  }
+  #btn-retry, #btn-resume {
+    padding: 10px 30px; font-size: 16px; font-weight: 800; color: #fff;
+    background: rgba(255, 255, 255, .1); border: 1px solid rgba(255,255,255,.35);
+    border-radius: 999px; cursor: pointer;
+  }
+  #touch-controls { display: flex; justify-content: space-between; align-items: center; width: min(92vw, 46vh); }
+  #touch-controls button {
+    width: 54px; height: 54px; border-radius: 50%;
+    border: 1px solid rgba(255,255,255,.25);
+    background: rgba(255,255,255,.08);
+    color: #fff; font-size: 20px; touch-action: none;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #touch-controls button:active { background: rgba(255,255,255,.25); }
+</style>
+</head>
+<body>
+<div id="game">
+  <canvas id="board"></canvas>
+  <div id="hud">
+    <div>SCORE <span class="val" id="hud-score">0</span></div>
+    <div>LEVEL <span class="val" id="hud-level">1</span> / <span class="val" id="hud-lines">0</span> LINES</div>
+    <div>T <span class="val" id="hud-time">0</span></div>
+  </div>
+  <div id="overlay">
+    <div class="panel" id="panel-ready">
+      <h1>爆発テトリス</h1>
+      <p>10ライン消すごとに爆発エフェクトが変わる！<br>進めば進むほど画面が賑やかになる。</p>
+      <button id="btn-start">スタート</button>
+      <p class="hint">Enter キーでも開始できます</p>
+    </div>
+    <div class="panel" id="panel-pause" style="display:none;">
+      <h2>PAUSE</h2>
+      <button id="btn-resume">再開</button>
+      <p class="hint">P キーでも再開</p>
+    </div>
+    <div class="panel" id="panel-over" style="display:none;">
+      <h2>GAME OVER</h2>
+      <p>スコア: <span id="final-score">0</span></p>
+      <button id="btn-retry">リトライ</button>
+      <p class="hint">Enter キーでもリトライ</p>
+    </div>
+  </div>
+</div>
+<div id="touch-controls">
+  <button id="btn-left" type="button">&#9664;</button>
+  <button id="btn-rotate" type="button">⟳</button>
+  <button id="btn-drop" type="button">&#8965;</button>
+  <button id="btn-hold" type="button">HOLD</button>
+  <button id="btn-right" type="button">&#9654;</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+<script>
+(function () {
+'use strict';
+
+// ============ 設定 ============
+var COLS = 10, ROWS = 20, CELL = 30, WIDTH = COLS * CELL, HEIGHT = ROWS * CELL;
+
+var COLORS = { I: '#00e0ff', O: '#ffd500', T: '#c44dff', S: '#44ff88', Z: '#ff5555', J: '#5588ff', L: '#ffaa44' };
+
+var PIECE_MATRIX = {
+  I: [[1,1,1,1]],
+  O: [[1,1],[1,1]],
+  T: [[1,1,1],[0,1,0]],
+  S: [[0,1,1],[1,1,0]],
+  Z: [[1,1,0],[0,1,1]],
+  J: [[1,0,0],[1,1,1]],
+  L: [[0,0,1],[1,1,1]],
+};
+
+var KICKS = {
+  JLSTZ: [[0,0],[-1,0],[-1,-2],[-2,0],[-2,-1]],
+  I:    [[0,0],[-2,0],[1,0],[-2,-1],[1,1]],
+  O:    [[0,0]],
+};
+
+var LOCK_DELAY = 0.5;
+var DAS = 0.15;
+var ARR = 0.033;
+var SOFT_DROP_MS = 0.03;
+var NORMAL_CLEAR = [0, 100, 300, 500, 800];
+var T_CLEAR = [0, 400, 800, 1200, 1600];
+
+var EFFECT_STAGES = [
+  { name: '爆発',     flash: 0.35, shake: 0.20, parts: 16, ripple: false, slow: 0 },
+  { name: '激震',     flash: 0.50, shake: 0.45, parts: 20, ripple: false, slow: 0 },
+  { name: '大爆発',   flash: 0.65, shake: 0.75, parts: 26, ripple: true,  slow: 0 },
+  { name: '全壊',     flash: 0.80, shake: 1.05, parts: 34, ripple: true,  slow: 0.35 },
+  { name: '無限爆発', flash: 0.95, shake: 1.25, parts: 44, ripple: true,  slow: 0.60 },
+];
+
+// ============ ゲーム状態 ============
+var board = null;
+var queue = [];
+var bag = [];
+var piece = null;
+var hold = null;
+var holdUsed = false;
+var score = 0;
+var lines = 0;
+var level = 1;
+var totalLines = 0;
+var state = 'ready';
+var dropTimer = 0;
+var lockTimer = 0;
+var particles = [];
+var ripples = [];
+var shakeMag = 0;
+var flashA = 0;
+var slowT = 0;
+var muted = false;
+var elapsed = 0;
+var prevLevel = 1;
+
+// ============ 盤面 / ピース ============
+function newBoard() {
+  return Array.from({ length: ROWS }, function () { return Array(COLS).fill(null); });
+}
+
+function collides(b, matrix, px, py) {
+  for (var r = 0; r < matrix.length; r++) {
+    for (var c = 0; c < matrix[r].length; c++) {
+      if (!matrix[r][c]) continue;
+      var x = px + c, y = py + r;
+      if (x < 0 || x >= COLS || y >= ROWS) return true;
+      if (y >= 0 && b[y][x]) return true;
+    }
+  }
+  return false;
+}
+
+function rotateMatrixCW(m) {
+  var rows = m.length, cols = m[0].length;
+  var out = [];
+  for (var i = 0; i < cols; i++) {
+    var row = [];
+    for (var j = 0; j < rows; j++) row.push(m[rows - 1 - j][i]);
+    out.push(row);
+  }
+  return out;
+}
+
+function rotatePiece(p, dir) {
+  var m = rotateMatrixCW(p.matrix);
+  if (dir < 0) { m = rotateMatrixCW(m); m = rotateMatrixCW(m); }
+  var kicks = KICKS[p.type] || [[0, 0]];
+  var nx = p.x, ny = p.y;
+  for (var i = 0; i < kicks.length; i++) {
+    if (!collides(board, m, nx + kicks[i][0], ny + kicks[i][1])) {
+      p.matrix = m;
+      p.x = nx + kicks[i][0];
+      p.y = ny + kicks[i][1];
+      p.rot = (p.rot + (dir > 0 ? 1 : 3)) % (p.type === 'I' ? 2 : 4);
+      lockTimer = LOCK_DELAY;
+      return true;
+    }
+  }
+  return false;
+}
+
+function canMoveDown() { return !collides(board, piece.matrix, piece.x, piece.y + 1); }
+
+function dropInterval(lv) {
+  var t = Math.pow(0.8 - (lv - 1) * 0.007, lv - 1);
+  return Math.max(0.025, t);
+}
+
+function spawnX(type) { return type === 'I' ? 3 : (type === 'O' ? 4 : 3); }
+
+function spawnNext() {
+  if (queue.length === 0) {
+    bag = [];
+    var types = Object.keys(PIECE_MATRIX);
+    for (var i = 0; i < 7; i++) bag.push(types[Math.floor(Math.random() * 7)]);
+    queue = bag.slice();
+  }
+  var type = queue.shift();
+  piece = {
+    type: type,
+    matrix: PIECE_MATRIX[type].map(function (r) { return r.slice(); }),
+    rot: 0,
+    x: spawnX(type),
+    y: 0,
+  };
+  dropTimer = 0;
+  lockTimer = 0;
+  if (collides(board, piece.matrix, piece.x, piece.y)) gameOver();
+}
+
+function gameOver() {
+  state = 'over';
+  stopBgm();
+  playOverSound();
+  document.getElementById('overlay').classList.remove('hidden');
+  document.getElementById('panel-over').style.display = 'flex';
+  document.getElementById('final-score').textContent = Math.floor(score);
+}
+
+function startGame() {
+  board = newBoard();
+  bag = [];
+  var types = Object.keys(PIECE_MATRIX);
+  for (var i = 0; i < 7; i++) bag.push(types[Math.floor(Math.random() * 7)]);
+  queue = bag.slice();
+  piece = null;
+  hold = null;
+  holdUsed = false;
+  score = 0; lines = 0; level = 1; totalLines = 0; elapsed = 0;
+  particles = []; ripples = [];
+  shakeMag = 0; flashA = 0; slowT = 0;
+  dropTimer = 0; lockTimer = 0;
+  state = 'playing';
+  document.getElementById('overlay').classList.add('hidden');
+  startBgm();
+  audio();
+  spawnNext();
+}
+
+function togglePause() {
+  if (state === 'playing') { state = 'paused'; stopBgm(); document.getElementById('overlay').classList.remove('hidden'); }
+  else if (state === 'paused') { state = 'playing'; startBgm(); document.getElementById('overlay').classList.add('hidden'); }
+}
+
+function toggleMute() { muted = !muted; }
+
+// ============ スコア / 消去 ============
+function addScore(pts) { score += pts; }
+
+function lockPiece() {
+  var p = piece;
+  for (var r = 0; r < p.matrix.length; r++) {
+    for (var c = 0; c < p.matrix[r].length; c++) {
+      if (!p.matrix[r][c]) continue;
+      var y = p.y + r, x = p.x + c;
+      if (y >= 0 && y < ROWS && x >= 0 && x < COLS) board[y][x] = p.type;
+    }
+  }
+  playLockSound();
+
+  var fullRows = [];
+  for (var fy = ROWS - 1; fy >= 0; fy--) {
+    var row = board[fy];
+    var full = true, cols = [];
+    for (var fx = 0; fx < COLS; fx++) { if (row[fx]) cols.push(fx); else full = false; }
+    if (full) fullRows.push({ row: fy, cols: cols });
+  }
+  var rowsCleared = fullRows.length;
+
+  // ---- エフェクト適用 & 爆発パーティクル (board はまだスプライド前) ----
+  var eff = EFFECT_STAGES[Math.min(4, Math.floor((totalLines + rowsCleared) / 10))];
+  flashA = Math.max(flashA, eff.flash);
+  shakeMag = Math.max(shakeMag, eff.shake);
+  if (eff.slow > 0) slowT = Math.max(slowT, eff.slow);
+  for (var fi = 0; fi < fullRows.length; fi++) {
+    var fr = fullRows[fi];
+    for (var fc = 0; fc < fr.cols.length; fc++) {
+      var col = fr.cols[fc];
+      var px = col * CELL + CELL / 2;
+      var py = fr.row * CELL + CELL / 2;
+      var colColor = COLORS[board[fr.row][col]] || '#fff';
+      explode(px, py, colColor, eff.parts);
+      if (eff.ripple) addRipple(px, py, colColor);
+    }
+  }
+
+  // ---- board から行を削除 (下の行から順に splice し、最後に空行を上へ補充) ----
+  var numCleared = fullRows.length;
+  for (var si = 0; si < fullRows.length; si++) {
+    board.splice(fullRows[si].row, 1);
+  }
+  for (var ei = 0; ei < numCleared; ei++) {
+    board.unshift(Array(COLS).fill(null));
+  }
+
+  // ---- スコア / レベルアップ ----
+  var tspin = (p.type === 'T') && ((p.rot % 4) === 2);
+  if (rowsCleared > 0) {
+    var pts = (tspin ? T_CLEAR : NORMAL_CLEAR)[rowsCleared] * level;
+    addScore(pts);
+    totalLines += rowsCleared;
+    lines = totalLines;
+    level = Math.floor(totalLines / 10) + 1;
+    if (level > prevLevel) { prevLevel = level; playLevelUpSound(); }
+    if (tspin) playTSpinSound();
+    playClearSound(tspin, rowsCleared);
+  }
+
+  piece = null;
+  if (holdUsed) { holdUsed = false; piece = { type: hold, matrix: PIECE_MATRIX[hold].map(function (r) { return r.slice(); }), rot: 0, x: spawnX(hold), y: 0 }; }
+  else spawnNext();
+}
+
+// ============ 操作 ============
+var held = {};
+var dasInfo = {};
+
+function setHeld(key, val) {
+  held[key] = val;
+  if (val) {
+    if (key === 'ArrowLeft' || key === 'ArrowRight') {
+      var dir = key === 'ArrowLeft' ? -1 : 1;
+      var now = performance.now();
+      dasInfo[dir] = { keyStart: now, last: now };
+    }
+  } else {
+    var dir2 = key === 'ArrowLeft' ? -1 : (key === 'ArrowRight' ? 1 : null);
+    if (dir2 !== null) delete dasInfo[dir2];
+  }
+}
+
+function move(dir) {
+  if (!piece || state !== 'playing') return false;
+  var nx = piece.x + dir;
+  if (!collides(board, piece.matrix, nx, piece.y)) {
+    piece.x = nx;
+    lockTimer = LOCK_DELAY;
+    playMoveSound();
+    return true;
+  }
+  return false;
+}
+
+function rotate(dir) {
+  if (!piece || state !== 'playing') return;
+  if (rotatePiece(piece, dir)) playRotateSound();
+}
+
+function hardDrop() {
+  if (!piece || state !== 'playing') return;
+  var dist = 0;
+  while (!collides(board, piece.matrix, piece.x, piece.y + dist + 1)) dist++;
+  piece.y += dist;
+  addScore(2 * dist);
+  playHardSound();
+  lockPiece();
+}
+
+function doHold() {
+  if (!piece || state !== 'playing') return;
+  if (hold) {
+    var prevType = piece.type;
+    piece = { type: hold, matrix: PIECE_MATRIX[hold].map(function (r) { return r.slice(); }), rot: 0, x: spawnX(hold), y: 0 };
+    hold = prevType;
+  } else {
+    hold = piece.type;
+    spawnNext();
+  }
+  holdUsed = true;
+  lockTimer = 0;
+  if (piece && collides(board, piece.matrix, piece.x, piece.y)) gameOver();
+}
+
+// ============ 音 (Web Audio コード同期生成) ============
+var AC = null;
+function audio() {
+  if (!AC) { var C = window.AudioContext || window.webkitAudioContext; if (C) AC = new C(); }
+  if (AC && AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function tone(freq, dur, type, vol, slideTo, delay) {
+  if (muted) return;
+  var ctx = audio(); if (!ctx) return;
+  var t0 = ctx.currentTime + (delay || 0);
+  var o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type || 'sine';
+  o.frequency.setValueAtTime(freq, t0);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(1, slideTo), t0 + dur);
+  g.gain.setValueAtTime(vol || 0.2, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(ctx.destination);
+  o.start(t0); o.stop(t0 + dur + 0.05);
+}
+function noise(dur, vol, freq, delay) {
+  if (muted) return;
+  var ctx = audio(); if (!ctx) return;
+  var t0 = ctx.currentTime + (delay || 0);
+  var len = Math.max(1, Math.floor(ctx.sampleRate * dur));
+  var buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  var d = buf.getChannelData(0);
+  for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  var src = ctx.createBufferSource(); src.buffer = buf;
+  var flt = ctx.createBiquadFilter(); flt.type = 'lowpass'; flt.frequency.value = freq || 1000;
+  var g = ctx.createGain(); g.gain.value = vol || 0.2;
+  src.connect(flt); flt.connect(g); g.connect(ctx.destination); src.start(t0);
+}
+function playMoveSound() { tone(280, 0.03, 'square', 0.04); }
+function playRotateSound() { tone(440, 0.05, 'square', 0.05, 620); }
+function playLockSound() { tone(150, 0.1, 'sine', 0.25, 45); }
+function playSoftSound() { tone(520, 0.02, 'square', 0.035); }
+function playHardSound() { tone(240, 0.12, 'sine', 0.3, 40); noise(0.08, 0.2, 900); }
+function playClearSound(tspin, count) {
+  var seq = [523.25, 659.25, 783.99, 1046.5, 1318.5];
+  for (var i = 0; i < Math.min(count, 5); i++) tone(seq[i], 0.16, 'triangle', 0.16, null, i * 0.045);
+}
+function playTSpinSound() { tone(1000, 0.3, 'sawtooth', 0.12, 140); noise(0.2, 0.12, 2000); }
+function playLevelUpSound() {
+  tone(660, 0.09, 'square', 0.12, 880);
+  tone(880, 0.12, 'square', 0.12, 1320, 0.09);
+  tone(1320, 0.16, 'square', 0.12, 1760, 0.18);
+}
+function playOverSound() {
+  tone(392, 0.22, 'sine', 0.18, 196);
+  tone(311, 0.22, 'sine', 0.16, 155, 0.22);
+  tone(233, 0.3, 'sine', 0.16, 110, 0.44);
+}
+
+// ============ BGM (コード同期シンセサイザー) ============
+var BGM_INT = null, BGM_STEP = 0, BGM_NEXT = 0, BGM_PLAYING = false;
+var BPM = 140, STEP_DUR = 60 / BPM / 2;
+var BASS = [55, 55, 55, 55, 65.41, 65.41, 49, 49, 55, 55, 55, 55, 65.41, 65.41, 49, 49];
+var MELODY = [[0, 0], [1, 0], [2, 440], [4, 0], [5, 0], [6, 0], [7, 523.25], [9, 0], [10, 0], [11, 659.25], [13, 0], [14, 0], [15, 783.99]];
+
+function startBgm() {
+  if (BGM_INT) return;
+  var ctx = audio(); if (!ctx) return;
+  BGM_PLAYING = true;
+  BGM_NEXT = ctx.currentTime + 0.1;
+  BGM_STEP = 0;
+  BGM_INT = setInterval(function () {
+    var ctx = audio(); if (!ctx) return;
+    while (BGM_NEXT < ctx.currentTime + 0.3) {
+      bgmStep(BGM_STEP, BGM_NEXT);
+      BGM_NEXT += STEP_DUR;
+      BGM_STEP = (BGM_STEP + 1) % 16;
+    }
+  }, 50);
+}
+function stopBgm() { BGM_PLAYING = false; clearInterval(BGM_INT); BGM_INT = null; }
+function bgmStep(i, t) {
+  var ctx = audio();
+  var f = BASS[i];
+  if (f) {
+    var o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'square'; o.frequency.value = f;
+    g.gain.setValueAtTime(0.05, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + STEP_DUR * 0.9);
+    o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + STEP_DUR * 0.95);
+  }
+  for (var m = 0; m < MELODY.length; m++) {
+    var note = MELODY[m];
+    if (note[0] !== i) continue;
+    tone(note[1], STEP_DUR * 0.9, 'square', 0.035, null, Math.max(0, t - ctx.currentTime));
+  }
+}
+
+// ============ パーティクル ============
+function explode(x, y, color, count) {
+  for (var i = 0; i < count; i++) {
+    var angle = Math.random() * Math.PI * 2;
+    var speed = 80 + Math.random() * 260;
+    var life = 0.35 + Math.random() * 0.45;
+    particles.push({ x: x, y: y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 60, g: 320, life: life, maxLife: life, color: color, size: 2 + Math.random() * 3 });
+  }
+}
+function addRipple(x, y, color) { ripples.push({ x: x, y: y, r: 6, vr: 260, life: 0.5, maxLife: 0.5, color: color }); }
+
+// ============ 更新 ============
+function update(dt) {
+  if (state !== 'playing') return;
+  elapsed += dt;
+  var dtm = Math.max(0.0001, dt * (1 - slowT));
+
+  var now = performance.now();
+  var dirs = [-1, 1];
+  for (var di = 0; di < 2; di++) {
+    var dir = dirs[di];
+    var info = dasInfo[dir];
+    if (!info) continue;
+    var wait = DAS - (now - info.keyStart);
+    if (now - info.last >= Math.max(0, wait)) {
+      if (move(dir)) info.last = now;
+    }
+  }
+
+  if (piece) {
+    var soft = !!held['ArrowDown'];
+    var interval = soft ? SOFT_DROP_MS : dropInterval(level);
+    if (canMoveDown()) {
+      dropTimer += dtm * (soft ? 33 : 1);
+      if (dropTimer >= interval) { piece.y++; dropTimer = 0; if (soft) { addScore(1); playSoftSound(); } }
+    } else {
+      lockTimer += dtm;
+      if (lockTimer >= LOCK_DELAY) lockPiece();
+    }
+  }
+
+  if (slowT > 0) slowT -= dt;
+  if (shakeMag > 0) shakeMag = Math.max(0, shakeMag - dt * 2.2);
+  if (flashA > 0) flashA = Math.max(0, flashA - dt * 1.6);
+
+  for (var i = particles.length - 1; i >= 0; i--) { var p = particles[i]; p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += p.g * dt; if (p.life <= 0) particles.splice(i, 1); }
+  for (var j = ripples.length - 1; j >= 0; j--) { var r = ripples[j]; r.life -= dt; r.r += r.vr * dt; if (r.life <= 0) ripples.splice(j, 1); }
+}
+
+// ============ 描画 ============
+var canvas = document.getElementById('board');
+var ctx = canvas.getContext('2d');
+var dpr = window.devicePixelRatio || 1;
+canvas.width = WIDTH * dpr;
+canvas.height = HEIGHT * dpr;
+ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+function rr(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawCell(type, x, y) {
+  var px = x * CELL, py = y * CELL;
+  var color = COLORS[type] || '#888';
+  ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 14;
+  ctx.fillStyle = color;
+  rr(ctx, px + 1, py + 1, CELL - 2, CELL - 2, 5);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function draw() {
+  if (!board) { ctx.clearRect(0, 0, WIDTH, HEIGHT); return; }
+  ctx.save();
+  ctx.clearRect(0, 0, WIDTH, HEIGHT);
+  if (shakeMag > 0.01) { ctx.translate((Math.random() - 0.5) * 2 * shakeMag, (Math.random() - 0.5) * 2 * shakeMag); }
+  ctx.fillStyle = '#0b0e1a';
+  ctx.fillRect(-10, -10, WIDTH + 20, HEIGHT + 20);
+  ctx.strokeStyle = 'rgba(255,255,255,0.045)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (var x = 1; x < COLS; x++) { ctx.moveTo(x * CELL + 0.5, -10); ctx.lineTo(x * CELL + 0.5, HEIGHT + 10); }
+  for (var y = 1; y < ROWS; y++) { ctx.moveTo(-10, y * CELL + 0.5); ctx.lineTo(WIDTH + 10, y * CELL + 0.5); }
+  ctx.stroke();
+
+  for (var by = 0; by < ROWS; by++) {
+    for (var bx = 0; bx < COLS; bx++) {
+      if (board[by][bx]) drawCell(board[by][bx], bx, by);
+    }
+  }
+
+  if (piece) {
+    var gy = piece.y;
+    while (!collides(board, piece.matrix, piece.x, gy + 1)) gy++;
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.strokeStyle = COLORS[piece.type];
+    ctx.lineWidth = 2;
+    for (var gr = 0; gr < piece.matrix.length; gr++) {
+      for (var gc = 0; gc < piece.matrix[gr].length; gc++) {
+        if (!piece.matrix[gr][gc]) continue;
+        ctx.strokeRect((piece.x + gc) * CELL + 2, (gy + gr) * CELL + 2, CELL - 4, CELL - 4);
+      }
+    }
+    ctx.restore();
+    ctx.save();
+    ctx.shadowColor = COLORS[piece.type];
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = COLORS[piece.type];
+    for (var pr = 0; pr < piece.matrix.length; pr++) {
+      for (var pc = 0; pc < piece.matrix[pr].length; pc++) {
+        if (!piece.matrix[pr][pc]) continue;
+        ctx.fillRect((piece.x + pc) * CELL, (piece.y + pr) * CELL, CELL, CELL);
+      }
+    }
+    ctx.restore();
+  }
+
+  for (var k = 0; k < particles.length; k++) {
+    var pt = particles[k];
+    ctx.globalAlpha = Math.max(0, pt.life / pt.maxLife);
+    ctx.fillStyle = pt.color;
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  for (var ri = 0; ri < ripples.length; ri++) {
+    var rp = ripples[ri];
+    ctx.globalAlpha = Math.max(0, rp.life / rp.maxLife) * 0.7;
+    ctx.strokeStyle = rp.color;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(rp.x, rp.y, rp.r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+
+  if (flashA > 0.005) { ctx.fillStyle = 'rgba(255,255,255,' + (flashA * 0.85) + ')'; ctx.fillRect(0, 0, WIDTH, HEIGHT); }
+}
+
+// ============ メインループ ============
+var lastT = performance.now();
+function frame(t) {
+  var dt = Math.min(0.05, (t - lastT) / 1000);
+  lastT = t;
+  update(dt);
+  draw();
+  updateHud();
+  requestAnimationFrame(frame);
+}
+function updateHud() {
+  document.getElementById('hud-score').textContent = Math.floor(score);
+  document.getElementById('hud-level').textContent = level;
+  document.getElementById('hud-lines').textContent = Math.floor(lines);
+  document.getElementById('hud-time').textContent = Math.floor(elapsed);
+}
+requestAnimationFrame(frame);
+
+// ============ 入力 ============
+function onKeyDown(e) {
+  var k = e.key;
+  if (['ArrowLeft','ArrowRight','ArrowDown','ArrowUp','Space'].indexOf(k) >= 0) e.preventDefault();
+  if (state === 'ready') { if (k === 'Enter') startGame(); return; }
+  if (state === 'paused') { if (k === 'Enter' || k === 'KeyP') togglePause(); return; }
+  if (state === 'over') { if (k === 'Enter') startGame(); return; }
+  if (e.repeat) { if (k === 'ArrowUp' || k === 'KeyX') rotate(1); return; }
+  switch (k) {
+    case 'ArrowLeft': setHeld('ArrowLeft', true); break;
+    case 'ArrowRight': setHeld('ArrowRight', true); break;
+    case 'ArrowDown': setHeld('ArrowDown', true); break;
+    case 'ArrowUp': case 'KeyX': rotate(1); break;
+    case 'KeyZ': rotate(-1); break;
+    case ' ': hardDrop(); break;
+    case 'KeyC': doHold(); break;
+    case 'KeyP': togglePause(); break;
+    case 'KeyM': toggleMute(); break;
+  }
+}
+function onKeyUp(e) {
+  var k = e.key;
+  if (k === 'ArrowLeft' || k === 'ArrowRight') setHeld(k, false);
+  else if (k === 'ArrowDown') setHeld('ArrowDown', false);
+}
+window.addEventListener('keydown', onKeyDown);
+window.addEventListener('keyup', onKeyUp);
+
+function bindButton(id, fn) {
+  var el = document.getElementById(id);
+  el.addEventListener('pointerdown', function (e) { e.preventDefault(); fn(e); });
+  el.addEventListener('pointerup', function (e) { e.preventDefault(); fn(e); });
+  el.addEventListener('pointercancel', function (e) { e.preventDefault(); fn(e); });
+}
+function bindHoldButton(id, key) {
+  var el = document.getElementById(id);
+  el.addEventListener('pointerdown', function (e) { e.preventDefault(); e.target.setPointerCapture(e.pointerId); setHeld(key, true); });
+  el.addEventListener('pointerup', function (e) { e.preventDefault(); e.target.releasePointerCapture(e.pointerId); setHeld(key, false); });
+  el.addEventListener('pointercancel', function (e) { e.preventDefault(); e.target.releasePointerCapture(e.pointerId); setHeld(key, false); });
+}
+
+// ============ 初期化 ============
+document.getElementById('btn-start').addEventListener('click', startGame);
+document.getElementById('btn-retry').addEventListener('click', startGame);
+document.getElementById('btn-resume').addEventListener('click', togglePause);
+
+bindHoldButton('btn-left', 'ArrowLeft');
+bindHoldButton('btn-right', 'ArrowRight');
+bindButton('btn-rotate', function () { rotate(1); });
+bindButton('btn-drop', hardDrop);
+bindButton('btn-hold', doHold);
+
+if (window.Hammer) {
+  var hamm = new Hammer(canvas);
+  hamm.on('pan', function (ev) {
+    if (state !== 'playing' || !piece) return;
+    if (ev.deltaX > 15) move(1);
+    else if (ev.deltaX < -15) move(-1);
+  });
+  hamm.on('tap', function (ev) { if (state === 'playing') hardDrop(); });
+}
+
+})();
+</script>
+</body>
+</html>

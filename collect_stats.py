@@ -327,27 +327,33 @@ def find_sessions(runs):
         if start is None or not o:
             continue
         cands.append((start, start + t, kind, f))
+    # run ごとの候補を集め、(距離, run, セッション) を全体で距離の小さい順に割り当てる
+    # (同じモデルを続けて回した場合に、隣の run のセッションを取り合わないように)
+    pairs = []
     for d in runs:
         if found[d]:
             continue
         ts = dir_time(d)
         if ts is None:
             continue
-        hits = [(abs(st - ts), st, en, kind, f) for st, en, kind, f in cands
+        hits = [(st, en, kind, f) for st, en, kind, f in cands
                 if st - TIME_WINDOW <= ts <= en + TIME_WINDOW and "IDEA" in first_prompt(kind, f)]
-        by_model = [h for h in hits if model_matches(d, session_model(h[3], h[4]))]
+        by_model = [h for h in hits if model_matches(d, session_model(h[2], h[3]))]
         if by_model:
             hits = by_model
         elif len(hits) > 1:
             print(f"!! {d}: 時刻の合うセッションが複数あり、モデル名でも絞れないので未照合: "
-                  + ", ".join(f"{session_model(k, f) or k}@{datetime.fromtimestamp(st):%H:%M}" for _, st, _, k, f in hits), file=sys.stderr)
+                  + ", ".join(f"{session_model(k, f) or k}@{datetime.fromtimestamp(st):%H:%M}" for st, _, k, f in hits), file=sys.stderr)
             continue
-        if hits:
-            hits.sort()
-            _, st, en, kind, f = hits[0]
-            found[d].append((kind, f))
-            cands = [c for c in cands if c[3] != f]
-            print(f"   {d}: 時刻で照合 -> {kind} {session_model(kind, f)} {datetime.fromtimestamp(st):%m-%d %H:%M}〜{datetime.fromtimestamp(en):%H:%M}", file=sys.stderr)
+        for st, en, kind, f in hits:
+            pairs.append((min(abs(st - ts), abs(en - ts)), d, st, en, kind, f))
+    used = set()
+    for _, d, st, en, kind, f in sorted(pairs):
+        if found[d] or f in used:
+            continue
+        found[d].append((kind, f))
+        used.add(f)
+        print(f"   {d}: 時刻で照合 -> {kind} {session_model(kind, f)} {datetime.fromtimestamp(st):%m-%d %H:%M}〜{datetime.fromtimestamp(en):%H:%M}", file=sys.stderr)
     return found
 
 
