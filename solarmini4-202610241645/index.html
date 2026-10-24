@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Flare Tetris — 派手エフェクト・テトリス</title>
+<style>
+  :root{
+    --bg:#0b0c0f;
+    --panel:#15171c;
+    --line:#262a35;
+    --txt:#e8eaf0;
+    --muted:#8a90a0;
+    --accent:#ff4a1f;
+    --glow:#ff7a3f;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg);
+    color:var(--txt);
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    overflow:hidden;
+    user-select:none;
+    -webkit-user-select:none;
+  }
+  #flash{position:fixed; inset:0; pointer-events:none; z-index:40; background:#000; transition:opacity .025s linear;}
+  #stage{position:fixed; inset:auto; top:50%; left:50%; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:10;}
+  #wrap{width:min(960px, 96vh); max-width:100%; display:flex; flex-direction:column; align-items:center; gap:14px; padding:18px;}
+  #hud{display:flex; flex-direction:column; gap:6px; width:100%;}
+  #title{font-size:16px; font-weight:700; letter-spacing:.14em; color:var(--txt); display:flex; align-items:center; gap:10px;}
+  #title .logo{width:12px;height:12px;border-radius:50%; background:var(--accent); box-shadow:0 0 10px var(--glow);}
+  #meta{display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; align-items:center;}
+  .stat{display:flex; flex-direction:column; align-items:center; gap:2px;}
+  .stat b{font-size:18px; letter-spacing:.06em;}
+  .stat span{font-size:11px; color:var(--muted); letter-spacing:.1em;}
+  #mode{display:flex; gap:8px; align-items:center;}
+  .btn{display:flex; align-items:center; gap:6px; padding:7px 12px; border:1px solid var(--line); border-radius:8px; background:var(--panel); color:var(--txt); font-size:12px; cursor:pointer; transition:.15s;}
+  .btn:hover{border-color:var(--glow); color:#fff;}
+  .btn.on{border-color:var(--accent); color:var(--accent);}
+  .btn svg{width:14px;height:14px;}
+  .btn .icon{width:14px;height:14px;}
+  #game{position:relative; border-radius:14px; overflow:hidden; box-shadow:0 10px 40px rgba(0,0,0,.55), 0 0 0 1px var(--line);}
+  #game canvas{display:block; border-radius:12px;}
+  #tip{font-size:11px; color:var(--muted); letter-spacing:.06em; text-align:center; max-width:640px; line-height:1.5;}
+  #fxcanvas{position:absolute; inset:-14px; pointer-events:none; border-radius:14px;}
+  .kbd{display:inline-block; background:var(--panel); border:1px solid var(--line); border-bottom:2px solid var(--line); border-radius:4px; padding:1px 6px; font-size:10px; color:var(--muted); margin:0 2px;}
+  footer{margin-top:10px; font-size:11px; color:var(--muted); letter-spacing:.05em;}
+  @media (max-width:640px){
+    #hud{gap:10px;}
+    .stat b{font-size:15px;}
+    .btn{padding:6px 10px; font-size:11px;}
+  }
+</style>
+</head>
+<body>
+<div id="flash"></div>
+<div id="stage">
+  <div id="wrap">
+    <div id="hud">
+      <div id="title"><span class="logo"></span>Flare Tetris</div>
+      <div id="meta">
+        <div class="stat"><b id="s-score">0</b><span>SCORE</span></div>
+        <div class="stat"><b id="s-lng">0</b><span>LINES</span></div>
+        <div class="stat"><b id="s-lvl">1</b><span>LEVEL</span></div>
+        <div class="stat"><b id="s-ef">0</b><span>EFFECT</span></div>
+        <div id="mode">
+          <button id="btn-se" class="btn on"><svg viewBox="0 0 16 16"><path d="M4 4v8M8 4v8M12 4v5" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>SE <span id="lbl-se">On</span></button>
+          <button id="btn-bgm" class="btn"><svg viewBox="0 0 16 16"><path d="M3 4v8M8 4v8M13 4v5M3 4h2M8 4h2M3 12h2M8 12h2" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>BGM <span id="lbl-bgm">Off</span></button>
+        </div>
+      </div>
+    </div>
+    <div id="game">
+      <canvas id="gameCanvas"></canvas>
+      <canvas id="fxcanvas"></canvas>
+    </div>
+    <div id="tip">
+      <span class="kbd">←</span><span class="kbd">→</span> move&nbsp;&nbsp;
+      <span class="kbd">↑</span><span class="kbd">Z</span> rotate&nbsp;&nbsp;
+      <span class="kbd">↓</span> soft drop&nbsp;&nbsp;
+      <span class="kbd">X</span> hard drop&nbsp;&nbsp;
+      <span class="kbd">C</span> counter-rotate&nbsp;&nbsp;
+      <span class="kbd">P</span> pair&nbsp;&nbsp;
+      <span class="kbd">V</span> toggle 3D
+    </div>
+    <footer>Tetris Guideline / SRS · 10 lines → new effect · sound synthesized</footer>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+'use strict';
+
+/* ============ DATA ============ */
+const COLS = 10, ROWS = 20;
+const PIECE_KEYS = Object.keys({
+  I: [[1,1,1,1]], O: [[1,1],[1,1]], T: [[0,1,0],[1,1,1]],
+  S: [[0,1,1],[1,1,0]], Z: [[1,1,0],[0,1,1]],
+  J: [[1,0,0],[1,1,1]], L: [[0,0,1],[1,1,1]]
+});
+const PIECE_BASE = {
+  I: [[1,1,1,1]], O: [[1,1],[1,1]], T: [[0,1,0],[1,1,1]],
+  S: [[0,1,1],[1,1,0]], Z: [[1,1,0],[0,1,1]],
+  J: [[1,0,0],[1,1,1]], L: [[0,0,1],[1,1,1]]
+};
+const TINT = ['#ff1f4a','#ff9f1f','#3feeff','#b4ff2f','#d06bff','#ff4d9c','#4df0ff'];
+const TINT_MAP = {};
+PIECE_KEYS.forEach((k,i)=>{ TINT_MAP[k] = TINT[i]; });
+
+const EFFECT_NAMES = ['CASCADE','RAINBOW','CONE','RING','CORE','FAST','STAR','SHOWER','GALAXY','GRAND'];
+const EFFECTS = [
+  { name:'CASCADE', color:'#ff4a1f', count:150, speed:1.3, size:0.55 },
+  { name:'RAINBOW', color:'#fff',     count:190, speed:0.85, size:0.38 },
+  { name:'CONE',    color:'#b4ff2f',  count:120, speed:1.7, size:0.65 },
+  { name:'RING',    color:'#ff2a4a',  count:0,   speed:1.1, size:0.9 },
+  { name:'CORE',    color:'#ffd700',  count:70,  speed:1.0, size:1.0 },
+  { name:'FAST',    color:'#fff',     count:240, speed:2.4, size:0.22 },
+  { name:'STAR',    color:'#3feeff',  count:210, speed:0.7, size:0.32 },
+  { name:'SHOWER',  color:'#4df0ff',  count:160, speed:1.15, size:0.3 },
+  { name:'GALAXY',  color:'#b967ff',  count:300, speed:0.6, size:0.27 },
+  { name:'GRAND',   color:'#ff4a1f',  count:130, speed:1.9, size:0.95 }
+];
+
+/* ============ STATE ============ */
+let grid = [], current = null, nextPieces = [], status = 'ready';
+let score = 0, lines = 0, level = 1, clearTotal = 0;
+let effectKind = 0, fxAge = 0, fxActive = false;
+let dropTimer = 0, flashTimer = 0;
+let fx3dReady = false;
+let bgmOn = false, seOn = false, soundOn = true;
+let audioCtx = null;
+
+/* ============ DOM ============ */
+const $ = id => document.getElementById(id);
+const canvas = $('gameCanvas'), ctx = canvas.getContext('2d');
+const fxCnv = $('fxcanvas'), fxCtx = fxCnv.getContext('2d');
+const gameEl = $('game');
+const sScore=$('s-score'), sLines=$('s-lng'), sLevel=$('s-lvl'), sEf=$('s-ef');
+const btnSe=$('btn-se'), lblSe=$('lbl-se'), btnBgm=$('btn-bgm'), lblBgm=$('lbl-bgm');
+const flash = $('flash');
+const TITLES = EFFECT_NAMES;
+
+/* ============ RESIZE ============ */
+let W=320, H=640, cell=0, dpr=1;
+function resize(){
+  dpr = Math.min(window.devicePixelRatio||1, 2);
+  const cw = Math.max(260, Math.min(960, window.innerWidth*0.92));
+  cell = Math.floor(cw / COLS);
+  W = cell * COLS; H = cell * ROWS;
+  canvas.width = W; canvas.height = H;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  fxCnv.width = W; fxCnv.height = H;
+  fxCnv.style.width = W + 'px'; fxCnv.style.height = H + 'px';
+  gameEl.style.width = W + 'px'; gameEl.style.height = H + 'px';
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* ============ THREE.JS 3D FX ============ */
+let fxScene=null, fxCam=null, fxRenderer=null, fxPts=null, fxRing=null, fxGeom=null, fxMat=null;
+let fxCanvas=null;
+
+function hexToRgb(h){ h=h.replace('#',''); return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)]; }
+function rgbArr(c){ if(typeof c === 'string' && c[0]==='#') return hexToRgb(c); return c; }
+
+function build3D(kind){
+  const cfg = EFFECTS[kind];
+  const count = cfg.count;
+  const pos = new Float32Array(count*3);
+  const col = new Float32Array(count*3);
+  for(let i=0;i<count;i++){
+    const i3=i*3;
+    pos[i3]   = (Math.random()-0.5)*2.4;
+    pos[i3+1] = (Math.random()-0.5)*2.4;
+    pos[i3+2] = (Math.random()-0.5)*2.4 - 1.6;
+    const rgb = rgbArr(cfg.color);
+    col[i3]   = rgb[0]/255; col[i3+1]=rgb[1]/255; col[i3+2]=rgb[2]/255;
+  }
+  if(fxPts){
+    fxGeom = fxGeom || new THREE.BufferGeometry();
+    fxGeom.attributes.position.array = pos;
+    fxGeom.attributes.position.needsUpdate = true;
+    fxMat && (fxMat.color.set(cfg.color));
+  } else {
+    fxGeom = new THREE.BufferGeometry();
+    fxGeom.setAttribute('position', new THREE.BufferAttribute(pos,3));
+    fxMat = new THREE.PointsMaterial({size:0.15, vertexColors:true, transparent:true, opacity:0.98, blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true});
+    fxPts = new THREE.Points(fxGeom, fxMat);
+    fxScene.add(fxPts);
+  }
+  if(cfg.ring){
+    if(fxRing){ fxRing.visible = true; fxRing.material.color.set(cfg.color); }
+    else {
+      const ringMat = new THREE.MeshBasicMaterial({color:cfg.color, transparent:true, opacity:0.55, side:THREE.DoubleSide, depthWrite:false});
+      fxRing = new THREE.Mesh(new THREE.RingGeometry(0.7, 1.5, 64), ringMat);
+      fxRing.rotation.x = Math.PI/2;
+      fxRing.position.z = 1.6;
+      fxScene.add(fxRing);
+    }
+  } else if(fxRing){ fxRing.visible = false; }
+}
+
+function init3D(){
+  fxRenderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
+  fxRenderer.setSize(W, H);
+  fxRenderer.setPixelRatio(dpr);
+  fxRenderer.domElement.style.position='absolute';
+  fxRenderer.domElement.style.left='0'; fxRenderer.domElement.style.top='0';
+  fxRenderer.domElement.style.pointerEvents='none';
+  fxCnv.appendChild(fxRenderer.domElement);
+  fxScene = new THREE.Scene();
+  fxCam = new THREE.PerspectiveCamera(55, W/H, 0.1, 40);
+  fxCam.position.z = 9;
+  fxPts = null; fxRing = null; fxGeom = null; fxMat = null;
+  try {
+    build3D(effectKind);
+  } catch(e) {
+    console.warn('build3D failed:', e);
+    fx3dReady = false;
+    return;
+  }
+  fx3dReady = true;
+}
+
+function tick3D(dt){
+  if(!fxActive) return;
+  fxAge += dt;
+  if(fxAge >= 1.25) fxActive = false;
+  else {
+    const k = fxAge/1.25;
+    const cfg = EFFECTS[effectKind];
+    const f = 1 - k;
+    const pts = fxPts.geometry.attributes.position;
+    const n = pts.count;
+    for(let i=0;i<n;i++){
+      const i3=i*3;
+      pts.array[i3]   *= 0.995;
+      pts.array[i3+1] *= 0.995;
+      pts.array[i3+2] *= 0.995;
+      pts.array[i3]   += (Math.random()-0.5)*0.9*dt*cfg.speed;
+      pts.array[i3+1] += (Math.random()-0.5)*0.9*dt*cfg.speed;
+      pts.array[i3+2] += (Math.random()-0.5)*0.9*dt*cfg.speed;
+      const iv=pts.array[i3], i1=pts.array[i3+1], i2=pts.array[i3+2];
+      const base = Math.sqrt(iv*iv+i1*i1+i2*i2) || 0.01;
+      const dst = base * (1.0 + (1-f)*0.8);
+      const s = 0.2 + dst * 0.35;
+      pts.array[i3]   = (iv/base)*s;
+      pts.array[i3+1] = (i1/base)*s;
+      pts.array[i3+2] = (i2/base)*s * 0.9;
+    }
+    pts.needsUpdate = true;
+    const sz = fxPts.material.size * (0.3 + k*1.4);
+    fxPts.material.size = sz;
+    fxPts.material.opacity = 0.98 * (1 - k*0.95);
+    if(fxRing){
+      const s = 1 + k*3.4;
+      fxRing.scale.set(s, s, 1);
+      fxRing.material.opacity = 0.55*(1 - k*0.7);
+      fxRing.material.transparent = true;
+    }
+  }
+}
+
+/* ============ 2D FALLBACK ============ */
+let fx2dParticles = null;
+
+function fire2D(kind){
+  const cfg = EFFECTS[kind];
+  const n = cfg.count + 80;
+  fx2dParticles = [];
+  for(let i=0;i<n;i++){
+    const ang = Math.random()*Math.PI*2;
+    const sp = 0.6 + Math.random()*0.9;
+    fx2dParticles.push({
+      x: W/2 + (Math.random()-0.5)*W*0.2,
+      y: H/2 + (Math.random()-0.5)*H*0.2,
+      vx: Math.cos(ang)*sp, vy: Math.sin(ang)*sp - 0.6,
+      life: 1, size: 0.5+Math.random()*0.8,
+      color: cfg.color
+    });
+  }
+}
+function tick2D(dt){
+  if(!fx2dParticles) return;
+  const cfg = EFFECTS[effectKind];
+  const k = fxAge/1.25;
+  for(let i=0;i<fx2dParticles.length;i++){
+    const p = fx2dParticles[i];
+    p.life -= dt*cfg.speed*0.5;
+    p.x += p.vx*dt + (Math.random()-0.5)*dt*0.6;
+    p.y += p.vy*dt + (Math.random()-0.5)*dt*0.6;
+    p.vx *= 0.99; p.vy *= 0.99;
+    p.size *= 1 - dt*0.35;
+    p.x += (Math.random()-0.5)*dt*2; p.y += (Math.random()-0.5)*dt*2;
+  }
+  fx2dParticles = fx2dParticles.filter(p => p.life > 0);
+}
+function draw2D(){
+  if(!fx2dParticles) return;
+  const cfg = EFFECTS[effectKind];
+  fxCtx.fillStyle = 'rgba(0,0,0,0.15)';
+  fxCtx.fillRect(0,0,W,H);
+  fxCtx.globalCompositeOperation = 'lighter';
+  for(const p of fx2dParticles){
+    const a = p.life * (p.life > 0.3 ? 1 : p.life/0.3);
+    const rgb = hexToRgb(p.color);
+    fxCtx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a*0.8})`;
+    fxCtx.beginPath();
+    fxCtx.arc(p.x, p.y, p.size*1.8, 0, Math.PI*2);
+    fxCtx.fill();
+  }
+  fxCtx.globalCompositeOperation = 'source-over';
+}
+
+/* ============ SOUND ============ */
+function ensureAudio(){
+  if(!audioCtx){
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+}
+function tone(freq, dur=0.12, vol=0.14, type='sine', detune=0, delay=0){
+  if(!audioCtx || !seOn) return;
+  const t = audioCtx.currentTime + delay;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.connect(g); g.connect(audioCtx.destination);
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  if(detune) o.detune.setValueAtTime(detune, t);
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.start(t); o.stop(t + dur + 0.02);
+}
+function noiseBlip(dur=0.08, vol=0.2, high=8000){
+  if(!audioCtx || !seOn) return;
+  const t = audioCtx.currentTime;
+  const len = Math.floor(audioCtx.sampleRate*dur);
+  const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i] = (Math.random()*2-1) * (1 - i/len);
+  const src = audioCtx.createBufferSource(); src.buffer = buf;
+  const fil = audioCtx.createBiquadFilter(); fil.type='bandpass'; fil.frequency.value=high; fil.Q.value=0.8;
+  const g = audioCtx.createGain(); g.gain.value = vol;
+  src.connect(fil); fil.connect(g); g.connect(audioCtx.destination);
+  src.start(t); src.stop(t + dur + 0.02);
+}
+function playClear(lines){
+  const t = audioCtx.currentTime;
+  const pat = [392.00, 587.33, 783.99, 1046.50];
+  const n = Math.min(lines,4);
+  for(let i=0;i<n;i++){
+    const p = pat[i];
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination); o.type='sine';
+    o.frequency.setValueAtTime(p, t + 0.045*i);
+    g.gain.setValueAtTime(0.11, t + 0.045*i);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.045*i + 0.13);
+  }
+  for(let i=0;i<lines;i++) noiseBlip(0.035, 0.045, 13000);
+}
+function playTSpin(){
+  tone(1200, 0.05, 0.13, 'square', 0, 0);
+  tone(1500, 0.07, 0.07, 'sine', 14, 0.02);
+  tone(900, 0.1, 0.06, 'sawtooth', -8, 0.03);
+  noiseBlip(0.05, 0.13, 6000);
+}
+function playTetris(){
+  const notes = [523.25, 659.25, 783.99, 1046.50, 783.99, 659.25, 523.25, 392.00];
+  for(let i=0;i<notes.length;i++){
+    tone(notes[i], 0.11, 0.08, 'sine', 3, i*0.065);
+  }
+  for(let i=0;i<4;i++){
+    tone(392*(i===0?1: (i===1?1.33: (i===2?1.66:2))), 0.3, 0.13, 'sine', 0, (0.42 + i*0.08));
+  }
+  noiseBlip(0.22, 0.22, 9000);
+}
+function bgmStep(){
+  if(!audioCtx || !bgmOn) return;
+  const t = audioCtx.currentTime;
+  const melody = [659.25, 783.99, 659.25, 587.33, 523.25, 659.25, 783.99, 880.00];
+  const bass = [130.81, 196.00];
+  const idx = Math.floor(t / 0.25) % 8;
+  tone(melody[(idx+2)%8], 0.14, 0.045, 'sine', 6, idx*0.25);
+  tone(bass[idx%2], 0.24, 0.07, 'triangle', 0, idx*0.25);
+  tone(melody[(idx+4)%8], 0.1, 0.03, 'sine', 12, idx*0.25 + 0.10);
+  noiseBlip(0.05, 0.05, 7000);
+}
+
+/* ============ GAME LOGIC ============ */
+function clone2d(a){ return Array.isArray(a) ? a.map(r=>r.slice()) : null; }
+function clonePiece(p){
+  if(!p){
+    const t = 'T';
+    const b = PIECE_BASE[t];
+    return { type:t, base:clone2d(b), shape:clone2d(b), x:0, y:0 };
+  }
+  const t = p.type || 'T';
+  const b = Array.isArray(p.base) ? p.base : (t ? PIECE_BASE[t] : PIECE_BASE['T']);
+  return { type:p.type || t, base:clone2d(b), shape:clone2d(b), x:p.x, y:p.y };
+}
+function randomPiece(){
+  return { type: PIECE_KEYS[(Math.random()*PIECE_KEYS.length)|0], base: clone2d(PIECE_BASE[PIECE_KEYS[(Math.random()*PIECE_KEYS.length)|0]]) };
+}
+function nextSeed(){
+  nextPieces = [];
+  for(let i=0;i<5;i++) nextPieces.push(randomPiece());
+}
+function spawnNext(){
+  if(current) current = clonePiece(current);
+  else {
+    current = clonePiece(nextPieces.shift());
+    if(!current) current = randomPiece();
+  }
+  const p = current;
+  p.shape = clone2d(p.base);
+  p.x = Math.floor((COLS - p.shape[0].length)/2);
+  p.y = 0;
+  if(collides(p)){
+    gameOver();
+    return;
+  }
+}
+function collides(p){
+  for(let r=0;r<p.shape.length;r++){
+    for(let c=0;c<p.shape[r].length;c++){
+      if(!p.shape[r][c]) continue;
+      const ny = p.y + r, nx = p.x + c;
+      if(ny >= ROWS) return true;
+      if(ny >= 0 && nx >= 0 && nx < COLS && grid[ny][nx] !== 0) return true;
+    }
+  }
+  return false;
+}
+function tryMove(dx, dy, dr){
+  if(!current) return false;
+  const orig = clone2d(current.shape);
+  let newShape = clone2d(current.shape);
+  if(dr !== 0){
+    for(let i=0;i<Math.abs(dr);i++){
+      newShape = dr > 0 ? rotate(newShape) : rotate(rotate(rotate(newShape)));
+    }
+  }
+  let ok = true;
+  for(let r=0;r<newShape.length;r++){
+    for(let c=0;c<newShape[r].length;c++){
+      if(!newShape[r][c]) continue;
+      const nx = current.x + c + dx, ny = current.y + r + dy;
+      if(ny >= ROWS || nx < 0 || nx >= COLS) { ok = false; break; }
+      if(ny >= 0 && grid[ny][nx] !== 0) { ok = false; break; }
+    }
+    if(!ok) break;
+  }
+  if(ok){
+    current.x += dx; current.y += dy;
+    current.shape = clone2d(newShape);
+    return true;
+  }
+  current.shape = clone2d(orig);
+  return false;
+}
+function rotate(s){ return s[0].map((_,ci)=>s.map(r=>r[ci]).reverse()); }
+function hardDrop(){
+  if(!current) return;
+  let y = current.y, moved = false;
+  while(true){
+    const nx = current.x, ny = current.y + 1;
+    let ok = true;
+    for(let r=0;r<current.shape.length;r++){
+      for(let c=0;c<current.shape[r].length;c++){
+        if(!current.shape[r][c]) continue;
+        if(ny + r >= ROWS || nx + c < 0 || nx + c >= COLS || (ny + r >= 0 && grid[ny + r][nx + c] !== 0)){ ok = false; break; }
+      }
+      if(!ok) break;
+    }
+    if(!ok) break;
+    current.y++; y++; moved = true;
+  }
+  if(moved) score += 2;
+  lock();
+}
+function isTSpin(){
+  if(!current || current.type !== 'T') return false;
+  const x = current.x, y = current.y;
+  const adj = [
+    [x-1,y],[x+1,y],[x,y-1],[x,y+1],[x-1,y-1],[x+1,y-1],[x-1,y+1],[x+1,y+1]
+  ];
+  let cnt = 0;
+  for(const [nx,ny] of adj){
+    if(nx>=0 && nx<COLS && ny>=0 && ny<ROWS && grid[ny][nx] !== 0) cnt++;
+  }
+  return cnt >= 3;
+}
+function lock(){
+  if(!current) return;
+  const p = current;
+  for(let r=0;r<p.shape.length;r++){
+    for(let c=0;c<p.shape[r].length;c++){
+      if(!p.shape[r][c]) continue;
+      const ny = p.y + r, nx = p.x + c;
+      if(ny >= ROWS) { status = 'over'; return; }
+      grid[ny][nx] = PIECE_KEYS.indexOf(p.type) + 1;
+    }
+  }
+  clearAndScore();
+  spawnNext();
+}
+function clearAndScore(){
+  let cnt = 0;
+  for(let r=ROWS-1; r>=0;){
+    if(grid[r].every(v=>v!==0)){
+      grid.splice(r,1); grid.unshift(Array(COLS).fill(0)); cnt++;
+    } else r--;
+  }
+  if(cnt === 0) return;
+  clearTotal += cnt;
+  const isLineClear = isTSpin();
+  const tetris = (cnt === 4);
+  const base = 100 * Math.pow(2, level-1) * (tetris ? 2 : 1);
+  const add = Math.floor(base * (isLineClear ? 2 : 1));
+  score += add;
+  if(tetris) score += 800 * level;
+  lines += cnt;
+  if(lines >= 10){ lines = 0; level++; }
+  // 10ラインごとにエフェクト種類を切替
+  if(clearTotal % 10 === 0 && clearTotal > 0){
+    effectKind = (effectKind + 1) % EFFECTS.length;
+  }
+  updateUI();
+  if(!seOn) return;
+  if(tetris) playTetris();
+  else if(isLineClear) playTSpin();
+  else playClear(cnt);
+  const k = effectKind;
+  if(!fxActive || fxAge >= 1.25){
+    fxAge = 0;
+    fxActive = true;
+    if(fx3dReady) build3D(k); else fire2D(k);
+    triggerFlash(EFFECTS[k].color);
+  }
+}
+function gameOver(){
+  status = 'over';
+}
+function triggerFlash(color){
+  if(!color) return;
+  const rgb = hexToRgb(color);
+  flashTimer = 1.2;
+  flash.style.background = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+  flash.style.opacity = '1';
+}
+function resetFX(){
+  fxAge = 0; fxActive = false;
+}
+
+/* ============ RENDER ============ */
+function render(){
+  ctx.fillStyle = '#0f1116';
+  ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle = 'rgba(40,44,56,0.5)';
+  ctx.lineWidth = 1;
+  for(let i=0;i<=COLS;i++){ ctx.beginPath(); ctx.moveTo(i*cell,0); ctx.lineTo(i*cell,H); ctx.stroke(); }
+  for(let i=0;i<=ROWS;i++){ ctx.beginPath(); ctx.moveTo(0,i*cell); ctx.lineTo(W,i*cell); ctx.stroke(); }
+  for(let r=0;r<ROWS;r++){
+    const row = grid[r];
+    if(!row) continue;
+    for(let c=0;c<COLS;c++){
+      const v = row[c];
+      if(v === 0) continue;
+      ctx.fillStyle = TINT[v % PIECE_KEYS.length];
+      ctx.fillRect(c*cell+1, r*cell+1, cell-2, cell-2);
+    }
+  }
+  if(current){
+    for(let r=0;r<current.shape.length;r++){
+      for(let c=0;c<current.shape[r].length;c++){
+        if(!current.shape[r][c]) continue;
+        const x = current.x + c, y = current.y + r;
+        if(y < 0) continue;
+        ctx.fillStyle = TINT[PIECE_KEYS.indexOf(current.type)];
+        ctx.fillRect(x*cell+1, y*cell+1, cell-2, cell-2);
+      }
+    }
+  }
+  drawNext();
+  if(fxActive && !fx3dReady) draw2D();
+  if(flashTimer > 0 && flashTimer < 0.12) flash.style.opacity = flashTimer/0.12;
+}
+function drawNext(){
+  if(!nextPieces.length) return;
+  const p = nextPieces[0];
+  if(!p || !p.shape) return;
+  const bw = W / COLS * 0.6;
+  const bh = H / ROWS * 0.5;
+  const x = (W - bw) / 2;
+  const y = H + 8;
+  for(let r=0;r<p.shape.length;r++){
+    for(let c=0;c<p.shape[r].length;c++){
+      if(!p.shape[r][c]) continue;
+      ctx.fillStyle = TINT[PIECE_KEYS.indexOf(p.type)];
+      ctx.fillRect(x + c*bw, y + r*bh, bw, bh);
+    }
+  }
+}
+function updateUI(){
+  sScore.textContent = score;
+  sLines.textContent = lines;
+  sLevel.textContent = level;
+  sEf.textContent = TITLES[effectKind] || '—';
+}
+
+/* ============ INPUT ============ */
+const KEYMAP = { ArrowLeft:'left', ArrowRight:'right', ArrowDown:'down', ArrowUp:'up', z:'up', Z:'up', x:'hard', X:'hard', c:'counter', C:'counter', p:'pair', P:'pair', v:'fx', V:'fx', ' ':'hard', space:'hard' };
+document.addEventListener('keydown', e=>{
+  const k = e.key;
+  ensureAudio();
+  if(KEYMAP[k] === 'left'){ if(status==='playing') tryMove(-1,0,0); e.preventDefault(); return; }
+  if(KEYMAP[k] === 'right'){ if(status==='playing') tryMove(1,0,0); e.preventDefault(); return; }
+  if(KEYMAP[k] === 'down'){ if(status==='playing'){ if(tryMove(0,1,0)) score += 1; } e.preventDefault(); return; }
+  if(KEYMAP[k] === 'up' || KEYMAP[k] === 'z' || KEYMAP[k] === 'Z'){ if(status==='playing'){ tryMove(0,0,1); tryMove(0,0,-1); } e.preventDefault(); return; }
+  if(KEYMAP[k] === 'hard'){ if(status==='playing') hardDrop(); e.preventDefault(); return; }
+  if(KEYMAP[k] === 'counter'){ if(status==='playing'){ tryMove(0,0,1); tryMove(0,0,-1); } e.preventDefault(); return; }
+  if(KEYMAP[k] === 'pair'){ if(status==='playing' && current && current.type==='T'){ if(tryMove(0,0,1)) score += 5; tryMove(0,1,0);} e.preventDefault(); return; }
+  if(KEYMAP[k] === 'fx'){ if(fx3dReady){ fx3dReady = false; fxPts && fxScene.remove(fxPts); fxRing && fxScene.remove(fxRing); fxPts=null; fxRing=null; } else { fx3dReady = true; if(!fxPts && THREE) init3D(); } e.preventDefault(); return; }
+});
+$('game').addEventListener('click', ()=>{ if(status !== 'playing') start(); });
+window.addEventListener('click', ()=>{ if(status === 'ready') start(); }, { once:true });
+
+/* ============ CONTROLS / BGM / SE ============ */
+function toggleSE(){ seOn = !seOn; lblSe.textContent = seOn ? 'On' : 'Off'; btnSe.classList.toggle('on', seOn); }
+function toggleBGM(){ bgmOn = !bgmOn; lblBgm.textContent = bgmOn ? 'On' : 'Off'; btnBgm.classList.toggle('on', bgmOn); }
+btnSe.addEventListener('click', toggleSE);
+btnBgm.addEventListener('click', toggleBGM);
+
+/* ============ START ============ */
+function start(){
+  grid = Array.from({length:ROWS}, ()=>Array(COLS).fill(0));
+  nextSeed();
+  spawnNext();
+  window.__grid = grid;
+  window.__current = current;
+  score = 0; lines = 0; level = 1; clearTotal = 0;
+  effectKind = 0; resetFX(); fxAge = 0;
+  status = 'playing';
+  dropTimer = 0;
+  flashTimer = 0;
+  updateUI();
+}
+
+/* ============ LOOP ============ */
+let last = performance.now();
+function frame(t){
+  const dt = Math.min(0.05, (t - last)/1000); last = t;
+  if(status === 'playing'){
+    dropTimer -= dt;
+    if(dropTimer <= 0){
+      const before = current ? current.y : 0;
+      tryMove(0,1,0);
+      if(current && current.y !== before) score += 1;
+      dropTimer = 0.9 - (level-1)*0.06;
+      if(dropTimer < 0.12) dropTimer = 0.12;
+    }
+  }
+  if(fxActive){
+    if(fx3dReady) tick3D(dt); else tick2D(dt);
+    fxAge += dt;
+    if(fx3dReady){ fxRenderer.render(fxScene, fxCam); }
+  }
+  if(flashTimer > 0){
+    flashTimer -= dt;
+    if(flashTimer <= 0) flash.style.opacity = '0';
+  }
+  render();
+  if(bgmOn) bgmStep();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ============ THREE.JS BOOT ============ */
+if(typeof THREE !== 'undefined'){
+  fx3dReady = true;
+  init3D();
+} else {
+  window.addEventListener('load', () => {
+    if(typeof THREE === 'undefined') fx3dReady = false;
+  });
+}
+window.addEventListener('load', () => {
+  if(typeof THREE !== 'undefined' && !fxPts){
+    fx3dReady = true;
+    init3D();
+  }
+});
+</script>
+</body>
+</html>

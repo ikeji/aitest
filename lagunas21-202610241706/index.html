@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>派手エフェクト・テトリス</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: #000;
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    user-select: none;
+    touch-action: none;
+  }
+  #game-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  #board-container {
+    position: relative;
+  }
+  #board {
+    display: grid;
+    grid-template-columns: repeat(10, 30px);
+    grid-template-rows: repeat(20, 30px);
+    gap: 1px;
+    background: #111;
+    border: 3px solid #444;
+    border-radius: 4px;
+  }
+  #board canvas {
+    image-rendering: pixelated;
+  }
+  #info-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-left: 20px;
+  }
+  .info-section {
+    background: #1a1a1a;
+    border-radius: 8px;
+    padding: 16px;
+    min-width: 260px;
+  }
+  .info-section h2 {
+    color: #fff;
+    font-size: 16px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 6px;
+  }
+  #next-pieces {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .next-piece {
+    width: 72px;
+    height: 72px;
+    display: grid;
+    place-items: center;
+    background: #0a0a0a;
+    border-radius: 4px;
+    border: 1px solid #222;
+  }
+  .next-piece canvas {
+    image-rendering: pixelated;
+  }
+  #stats {
+    color: #aaa;
+    font-size: 14px;
+    line-height: 1.8;
+  }
+  #stats .stat-value {
+    color: #fff;
+    font-weight: bold;
+  }
+  #controls-help {
+    color: #888;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  #effects-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .particle {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  #start-screen {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.95);
+    z-index: 100;
+  }
+  #start-screen h1 {
+    color: #fff;
+    font-size: 48px;
+    margin-bottom: 30px;
+    text-shadow: 0 0 20px #0ff, 0 0 40px #0ff;
+  }
+  #start-screen button {
+    background: #0ff;
+    color: #000;
+    border: none;
+    padding: 16px 40px;
+    font-size: 20px;
+    font-weight: bold;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  #start-screen button:hover {
+    background: #fff;
+    box-shadow: 0 0 20px #fff;
+  }
+  #level-indicator {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: rgba(0, 255, 255, 0.15);
+    color: #0ff;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: bold;
+    z-index: 50;
+    backdrop-filter: blur(4px);
+  }
+</style>
+</head>
+<body>
+<div id="start-screen">
+  <h1>派手エフェクト・テトリス</h1>
+  <button onclick="startGame()">スタート</button>
+  <p style="color:#888; margin-top:20px; font-size:14px;">
+    WASD / 矢印キーで操作<br>
+    Enterキー = ホールド切り替え
+  </p>
+</div>
+<div id="level-indicator">エフェクトレベル: 0</div>
+<div id="game-container">
+  <div id="effects-overlay"></div>
+  <div id="board-container">
+    <div id="board"></div>
+  </div>
+  <div id="info-panel">
+    <div class="info-section">
+      <h2>スコア</h2>
+      <div id="stats">
+        スコア: <span id="score" class="stat-value">0</span><br>
+        ライン: <span id="lines" class="stat-value">0</span><br>
+        レベル: <span id="level" class="stat-value">1</span><br>
+        コンボ: <span id="combo" class="stat-value">0</span><br>
+        B2B: <span id="b2b" class="stat-value">いいえ</span>
+      </div>
+    </div>
+    <div class="info-section">
+      <h2>次のミノ</h2>
+      <div id="next-pieces"></div>
+    </div>
+    <div class="info-section">
+      <h2>ホールド</h2>
+      <div style="width:72px; height:72px; display:grid; place-items:center; background:#0a0a0a; border-radius:4px; border:1px solid #222;">
+        <canvas id="hold-canvas" width="72" height="72"></canvas>
+      </div>
+    </div>
+    <div class="info-section">
+      <h2>操作方法</h2>
+      <div id="controls-help">
+        A / ← : 左移動<br>
+        D / → : 右移動<br>
+        S / ↓ : ソフトドロップ<br>
+        W / ↑ : 回転 (時計回り)<br>
+        Q / Z : 回転 (反時計回り)<br>
+        スペース : ハードドロップ<br>
+        Enter : ホールド切替
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== テトリスゲームコア =====
+const COLS = 10, ROWS = 22; // 20 visible + 2 hidden buffer
+const BOARD = [];
+
+// ミノ定義 (Tetris Guideline準拠)
+const PIECES = {
+  I: { color: '#00f0f0', tiles: { 0: [[1,1,1,1]], 1: [[0,0,0,0,1],[0,0,0,0,1],[0,0,0,0,1],[0,0,0,0,1]], 2: [[1,1,1,1]], 3: [[1],[1],[1],[1]] } },
+  O: { color: '#f0f000', tiles: { 0: [[1,1],[1,1]], 1: [[1,1],[1,1]], 2: [[1,1],[1,1]], 3: [[1,1],[1,1]] } },
+  T: { color: '#a000f0', tiles: {} },
+  S: { color: '#00f000', tiles: {} },
+  Z: { color: '#f00000', tiles: {} },
+  J: { color: '#0000a0', tiles: {} },
+  L: { color: '#ff8800', tiles: {} },
+};
+
+// T ミノの4回転
+const T_TILES = [
+  [[0,1,0],[1,1,1],[0,0,0]],
+  [[0,1,0],[0,1,1],[0,1,0]],
+  [[0,0,0],[1,1,1],[0,1,0]],
+  [[0,1,0],[1,1,0],[0,1,0]]
+];
+const S_TILES = [
+  [[0,1,1],[1,1,0],[0,0,0]],
+  [[0,1,0],[0,1,1],[0,0,1]],
+  [[0,0,0],[0,1,1],[1,1,0]],
+  [[0,0,0],[1,1,0],[0,1,1]]
+];
+const Z_TILES = [
+  [[1,1,0],[0,1,1],[0,0,0]],
+  [[0,0,1],[0,1,1],[0,1,0]],
+  [[0,0,0],[1,1,0],[0,1,1]],
+  [[0,0,0],[1,1,0],[0,1,1]]
+];
+const J_TILES = [
+  [[1,0,0],[1,1,1],[0,0,0]],
+  [[0,1,1],[0,1,0],[0,1,0]],
+  [[0,0,0],[1,1,1],[0,0,1]],
+  [[0,1,0],[0,1,0],[1,1,0]]
+];
+const L_TILES = [
+  [[0,0,1],[1,1,1],[0,0,0]],
+  [[0,1,0],[0,1,0],[0,1,1]],
+  [[0,0,0],[1,1,1],[1,0,0]],
+  [[1,1,0],[0,1,0],[0,1,0]]
+];
+
+// T/S/Z/J/L 回転データを設定
+for (let i = 0; i < 4; i++) {
+  PIECES.T.tiles[i] = T_TILES[i];
+  PIECES.S.tiles[i] = S_TILES[i];
+  PIECES.Z.tiles[i] = Z_TILES[i];
+  PIECES.J.tiles[i] = J_TILES[i];
+  PIECES.L.tiles[i] = L_TILES[i];
+}
+
+function getTiles(piece) {
+  return PIECES[piece.type].tiles[piece.rotation];
+}
+
+// SRS (Super Rotation System) Wall Kick Data
+// 公式ガイドライン準拠: https://tetris.fandom.com/wiki/SRS
+const SRS_KICKS = {
+  // 0 -> R
+  '0R': [[0,0], [-1,0], [-1,-1], [0,2], [-1,2]],
+  // R -> 0
+  'R0': [[0,0], [1,0], [1,-1], [0,2], [1,2]],
+  // R -> 2
+  'R2': [[0,0], [1,0], [1,1], [0,-2], [1,-2]],
+  // 2 -> R
+  '2R': [[0,0], [-1,0], [-1,1], [0,-2], [-1,-2]],
+  // 2 -> 0
+  '20': [[0,0], [1,0], [1,1], [0,-2], [1,-2]],
+  // 0 -> 2
+  '02': [[0,0], [-1,0], [-1,-1], [0,2], [-1,2]],
+  // 0 -> 2 (U)
+  '0_': [[0,0]],
+  // _ -> 0
+  '_0': [[0,0]],
+};
+
+// I ミノ専用 SRS (別データ)
+const SRS_KICKS_I = {
+  '0R': [[0,0], [-2,0], [1,0], [-2,1], [1,-2]],
+  'R0': [[0,0], [2,0], [-1,0], [2,-1], [-1,2]],
+  'R2': [[0,0], [-1,0], [2,0], [-1,-2], [2,1]],
+  '2R': [[0,0], [1,0], [-2,0], [1,2], [-2,-1]],
+  '20': [[0,0], [2,0], [-1,0], [2,-1], [-1,2]],
+  '02': [[0,0], [-2,0], [1,0], [-2,1], [1,-2]],
+  '0_': [[0,0]],
+  '_0': [[0,0]],
+};
+
+// 7ピースバッグシステム
+function createBag() {
+  const bag = ['I','O','T','S','Z','J','L'];
+  for (let i = bag.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [bag[i], bag[j]] = [bag[j], bag[i]];
+  }
+  return bag;
+}
+
+// ゲーム状態
+const State = {
+  board: [],
+  current: null,
+  nextQueue: [],
+  nextBag: [],
+  hold: null,
+  holdUsed: false,
+  score: 0,
+  lines: 0,
+  level: 1,
+  combo: 0,
+  backToBack: false,
+  effectLevel: 0,
+  gameOver: false,
+  dropCounter: 0,
+  dropInterval: 1000,
+  lastTime: 0,
+  softDropActive: false,
+  lastSoftDropTime: 0,
+  b2bActive: false,
+};
+
+function init() {
+  for (let r = 0; r < ROWS; r++) {
+    State.board.push(new Array(COLS).fill(null));
+  }
+  // 7ピースバッグでキューを初期化
+  State.nextBag = createBag();
+  State.nextQueue = [];
+  for (let i = 0; i < 5; i++) {
+    State.nextQueue.push(popNext());
+  }
+}
+
+function popNext() {
+  if (State.nextBag.length === 0) {
+    State.nextBag = createBag();
+  }
+  return State.nextBag.shift();
+}
+
+function spawn() {
+  const type = State.nextQueue.shift();
+  State.nextQueue.push(popNext());
+  State.current = { type, x: 3, y: 0, rotation: 0 };
+  State.holdUsed = false;
+  if (!isValid(0, 0)) {
+    State.gameOver = true;
+  }
+}
+
+function isValid(offsetX, offsetY, rotation) {
+  const piece = State.current;
+  const rot = rotation !== undefined ? rotation : piece.rotation;
+  const tiles = PIECES[piece.type].tiles[rot];
+  for (let r = 0; r < tiles.length; r++) {
+    for (let c = 0; c < tiles[r].length; c++) {
+      if (tiles[r][c]) {
+        const x = piece.x + c + offsetX;
+        const y = piece.y + r + offsetY;
+        if (x < 0 || x >= COLS || y >= ROWS) return false;
+        if (y >= 0 && State.board[y][x]) return false;
+      }
+    }
+  }
+  return true;
+}
+
+function lock() {
+  const tiles = getTiles(State.current);
+  for (let r = 0; r < tiles.length; r++) {
+    for (let c = 0; c < tiles[r].length; c++) {
+      if (tiles[r][c]) {
+        const y = State.current.y + r;
+        const x = State.current.x + c;
+        if (y >= 0) State.board[y][x] = State.current.type;
+      }
+    }
+  }
+}
+
+function clearLines() {
+  let linesCleared = 0;
+  for (let y = ROWS - 1; y >= 0; y--) {
+    if (State.board[y].every(cell => cell !== null)) {
+      State.board.splice(y, 1);
+      State.board.unshift(new Array(COLS).fill(null));
+      linesCleared++;
+      y++;
+    }
+  }
+  return linesCleared;
+}
+
+// SRS回転を試行
+function tryRotate(dir) {
+  if (!State.current) return false;
+  const oldRot = State.current.rotation;
+  const newRot = (oldRot + dir + 4) % 4;
+  const pieceType = State.current.type;
+  
+  // SRSキックテーブル選択
+  const kickTable = pieceType === 'I' ? SRS_KICKS_I : SRS_KICKS;
+  const kickKey = `${oldRot}${['0','R','2','_'][newRot]}`;
+  const kicks = kickTable[kickKey] || [[0,0]];
+  
+  for (const [bx, by] of kicks) {
+    State.current.rotation = newRot;
+    if (isValid(bx, by)) {
+      return true;
+    }
+  }
+  State.current.rotation = oldRot;
+  return false;
+}
+
+function move(dx, dy) {
+  if (!State.current || State.gameOver) return;
+  if (isValid(dx, dy)) {
+    State.current.x += dx;
+    State.current.y += dy;
+    return true;
+  }
+  return false;
+}
+
+function softDrop() {
+  if (!State.current || State.gameOver) return;
+  while (isValid(0, 1)) {
+    State.current.y++;
+  }
+  // ソフトドロップポイント (1ブロックあたり0.1点)
+  State.score += 1;
+  lockAndSpawn();
+}
+
+function hardDrop() {
+  if (!State.current || State.gameOver) return;
+  while (isValid(0, 1)) {
+    State.current.y++;
+  }
+  SOUND.hardDrop();
+  lockAndSpawn();
+}
+
+function lockAndSpawn() {
+  lock();
+  SOUND.lock();
+  const lines = clearLines();
+  if (lines > 0) {
+    handleLineClear(lines);
+  } else {
+    State.combo = 0;
+    State.b2bActive = false;
+  }
+  spawn();
+}
+
+function handleLineClear(lines) {
+  // テトリスかどうか判定
+  const isTetris = lines === 4;
+  const isBackToBack = State.b2bActive && (isTetris || lines >= 3);
+  
+  // スコア計算 (Tetris Guideline準拠)
+  let clearScore = 0;
+  if (isTetris) {
+    clearScore = isBackToBack ? 1200 : 800;
+    State.b2bActive = true;
+  } else if (lines === 3) {
+    clearScore = isBackToBack ? 700 : 500;
+    State.b2bActive = false;
+  } else if (lines === 2) {
+    clearScore = isBackToBack ? 400 : 300;
+    State.b2bActive = false;
+  } else {
+    clearScore = isBackToBack ? 200 : 100;
+    State.b2bActive = false;
+  }
+  State.score += clearScore * State.level;
+  
+  // コンボカウント
+  State.combo++;
+  State.score += Math.floor(State.combo * 50);
+  
+  State.lines += lines;
+  
+  // レベルアップ (10ラインごと)
+  const newLevel = Math.floor(State.lines / 10) + 1;
+  if (newLevel > State.level) {
+    State.level = newLevel;
+    State.dropInterval = Math.max(100, 1000 - (State.level - 1) * 50);
+  }
+  
+  // エフェクトレベル更新 (10ラインごと)
+  const newEffectLevel = Math.min(20, Math.floor(State.lines / 10));
+  if (newEffectLevel > State.effectLevel) {
+    State.effectLevel = newEffectLevel;
+  }
+  
+  // エフェクトとサウンド
+  triggerExplosion(lines, isTetris);
+}
+
+function holdPiece() {
+  if (!State.current || State.holdUsed) return;
+  if (State.hold === null) {
+    State.hold = State.current.type;
+    spawn();
+  } else {
+    const temp = State.current.type;
+    State.current.type = State.hold;
+    State.current.rotation = 0;
+    State.current.x = 3;
+    State.current.y = 0;
+    State.hold = temp;
+  }
+  State.holdUsed = true;
+  renderHold();
+}
+
+// Update loop
+function update(time) {
+  if (State.gameOver || !State.current) return;
+  const delta = time - State.lastTime;
+  State.lastTime = time;
+  State.dropCounter += delta;
+  
+  if (State.softDropActive && State.current) {
+    const now = performance.now();
+    if (now - State.lastSoftDropTime > 30) {
+      State.lastSoftDropTime = now;
+      if (isValid(0, 1)) {
+        State.current.y++;
+      } else {
+        lockAndSpawn();
+      }
+    }
+  }
+  
+  if (State.dropCounter > State.dropInterval) {
+    State.dropCounter = 0;
+    if (isValid(0, 1)) {
+      State.current.y++;
+    } else {
+      lockAndSpawn();
+    }
+  }
+}
+
+// ===== RENDERING =====
+// Create canvas for board rendering
+const canvas = document.createElement('canvas');
+canvas.width = 300;
+canvas.height = 660;
+canvas.style.imageRendering = 'pixelated';
+document.getElementById('board').appendChild(canvas);
+const ctx = canvas.getContext('2d');
+ctx.scale(2, 2);
+
+function render() {
+  const PX = 14; // scaled block size
+  ctx.clearRect(0, 0, 150, 330);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, 150, 330);
+  
+  // Draw grid lines
+  ctx.strokeStyle = '#222';
+  for (let x = 0; x <= COLS; x++) {
+    ctx.beginPath();
+    ctx.moveTo(x * PX, 0);
+    ctx.lineTo(x * PX, 330);
+    ctx.stroke();
+  }
+  for (let y = 0; y <= 20; y++) {
+    ctx.beginPath();
+    ctx.moveTo(0, y * PX);
+    ctx.lineTo(150, y * PX);
+    ctx.stroke();
+  }
+  
+  // Draw locked pieces (only visible 20 rows)
+  for (let y = 2; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      if (State.board[y][x]) {
+        const color = PIECES[State.board[y][x]].color;
+        ctx.fillStyle = color;
+        ctx.fillRect(x * PX, (y - 2) * PX, PX, PX);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(x * PX, (y - 2) * PX, PX, PX);
+      }
+    }
+  }
+  
+  // Draw ghost piece (preview of lock position)
+  if (State.current) {
+    const ghostY = getGhostY();
+    drawPiece(State.current.x, ghostY, State.current.type, State.current.rotation, 0.3);
+  }
+  
+  // Draw current piece
+  if (State.current) {
+    drawPiece(State.current.x, State.current.y, State.current.type, State.current.rotation, 1);
+  }
+  
+  if (State.gameOver) {
+    ctx.fillStyle = '#f00';
+    ctx.font = '8px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('GAME OVER', 75, 165);
+  }
+}
+
+function drawPiece(x, y, type, rotation, opacity) {
+  const tiles = PIECES[type].tiles[rotation];
+  const color = PIECES[type].color;
+  for (let r = 0; r < tiles.length; r++) {
+    for (let c = 0; c < tiles[r].length; c++) {
+      if (tiles[r][c]) {
+        ctx.globalAlpha = opacity;
+        ctx.fillStyle = color;
+        ctx.fillRect((x + c) * 14, (y + r - 2) * 14, 14, 14);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect((x + c) * 14, (y + r - 2) * 14, 14, 14);
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+}
+
+function getGhostY() {
+  if (!State.current) return 0;
+  let testY = State.current.y;
+  while (isValidOffset(0, 1, testY)) {
+    testY++;
+  }
+  return testY;
+}
+
+function isValidOffset(dx, dy, testY) {
+  const piece = State.current;
+  const tiles = getTiles(piece);
+  for (let r = 0; r < tiles.length; r++) {
+    for (let c = 0; c < tiles[r].length; c++) {
+      if (tiles[r][c]) {
+        const x = piece.x + c + dx;
+        const y = testY + r + dy;
+        if (x < 0 || x >= COLS || y >= ROWS) return false;
+        if (y >= 0 && State.board[y][x]) return false;
+      }
+    }
+  }
+  return true;
+}
+
+// Next piece preview
+function renderNext() {
+  const container = document.getElementById('next-pieces');
+  container.innerHTML = '';
+  for (let i = 0; i < Math.min(5, State.nextQueue.length); i++) {
+    const div = document.createElement('div');
+    div.className = 'next-piece';
+    const cv = document.createElement('canvas');
+    cv.width = 72;
+    cv.height = 72;
+    div.appendChild(cv);
+    container.appendChild(div);
+    
+    const pctx = cv.getContext('2d');
+    pctx.imageRendering = 'pixelated';
+    pctx.scale(2, 2);
+    pctx.clearRect(0, 0, 36, 36);
+    
+    const tiles = PIECES[State.nextQueue[i]].tiles[0];
+    const color = PIECES[State.nextQueue[i]].color;
+    
+    pctx.fillStyle = color;
+    const startX = (4 - tiles[0].length) / 2;
+    for (let r = 0; r < tiles.length; r++) {
+      for (let c = 0; c < tiles[r].length; c++) {
+        if (tiles[r][c]) {
+          pctx.fillRect((startX + c) * 6, ((tiles.length - 1) / 2 - r + 0.5) * 6, 6, 6);
+        }
+      }
+    }
+  }
+}
+
+// Hold drawing
+function renderHold() {
+  const cv = document.getElementById('hold-canvas');
+  const pctx = cv.getContext('2d');
+  pctx.clearRect(0, 0, 36, 36);
+  
+  if (State.hold) {
+    const tiles = PIECES[State.hold].tiles[0];
+    const color = PIECES[State.hold].color;
+    pctx.fillStyle = color;
+    const startX = (4 - tiles[0].length) / 2;
+    for (let r = 0; r < tiles.length; r++) {
+      for (let c = 0; c < tiles[r].length; c++) {
+        if (tiles[r][c]) {
+          pctx.fillRect((startX + c) * 6, ((tiles.length - 1) / 2 - r + 0.5) * 6, 6, 6);
+        }
+      }
+    }
+  }
+}
+
+// Update stats UI
+function updateStats() {
+  document.getElementById('score').textContent = State.score;
+  document.getElementById('lines').textContent = State.lines;
+  document.getElementById('level').textContent = State.level;
+  document.getElementById('combo').textContent = State.combo > 0 ? `x${State.combo}` : '0';
+  document.getElementById('b2b').textContent = State.b2bActive ? 'アクティブ' : 'いいえ';
+  document.getElementById('level-indicator').textContent = `エフェクト: ${State.effectLevel}`;
+}
+
+// ===== EFFECTS SYSTEM =====
+const EFFECTS = {
+  particles: [],
+  overlay: null,
+  configs: [
+    { name: '基本爆発', color: '#ff4400', count: 40, speed: 2.5, gravity: 0.3, size: [3, 6] },
+    { name: '着火', color: '#ff6600', count: 50, speed: 3, gravity: 0.2, size: [3, 5] },
+    { name: '電撃', color: '#ffff00', count: 60, speed: 3.5, gravity: 0.1, size: [2, 4] },
+    { name: '凍結', color: '#00ffff', count: 55, speed: 2.5, gravity: 0.15, size: [3, 6] },
+    { name: '毒', color: '#8800ff', count: 65, speed: 2.8, gravity: 0.25, size: [2, 5] },
+    { name: '炭火', color: '#440000', count: 70, speed: 2, gravity: 0.35, size: [3, 7] },
+    { name: 'フリッジ', color: '#a0ffff', count: 60, speed: 3, gravity: 0.1, size: [2, 5], sparkle: true },
+    { name: '熱波', color: '#ff3300', count: 80, speed: 3.5, gravity: 0.2, size: [3, 6], wave: true },
+    { name: 'サークル', color: '#ff00aa', count: 90, speed: 4, gravity: 0, size: [2, 4], circular: true },
+    { name: '嵩', color: '#88aaff', count: 100, speed: 4.5, gravity: 0.15, size: [2, 5], lightning: true },
+    { name: 'ネオン', color: '#00ffaa', count: 110, speed: 3.5, gravity: 0.05, size: [3, 6], neon: true },
+    { name: 'ホログラム', color: '#ffaa00', count: 130, speed: 3, gravity: 0, size: [2, 5], hologram: true },
+    { name: 'ブラックホール', color: '#8800ff', count: 150, speed: 5, gravity: 0, size: [3, 8], blackhole: true },
+    { name: '超神', color: '#fff', count: 200, speed: 6, gravity: 0, size: [4, 10], rainbow: true, nova: true },
+    { name: 'デジタル', color: '#00ff00', count: 300, speed: 8, gravity: 0, size: [1, 3], digital: true },
+    { name: 'シグマ', color: '#ff0066', count: 500, speed: 10, gravity: 0, size: [2, 5], sigma: true },
+    { name: 'クレイジー', color: '#00ffff', count: 800, speed: 12, gravity: 0, size: [1, 4], crazy: true },
+    { name: 'マッドネス', color: '#ff00ff', count: 1000, speed: 15, gravity: 0, size: [2, 6], madness: true },
+    { name: 'アポカリプス', color: '#ff4500', count: 1500, speed: 20, gravity: 0.1, size: [3, 10], apocalypse: true },
+    { name: 'サブライメーション', color: '#fff', count: 2000, speed: 25, gravity: 0, size: [2, 8], sublimation: true, rainbow: true, nova: true, lightning: true, blackhole: true },
+  ],
+  init() {
+    this.overlay = document.getElementById('effects-overlay');
+  },
+  trigger(x, y, level, lineCount, isTetris) {
+    const config = this.configs[Math.min(level, this.configs.length - 1)];
+    const count = config.count + lineCount * 15;
+    const centerX = x;
+    const centerY = y;
+    
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i / count) + (Math.random() - 0.5) * 0.3;
+      const speed = config.speed * (0.3 + Math.random() * 0.7);
+      const vx = Math.cos(angle) * speed;
+      const vy = Math.sin(angle) * speed;
+      const p = {
+        x: centerX,
+        y: centerY,
+        vx,
+        vy,
+        ax: 0,
+        ay: config.gravity,
+        size: config.size[0] + Math.random() * (config.size[1] - config.size[0]),
+        color: config.color,
+        baseColor: config.color,
+        life: 1,
+        decay: 0.005 + Math.random() * 0.008,
+        config,
+        id: Math.random().toString(36),
+        age: 0,
+        startX: centerX,
+        startAngle: angle,
+      };
+      
+      // Add extra randomized velocity for higher effects
+      if (level >= 10) {
+        p.vx += (Math.random() - 0.5) * 2;
+        p.vy += (Math.random() - 0.5) * 2;
+      }
+      
+      this.particles.push(p);
+      this.createParticleElement(p);
+    }
+  },
+  createParticleElement(p) {
+    const el = document.createElement('div');
+    el.className = 'particle';
+    el.style.width = p.size + 'px';
+    el.style.height = p.size + 'px';
+    el.style.background = p.color;
+    el.style.borderRadius = '50%';
+    el.style.left = (p.x - p.size / 2 + window.innerWidth / 2 - 150) + 'px';
+    el.style.top = (p.y - p.size / 2 + window.innerHeight / 2 - 330) + 'px';
+    el.style.boxShadow = `0 0 ${p.size * 3}px ${p.color}`;
+    el.style.pointerEvents = 'none';
+    if (p.config.neon) {
+      el.style.filter = 'blur(1px) saturate(3)';
+    }
+    this.overlay.appendChild(el);
+    p.el = el;
+  },
+  update() {
+    const now = performance.now();
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.age++;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vx += p.ax;
+      p.vy += p.ay;
+      p.life -= p.decay;
+      
+      if (p.life <= 0) {
+        if (p.el && p.el.parentNode) {
+          p.el.parentNode.removeChild(p.el);
+        }
+        this.particles.splice(i, 1);
+        continue;
+      }
+      
+      // Effect animations
+      if (p.config.circular) {
+        p.vx = Math.cos(p.age * 0.1 + p.startAngle) * p.config.speed * 0.3;
+        p.vy = Math.sin(p.age * 0.1 + p.startAngle) * p.config.speed * 0.3;
+      }
+      
+      if (p.config.rainbow) {
+        const hue = (now * 0.1 + p.age * 5) % 360;
+        p.color = `hsl(${hue}, 100%, 60%)`;
+      }
+      
+      if (p.config.sparkle) {
+        if (Math.random() < 0.1) {
+          p.color = p.baseColor === '#00ffff' ? '#ffffff' : '#ffffff';
+        } else {
+          p.color = p.baseColor;
+        }
+      }
+      
+      if (p.config.nova) {
+        p.size = p.size * (0.5 + 0.5 * p.life);
+      }
+      
+      // Apply to element
+      if (p.el) {
+        p.el.style.left = (p.x - p.size / 2 + window.innerWidth / 2 - 150) + 'px';
+        p.el.style.top = (p.y - p.size / 2 + window.innerHeight / 2 - 330) + 'px';
+        p.el.style.width = p.size + 'px';
+        p.el.style.height = p.size + 'px';
+        p.el.style.opacity = Math.min(1, p.life);
+        p.el.style.background = p.config.rainbow ? p.color : p.baseColor;
+        p.el.style.boxShadow = p.config.nova ?
+          `0 0 ${p.size * 8}px ${p.color}` :
+          `0 0 ${p.size * 4}px ${p.baseColor}`;
+      }
+    }
+  },
+  clear() {
+    this.particles.forEach(p => {
+      if (p.el && p.el.parentNode) {
+        p.el.parentNode.removeChild(p.el);
+      }
+    });
+    this.particles = [];
+  }
+};
+
+function triggerExplosion(lines, isTetris) {
+  if (!lines || lines === 0) return;
+  
+  // フィールド中心から爆発
+  const centerX = 150; // board center X
+  const centerY = 330; // board center Y
+  
+  // エフェクトレベルに応じて爆発ポイント追加
+  if (State.effectLevel >= 5) {
+    for (let i = 0; i < 3; i++) {
+      const angle = (Math.PI * 2 * i / 3);
+      const r = 100;
+      EFFECTS.trigger(
+        centerX + Math.cos(angle) * r,
+        centerY + Math.sin(angle) * r,
+        State.effectLevel,
+        lines,
+        isTetris
+      );
+    }
+  }
+  
+  if (State.effectLevel >= 15) {
+    // 全画面ブラックホールエフェクト
+    for (let i = 0; i < 8; i++) {
+      EFFECTS.trigger(
+        Math.random() * 300,
+        Math.random() * 660,
+        State.effectLevel,
+        1,
+        false
+      );
+    }
+  }
+  
+  EFFECTS.trigger(centerX, centerY, State.effectLevel, lines, isTetris);
+  
+  // サウンド
+  if (isTetris) {
+    SOUND.tetris();
+  } else if (lines >= 3) {
+    SOUND.lineClear(3);
+  } else if (lines === 2) {
+    SOUND.lineClear(2);
+  } else {
+    SOUND.lineClear(1);
+  }
+}
+
+// ===== SOUND SYSTEM =====
+const SOUND = {
+  ctx: null,
+  init() {
+    try {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {
+      console.log('Web Audio not supported');
+    }
+  },
+  tone(freq, dur, type = 'sine', vol = 0.3) {
+    if (!this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.frequency.value = freq;
+    osc.type = type;
+    gain.gain.value = vol;
+    osc.start();
+    osc.stop(this.ctx.currentTime + dur);
+  },
+  chord(freqs, dur, type = 'sine', vol = 0.25) {
+    freqs.forEach(f => this.tone(f, dur, type, vol / freqs.length));
+  },
+  lineClear(count) {
+    const chords = {
+      1: [[523.25, 659.25, 783.97]], // C5 E5 G5
+      2: [[587.33, 740.00, 987.77]], // D5 F5 B5
+      3: [[659.25, 783.97, 1046.50]], // E5 G5 C6
+    };
+    if (count === 4) {
+      this.tetris();
+    } else if (count >= 1 && count <= 3) {
+      const notes = chords[count] || chords[1];
+      notes.forEach((chord, i) => {
+        setTimeout(() => {
+          this.chord(chord, 0.12, 'square', 0.5);
+        }, i * 100);
+      });
+    }
+  },
+  tetris() {
+    // テトリス消し音 (上昇するメロディ)
+    const melody = [
+      [523.25, 0.1], [659.25, 0.1], [783.97, 0.1], [987.77, 0.2],
+      [1046.50, 0.15], [783.97, 0.15], [987.77, 0.3],
+    ];
+    let t = 0;
+    melody.forEach(([freq, dur]) => {
+      setTimeout(() => {
+        this.tone(freq, dur, 'square', 0.6);
+      }, t);
+      t += dur * 700 + 30;
+    });
+  },
+  rotate() {
+    this.tone(700, 0.06, 'sine', 0.2);
+    this.tone(800, 0.06, 'sine', 0.15);
+  },
+  hardDrop() {
+    this.tone(200, 0.04, 'sawtooth', 0.3);
+    this.tone(100, 0.06, 'sawtooth', 0.2);
+  },
+  lock() {
+    this.tone(150, 0.05, 'sine', 0.1);
+  },
+  // BGM: ツクーリッヒ変奏曲ベース (テトリスBgm風)
+  bgm: {
+    melody: [
+      [523.25, 0.5], [783.97, 0.25], [783.97, 0.25], [783.97, 0.25],
+      [783.97, 0.25], [523.25, 0.5], [523.25, 0.25], [523.25, 0.25],
+      [523.25, 0.25], [783.97, 0.5], [659.25, 0.25], [659.25, 0.25],
+      [659.25, 0.25], [523.25, 0.5], [523.25, 0.25], [783.97, 0.25],
+      [783.97, 0.25], [783.97, 0.25], [783.97, 0.25], [523.25, 0.5],
+      [523.25, 0.25], [523.25, 0.25], [523.25, 0.25],
+    ],
+    bassNotes: [41.20, 55.0, 49.0, 55.0, 41.20, 55.0, 49.0, 55.0],
+    playing: false,
+    play() {
+      if (!SOUND.ctx) return;
+      this.playing = true;
+      let idx = 0;
+      const playNote = () => {
+        if (!this.playing || State.gameOver) return;
+        const [freq, dur] = this.melody[idx % this.melody.length];
+        SOUND.tone(freq, dur * 0.8, 'triangle', 0.12);
+        const bassFreq = this.bassNotes[idx % this.bassNotes.length];
+        SOUND.tone(bassFreq, dur * 0.9, 'sawtooth', 0.08);
+        idx++;
+        setTimeout(playNote, dur * 700 + 40);
+      };
+      playNote();
+    },
+    stop() {
+      this.playing = false;
+    }
+  }
+};
+
+// ===== INPUT HANDLING =====
+const Input = {
+  left: false,
+  right: false,
+  rotateCW: false,
+  rotateCCW: false,
+  hardDrop: false,
+  leftPressed: false,
+  rightPressed: false,
+  lastLeftRepeat: 0,
+  lastRightRepeat: 0,
+  repeatDelay: 200,
+  repeatRate: 30,
+};
+
+const KEY_MAP = {
+  'ArrowLeft': 'left',
+  'ArrowRight': 'right',
+  'ArrowDown': 'softDrop',
+  'ArrowUp': 'rotateCW',
+  'a': 'left',
+  'd': 'right',
+  's': 'softDrop',
+  'w': 'rotateCW',
+  'q': 'rotateCCW',
+  'z': 'rotateCCW',
+  ' ': 'hardDrop',
+};
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.repeat) return;
+  
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (!State.gameOver && State.current) {
+      holdPiece();
+      renderNext();
+    }
+    return;
+  }
+  
+  const action = KEY_MAP[e.key];
+  if (!action) return;
+  
+  switch (action) {
+    case 'left':
+      if (!State.gameOver && State.current) {
+        move(-1, 0);
+        Input.left = true;
+        Input.leftPressed = true;
+        Input.lastLeftRepeat = performance.now();
+      }
+      break;
+    case 'right':
+      if (!State.gameOver && State.current) {
+        move(1, 0);
+        Input.right = true;
+        Input.rightPressed = true;
+        Input.lastRightRepeat = performance.now();
+      }
+      break;
+    case 'softDrop':
+      if (!State.gameOver && State.current) {
+        State.softDropActive = true;
+        State.lastSoftDropTime = performance.now();
+      }
+      break;
+    case 'rotateCW':
+      if (!State.gameOver && tryRotate(1)) SOUND.rotate();
+      break;
+    case 'rotateCCW':
+      if (!State.gameOver && tryRotate(-1)) SOUND.rotate();
+      break;
+    case 'hardDrop':
+      if (!State.gameOver && State.current) {
+        hardDrop();
+      }
+      break;
+  }
+  if (e.key === ' ') e.preventDefault();
+});
+
+document.addEventListener('keyup', (e) => {
+  const action = KEY_MAP[e.key];
+  if (!action) return;
+  
+  if (action === 'left') {
+    Input.left = false;
+    Input.leftPressed = false;
+  } else if (action === 'right') {
+    Input.right = false;
+    Input.rightPressed = false;
+  } else if (action === 'softDrop') {
+    State.softDropActive = false;
+  }
+});
+
+// ===== GAME LOOP =====
+let lastFrameTime = 0;
+function gameLoop(time) {
+  if (!lastFrameTime) lastFrameTime = time;
+  const delta = time - lastFrameTime;
+  lastFrameTime = delta;
+  
+  // Handle key repeat for left/right
+  const now = performance.now();
+  if (Input.leftPressed && Input.left) {
+    if (now - Input.lastLeftRepeat > Input.repeatDelay) {
+      if (!State.gameOver && State.current) move(-1, 0);
+      Input.lastLeftRepeat = now;
+    }
+  }
+  if (Input.rightPressed && Input.right) {
+    if (now - Input.lastRightRepeat > Input.repeatDelay) {
+      if (!State.gameOver && State.current) move(1, 0);
+      Input.lastRightRepeat = now;
+    }
+  }
+  
+  update(time);
+  render();
+  EFFECTS.update();
+  updateStats();
+  
+  requestAnimationFrame(gameLoop);
+}
+
+// Start game
+function startGame() {
+  document.getElementById('start-screen').style.display = 'none';
+  
+  // Initialize
+  State.board = [];
+  for (let r = 0; r < ROWS; r++) {
+    State.board.push(new Array(COLS).fill(null));
+  }
+  State.nextBag = createBag();
+  State.nextQueue = [];
+  for (let i = 0; i < 5; i++) {
+    State.nextQueue.push(popNext());
+  }
+  State.hold = null;
+  State.holdUsed = false;
+  State.score = 0;
+  State.lines = 0;
+  State.level = 1;
+  State.combo = 0;
+  State.b2bActive = false;
+  State.effectLevel = 0;
+  State.gameOver = false;
+  State.dropCounter = 0;
+  State.dropInterval = 1000;
+  State.lastTime = performance.now();
+  State.softDropActive = false;
+  
+  spawn();
+  
+  SOUND.init();
+  SOUND.bgm.play();
+  EFFECTS.init();
+  
+  renderNext();
+  renderHold();
+  updateStats();
+  
+  requestAnimationFrame(gameLoop);
+}
+
+// Initialize immediately
+for (let r = 0; r < ROWS; r++) {
+  State.board.push(new Array(COLS).fill(null));
+}
+State.nextBag = createBag();
+State.nextQueue = [];
+for (let i = 0; i < 5; i++) {
+  State.nextQueue.push(popNext());
+}
+SOUND.init();
+</script>
+</body>
+</html>

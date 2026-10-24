@@ -49,6 +49,11 @@ haiku55 > beam
 beam > deepseekv4flash
 haiku55 > ornith
 ornith > beam
+ornith > lagunas21
+beam > lagunas21
+deepseekv4flash > lagunas21
+gpt55 > lagunas21
+lagunas21 > grok47
 
 # gemma4 を基準にする。F は全部 gemma4 より下
 gemma4 > devstral2
@@ -71,4 +76,7 @@ gemma4 > sarashina3nano
 gemma4 > nemotron35supervl
 gemma4 > northminicode
 gemma4 > minimaxm31flash
+gemma4 > solarmini4
+gemma4 > step37flash
+gemma4 > lagunaxs21
 ```
