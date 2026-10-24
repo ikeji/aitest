@@ -47,6 +47,8 @@ grok47 > mimo26flash
 haiku55 > deepseekv4flash
 haiku55 > beam
 beam > deepseekv4flash
+haiku55 > ornith
+ornith > beam
 
 # gemma4 を基準にする。F は全部 gemma4 より下
 gemma4 > devstral2
