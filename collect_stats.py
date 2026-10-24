@@ -11,6 +11,7 @@
     claude-code ~/.claude/projects/*/*.jsonl         (各行の cwd で run を特定)
     codex       ~/.codex/sessions/**/*.jsonl         (session_meta の cwd で run を特定)
     opencode    ~/.local/share/opencode/opencode.db  (session_v2.directory で run を特定)
+    hermes      ~/.hermes/state.db                   (sessions.cwd で run を特定)
 
 run の特定は cwd の basename が run ディレクトリ名 (例 qwen38-202609022255) か、
 そのタイムスタンプを除いた名前 (qwen38)、または同じタイムスタンプ (-202609022255) で
@@ -192,6 +193,29 @@ def parse_opencode(path):
     return first, time, turns, out, gen
 
 
+def parse_hermes(path):
+    """path は "state.db::<session_id>" (Hermes Agent)。"""
+    import sqlite3
+    db, sid = path.split("::", 1)
+    c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    row = c.execute("select output_tokens from sessions where id=?", (sid,)).fetchone()
+    out = (row[0] or 0) if row else 0
+    first = last = prev = None
+    turns = 0
+    gen = 0.0
+    for role, t in c.execute("select role, timestamp from messages where session_id=? order by id", (sid,)):
+        if role == "user" and first is None:
+            first = t
+        if role == "assistant":
+            turns += 1
+            if prev is not None:
+                gen += t - prev
+            last = t
+        prev = t
+    time = (last - first) if first is not None and last is not None else 0
+    return first, time, turns, out, gen
+
+
 # --- 最初の依頼文 (時刻ベース照合の確認用) ----------------------------------------------------
 
 def _text(content):
@@ -228,6 +252,12 @@ def first_prompt(kind, path):
             c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
             for (data,) in c.execute("select data from session_message where session_id=? and type='user' order by seq limit 1", (sid,)):
                 return json.loads(data or "{}").get("text", "")
+        elif kind == "hermes":
+            import sqlite3
+            db, sid = path.split("::", 1)
+            c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+            for (content,) in c.execute("select content from messages where session_id=? and role='user' order by id limit 1", (sid,)):
+                return content or ""
     except Exception:
         pass
     return ""
@@ -265,9 +295,26 @@ def session_model(kind, path):
             row = c.execute("select model from session_v2 where id=?", (sid,)).fetchone()
             if row and row[0]:
                 return json.loads(row[0]).get("id", "")
+        elif kind == "hermes":
+            import sqlite3
+            db, sid = path.split("::", 1)
+            c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+            row = c.execute("select model from sessions where id=?", (sid,)).fetchone()
+            return (row[0] or "") if row else ""
     except Exception:
         pass
     return ""
+
+
+def closed_at(kind, f):
+    """セッションを閉じた時刻 (記録があるハーネスのみ)。run ディレクトリ名の時刻は終了時に付けるので照合窓に使う。"""
+    if kind == "hermes":
+        import sqlite3
+        db, sid = f.split("::", 1)
+        c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        row = c.execute("select ended_at from sessions where id=?", (sid,)).fetchone()
+        return row[0] if row else None
+    return None
 
 
 def _norm(x):
@@ -317,6 +364,12 @@ def find_sessions(runs):
         c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
         for sid, directory in c.execute("select id, directory from session_v2 where parent_id is null"):
             note("opencode", f"{db}::{sid}", match_run(directory or "", runs))
+    db = f"{HOME}/.hermes/state.db"
+    if os.path.isfile(db):
+        import sqlite3
+        c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        for sid, cwd in c.execute("select id, cwd from sessions where parent_session_id is null"):
+            note("hermes", f"{db}::{sid}", match_run(cwd or "", runs))
     # 時刻ベースの照合 (名前で見つからなかった run だけ)
     cands = []
     for kind, f in unmatched:
@@ -326,7 +379,7 @@ def find_sessions(runs):
             continue
         if start is None or not o:
             continue
-        cands.append((start, start + t, kind, f))
+        cands.append((start, max(start + t, closed_at(kind, f) or 0), kind, f))
     # run ごとの候補を集め、(距離, run, セッション) を全体で距離の小さい順に割り当てる
     # (同じモデルを続けて回した場合に、隣の run のセッションを取り合わないように)
     pairs = []
@@ -357,7 +410,7 @@ def find_sessions(runs):
     return found
 
 
-PARSERS = {"pi": parse_pi, "claude": parse_claude, "codex": parse_codex, "opencode": parse_opencode}
+PARSERS = {"pi": parse_pi, "claude": parse_claude, "codex": parse_codex, "opencode": parse_opencode, "hermes": parse_hermes}
 
 
 def collect(run, sessions):
