@@ -85,6 +85,8 @@ python3 build_index.py     # regenerate index.html and the table in README
 | 64 | [Solar Mini 4](solarmini4-202610241645/index.html) | 35B-A3B | nous | hermes-agent | 2026-10-24 16:45 | 51m07s | 280.5k | 108 | F | 0 | NA | NA |
 | 65 | [Laguna-XS-2.1](lagunaxs21-202610241729/index.html) | 33B-A3B | nous | hermes-agent | 2026-10-24 17:29 | 1m44s | 6.7k | 65 | F | 0 | NA | NA |
 | 66 | [Muse-Glimmer-30B](museglimmer-202610280451/index.html) | 30B | llama.cpp | pi-agent | 2026-10-28 04:51 | 4m23s | 6.3k | 24 | F | 0 | NA | NA |
+| 67 | [Step-3.7-Flash](step37flash-202610282328/index.html) | 198B-A11B | llama.cpp | pi-agent | 2026-10-28 23:28 | 9m10s | 10.5k | 19 | F | 0 | NA | NA |
+| 68 | [Nemotron-3.5-Bolt-74B-A9B](nemotronbolt-202610282335/index.html) | 74B-A9B | llama.cpp | pi-agent | 2026-10-28 23:35 | 6m23s | 16.0k | 42 | F | 0 | NA | NA |
 <!-- index:end -->
 
 Run `build_index.py` before committing / pushing.

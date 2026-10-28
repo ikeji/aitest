@@ -79,8 +79,10 @@ gemma4 > nemotron35supervl
 gemma4 > northminicode
 gemma4 > minimaxm31flash
 gemma4 > solarmini4
-gemma4 > step37flash
+gemma4 > step37flash-202610241710   # hermes-agent 版。10/28 のローカル版と曖昧なのでフルネーム
 gemma4 > lagunaxs21
 gemma4 > gemma431b
 gemma4 > museglimmer
+gemma4 > step37flash-202610282328   # ローカル llama.cpp 版
+gemma4 > nemotronbolt
 ```
