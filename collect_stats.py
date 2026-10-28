@@ -18,6 +18,8 @@ run の特定は cwd の basename が run ディレクトリ名 (例 qwen38-2026
 終わる名前 (実行後にリネームした場合) に一致するもの。同じ run に複数セッションが
 あるのは途中で止めてやり直した場合なので、最後 (開始が最も遅い) のセッションだけを
 採用し、sessions に試行回数を記録する。
+時刻で照合したとき同時刻のセッションが複数あって絞れない場合は、env.yml に
+session: <セッション ID の一部> を書くとそれで指定できる。
 
 stats の意味:
     time           所要時間 (秒)。最初の依頼から最後の応答まで
@@ -327,6 +329,16 @@ def model_matches(run, model):
     return bool(k and m) and (k in m or m in k)
 
 
+def env_session(run):
+    """env.yml の session: (セッション ID やファイル名の一部)。同時刻に複数セッションがあるときの手動指定。"""
+    try:
+        text = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), run, "env.yml"), encoding="utf-8").read()
+    except OSError:
+        return None
+    m = re.search(r'^session:\s*"?([^"\s#]+)', text, re.M)
+    return m.group(1) if m else None
+
+
 def dir_time(run):
     m = re.search(r"-(\d{12})$", run)
     return datetime.strptime(m.group(1), "%Y%m%d%H%M").timestamp() if m else None
@@ -392,9 +404,12 @@ def find_sessions(runs):
         hits = [(st, en, kind, f) for st, en, kind, f in cands
                 if st - TIME_WINDOW <= ts <= en + TIME_WINDOW and "IDEA" in first_prompt(kind, f)]
         by_model = [h for h in hits if model_matches(d, session_model(h[2], h[3]))]
-        if by_model:
+        pinned = env_session(d)
+        if pinned:
+            hits = [h for h in hits if pinned in h[3]]
+        elif by_model:
             hits = by_model
-        elif len(hits) > 1:
+        if len(hits) > 1:
             print(f"!! {d}: 時刻の合うセッションが複数あり、モデル名でも絞れないので未照合: "
                   + ", ".join(f"{session_model(k, f) or k}@{datetime.fromtimestamp(st):%H:%M}" for st, _, k, f in hits), file=sys.stderr)
             continue

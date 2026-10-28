@@ -14,9 +14,9 @@ opus5 > sonnet5
 opus5 > gpt6astra   # effect が派手
 fable51 > qwen38flashnext   # effect が派手
 qwen38flashnext > opus5   # effect が全画面に広がり、種類も多い
-gpt6astra > glm53flash   # glm は派手で特に花火の effect は素晴らしいが、ハードドロップの effect がバグっているのと種類が少ない
-glm53flash > sonnet5   # sonnet も派手だが、派手さが単調なのと BGM がメロディになっていない
-glm53flash > grok46
+gpt6astra > glm53flash-202609090231   # glm は派手で特に花火の effect は素晴らしいが、ハードドロップの effect がバグっているのと種類が少ない
+glm53flash-202609090231 > sonnet5   # sonnet も派手だが、派手さが単調なのと BGM がメロディになっていない
+glm53flash-202609090231 > grok46
 grok46 > sonnet5
 grok46 > qwen38-202609160535   # EXL3 版。qwen38 だけだと 9/2 の GGUF 版と曖昧なのでフルネーム
 opus55-202609231032 > qwen38flashnext   # effect は opus55 が上。BGM はどちらも同じシーケンスの繰り返しだが opus55 はテンポが速くなっていく
@@ -54,6 +54,8 @@ beam > lagunas21
 deepseekv4flash > lagunas21
 gpt55 > lagunas21
 lagunas21 > grok47
+qwen38flashnext > glm53flash-202610280446   # ローカル llama.cpp 版。9/9 の opencode 版と曖昧なのでフルネーム
+qwen38-202609160535 > glm53flash-202610280446 > sonnet5
 
 # gemma4 を基準にする。F は全部 gemma4 より下
 gemma4 > devstral2
@@ -79,4 +81,6 @@ gemma4 > minimaxm31flash
 gemma4 > solarmini4
 gemma4 > step37flash
 gemma4 > lagunaxs21
+gemma4 > gemma431b
+gemma4 > museglimmer
 ```
