@@ -88,4 +88,10 @@ gemma4 > nemotronbolt
 opus55-202609231032 > pulse-alpha-opencode
 opus55-202610141029 > pulse-alpha-opencode
 pulse-alpha-opencode > sonnet55
+argon-202611051005 > pulse-alpha-opencode   # Medium 版。10:57 の High 版と区別するためフルネーム
+argon-202611051005 > opus55-202610141029   # Medium 版。10:57 の High 版と区別するためフルネーム
+argon-202611051005 > opus55-202609231032   # Medium 版。10:57 の High 版と区別するためフルネーム
+argon-202611051057 > opus55-202610141029   # High 版
+argon-202611051057 > opus55-202609231032   # High 版
+argon-202611051005 > argon-202611051057   # Medium 版が High 版より上
 ```

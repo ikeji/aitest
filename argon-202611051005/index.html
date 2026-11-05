@@ -1,0 +1,2641 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HYPER EXPLOSION TETRIS — 派手エフェクト・テトリス</title>
+  <!-- CDN Libraries: canvas-confetti & anime.js -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.2/anime.min.js"></script>
+  <style>
+    :root {
+      --bg-dark: #05050d;
+      --panel-bg: rgba(12, 14, 30, 0.78);
+      --panel-border: rgba(0, 245, 255, 0.35);
+      --accent: #00f5ff;
+      --accent-pink: #ff007f;
+      --accent-gold: #ffea00;
+      --text-main: #f0f6ff;
+      --text-sub: #8da2c0;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'Segoe UI', 'Hiragino Kaku Gothic ProN', 'Meiryo', system-ui, -apple-system, sans-serif;
+    }
+
+    /* Fullscreen Background FX Canvas & Foreground FX Canvas */
+    #bg-canvas, #fx-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+    }
+    #bg-canvas { z-index: 0; }
+    #fx-canvas { z-index: 30; }
+
+    /* Screen Flash & Chromatic Aberration Overlay */
+    #screen-flash {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 25;
+      opacity: 0;
+      mix-blend-mode: screen;
+    }
+
+    /* Main Layout Wrapper */
+    #app {
+      position: relative;
+      z-index: 10;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      transition: filter 0.08s ease;
+    }
+
+    .chromatic-hit {
+      filter: drop-shadow(-4px 0 0 rgba(255, 0, 85, 0.85)) drop-shadow(4px 0 0 rgba(0, 245, 255, 0.85)) contrast(1.18);
+    }
+
+    /* Top Stage Banner */
+    .stage-banner {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: linear-gradient(90deg, rgba(10,14,34,0.88), rgba(24,12,48,0.92), rgba(10,14,34,0.88));
+      border: 1px solid var(--panel-border);
+      border-radius: 999px;
+      padding: 6px 20px;
+      margin-bottom: 10px;
+      box-shadow: 0 0 25px rgba(0, 245, 255, 0.25), inset 0 0 15px rgba(255, 0, 128, 0.15);
+      backdrop-filter: blur(8px);
+    }
+
+    .stage-badge {
+      background: linear-gradient(135deg, #00f5ff, #7c4dff, #ff007f);
+      color: #fff;
+      font-weight: 900;
+      font-size: 0.78rem;
+      padding: 3px 10px;
+      border-radius: 999px;
+      letter-spacing: 0.08em;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+    }
+
+    .stage-name {
+      font-weight: 800;
+      font-size: 0.95rem;
+      letter-spacing: 0.05em;
+      background: linear-gradient(90deg, #fff, #00f5ff, #ffea00);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .next-stage-meter {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: var(--text-sub);
+    }
+
+    .meter-track {
+      width: 90px;
+      height: 8px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 99px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.18);
+    }
+
+    .meter-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #00f5ff, #ff007f, #ffea00);
+      box-shadow: 0 0 10px #00f5ff;
+      transition: width 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    /* Main Arena Grid */
+    .arena {
+      display: grid;
+      grid-template-columns: 185px auto 195px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .side-col {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .panel {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      padding: 12px 14px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), 0 0 16px rgba(0, 245, 255, 0.12);
+      backdrop-filter: blur(10px);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .panel-title {
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .mini-canvas-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: rgba(3, 5, 14, 0.65);
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      padding: 6px;
+    }
+
+    /* Score / Stats Readouts */
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin: 6px 0;
+    }
+
+    .stat-label {
+      font-size: 0.73rem;
+      color: var(--text-sub);
+      font-weight: 700;
+      letter-spacing: 0.06em;
+    }
+
+    .stat-value {
+      font-size: 1.35rem;
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+      color: #fff;
+      text-shadow: 0 0 12px rgba(0, 245, 255, 0.5);
+    }
+
+    .stat-value.score-big {
+      font-size: 1.55rem;
+      background: linear-gradient(90deg, #ffffff, #00f5ff, #ffea00);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* Board Container */
+    .board-wrapper {
+      position: relative;
+      padding: 6px;
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(0,245,255,0.22), rgba(255,0,128,0.22));
+      box-shadow:
+        0 0 35px rgba(0, 245, 255, 0.3),
+        0 0 80px rgba(255, 0, 128, 0.15),
+        inset 0 0 20px rgba(0, 245, 255, 0.25);
+      transition: box-shadow 0.3s ease, background 0.3s ease;
+    }
+
+    #board-canvas {
+      display: block;
+      background: rgba(4, 6, 16, 0.92);
+      border-radius: 11px;
+    }
+
+    /* Lock delay indicator bar under board */
+    .lock-bar-wrap {
+      height: 5px;
+      margin-top: 5px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    #lock-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #00e676, #ffea00, #ff1744);
+      transition: width 0.04s linear;
+    }
+
+    /* Action Callouts (T-SPIN! TETRIS! B2B! COMBO!) */
+    #callout-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      overflow: visible;
+    }
+
+    .action-popup {
+      position: absolute;
+      font-weight: 900;
+      font-style: italic;
+      text-transform: uppercase;
+      text-align: center;
+      white-space: nowrap;
+      letter-spacing: 0.06em;
+      pointer-events: none;
+      filter: drop-shadow(0 4px 16px rgba(0,0,0,0.85));
+    }
+
+    /* Controls & Audio Buttons */
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .btn {
+      flex: 1 1 auto;
+      background: rgba(0, 245, 255, 0.12);
+      border: 1px solid rgba(0, 245, 255, 0.4);
+      color: var(--text-main);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 6px 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+    }
+
+    .btn:hover {
+      background: rgba(0, 245, 255, 0.28);
+      box-shadow: 0 0 12px rgba(0, 245, 255, 0.45);
+      transform: translateY(-1px);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .btn.btn-pink {
+      background: rgba(255, 0, 127, 0.16);
+      border-color: rgba(255, 0, 127, 0.5);
+    }
+    .btn.btn-pink:hover {
+      background: rgba(255, 0, 127, 0.34);
+      box-shadow: 0 0 14px rgba(255, 0, 127, 0.55);
+    }
+
+    .key-guide {
+      font-size: 0.68rem;
+      line-height: 1.55;
+      color: var(--text-sub);
+    }
+
+    .key-guide kbd {
+      display: inline-block;
+      padding: 1px 5px;
+      font-size: 0.64rem;
+      font-family: monospace;
+      color: #fff;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.22);
+      border-radius: 4px;
+      margin-right: 2px;
+    }
+
+    /* Overlay Modal (Start / Pause / Game Over) */
+    .overlay-modal {
+      position: absolute;
+      inset: 6px;
+      background: rgba(5, 7, 20, 0.86);
+      backdrop-filter: blur(8px);
+      border-radius: 11px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      text-align: center;
+      z-index: 25;
+      transition: opacity 0.25s ease;
+    }
+
+    .overlay-modal.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .modal-title {
+      font-size: 1.9rem;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      line-height: 1.15;
+      background: linear-gradient(135deg, #00f5ff 0%, #ff007f 50%, #ffea00 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 10px;
+      filter: drop-shadow(0 0 18px rgba(0, 245, 255, 0.4));
+    }
+
+    .modal-sub {
+      font-size: 0.82rem;
+      color: var(--text-sub);
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    .start-btn {
+      background: linear-gradient(135deg, #00f5ff, #7c4dff, #ff007f);
+      border: none;
+      color: #fff;
+      font-size: 1.05rem;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      padding: 12px 32px;
+      border-radius: 999px;
+      cursor: pointer;
+      box-shadow: 0 0 25px rgba(0, 245, 255, 0.6), 0 0 50px rgba(255, 0, 127, 0.35);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .start-btn:hover {
+      transform: scale(1.06);
+      box-shadow: 0 0 35px rgba(0, 245, 255, 0.85), 0 0 70px rgba(255, 0, 127, 0.6);
+    }
+
+    /* Audio Visualizer Bars inside Left Panel */
+    #viz-canvas {
+      width: 100%;
+      height: 44px;
+      display: block;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.35);
+    }
+
+    /* Touch / Virtual Controls for Mobile or Mouse Users */
+    .touch-controls {
+      display: none;
+      margin-top: 8px;
+      gap: 6px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 760px) {
+      .arena {
+        grid-template-columns: 120px auto 120px;
+        gap: 8px;
+      }
+      .touch-controls {
+        display: flex;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Background Reactive Starfield / Grid / Equalizer Canvas -->
+  <canvas id="bg-canvas"></canvas>
+  <!-- Screen Flash Overlay -->
+  <div id="screen-flash"></div>
+  <!-- Foreground High-Energy Particle / Laser / Lightning / Firework Canvas -->
+  <canvas id="fx-canvas"></canvas>
+
+  <div id="app">
+    <!-- Stage / Effect Evolution Header -->
+    <div class="stage-banner" id="stage-banner">
+      <span class="stage-badge" id="stage-badge">STAGE 1</span>
+      <span class="stage-name" id="stage-name">NEON SPARK BURST (ネオンスパーク爆発)</span>
+      <div class="next-stage-meter">
+        <span>NEXT FX</span>
+        <div class="meter-track">
+          <div class="meter-fill" id="stage-meter-fill"></div>
+        </div>
+        <span id="stage-lines-left">10L</span>
+      </div>
+    </div>
+
+    <div class="arena" id="arena-container">
+      <!-- LEFT COLUMN: HOLD, SCORE, AUDIO SYNTH -->
+      <div class="side-col">
+        <div class="panel">
+          <div class="panel-title">
+            <span>HOLD</span>
+            <span style="font-size:0.65rem;color:var(--text-sub)">[C / SHIFT]</span>
+          </div>
+          <div class="mini-canvas-wrap">
+            <canvas id="hold-canvas" width="120" height="80"></canvas>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">STATS</div>
+          <div class="stat-row">
+            <span class="stat-label">SCORE</span>
+            <span class="stat-value score-big" id="ui-score">0</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">LINES</span>
+            <span class="stat-value" id="ui-lines">0</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">LEVEL</span>
+            <span class="stat-value" id="ui-level">1</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">COMBO</span>
+            <span class="stat-value" id="ui-combo" style="color:#ffea00">0</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">B2B CHAIN</span>
+            <span class="stat-value" id="ui-b2b" style="color:#ff007f">0x</span>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">
+            <span>SYNTH AUDIO</span>
+            <span id="bpm-readout" style="color:#ffea00">128 BPM</span>
+          </div>
+          <canvas id="viz-canvas" width="155" height="44"></canvas>
+          <div class="btn-group" style="margin-top:8px;">
+            <button class="btn" id="btn-mute">🔊 SOUND ON</button>
+            <button class="btn" id="btn-pause">⏸ PAUSE [P]</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- CENTER COLUMN: PLAYFIELD BOARD -->
+      <div class="board-wrapper" id="board-wrapper">
+        <canvas id="board-canvas" width="300" height="600"></canvas>
+        <div class="lock-bar-wrap" title="Lock Delay Reset Indicator">
+          <div id="lock-bar"></div>
+        </div>
+
+        <!-- Floating Popups (TETRIS!, T-SPIN!, COMBO, ALL CLEAR) -->
+        <div id="callout-layer"></div>
+
+        <!-- Start / Pause / GameOver Modal -->
+        <div class="overlay-modal" id="overlay-modal">
+          <div class="modal-title" id="modal-title">HYPER EXPLOSION<br>TETRIS</div>
+          <div class="modal-sub" id="modal-sub">
+            Tetris Guideline 完全準拠 (SRS・7-Bag・Hold・T-Spin・B2B)<br>
+            10ライン消去ごとに爆発エフェクト＆BGMが進化！
+          </div>
+          <button class="start-btn" id="btn-start">GAME START</button>
+        </div>
+      </div>
+
+      <!-- RIGHT COLUMN: NEXT 5 QUEUE, FX DEMO, CONTROLS -->
+      <div class="side-col">
+        <div class="panel">
+          <div class="panel-title">NEXT QUEUE</div>
+          <div class="mini-canvas-wrap">
+            <canvas id="next-canvas" width="120" height="310"></canvas>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">FX & STAGE LAB</div>
+          <div class="btn-group">
+            <button class="btn btn-pink" id="btn-demo-fx" title="現在のステージのド派手爆発エフェクトを即座にテスト発動します">💥 爆発デモ発動</button>
+            <button class="btn" id="btn-next-stage" title="エフェクトステージを次の段階へ切り替えます">⚡ ステージ切替</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">CONTROLS</div>
+          <div class="key-guide">
+            <div><kbd>←</kbd><kbd>→</kbd> 移動 (DAS/ARR)</div>
+            <div><kbd>↓</kbd> ソフトドロップ</div>
+            <div><kbd>SPACE</kbd> ハードドロップ</div>
+            <div><kbd>↑</kbd><kbd>X</kbd> 右回転 / <kbd>Z</kbd><kbd>CTRL</kbd> 左回転</div>
+            <div><kbd>A</kbd> 180°回転</div>
+            <div><kbd>C</kbd><kbd>SHIFT</kbd> ホールド</div>
+            <div><kbd>R</kbd> リスタート</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Touch / Click Controls for convenience -->
+    <div class="touch-controls">
+      <button class="btn" data-act="left">◀</button>
+      <button class="btn" data-act="right">▶</button>
+      <button class="btn" data-act="rotL">↺ Z</button>
+      <button class="btn" data-act="rotR">↻ X</button>
+      <button class="btn" data-act="soft">▼</button>
+      <button class="btn btn-pink" data-act="hard">⏬ DROP</button>
+      <button class="btn" data-act="hold">HOLD</button>
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    'use strict';
+
+    /* =========================================================================
+     * 1. TETRIS GUIDELINE CONSTANTS & SRS WALL KICK TABLES
+     * ========================================================================= */
+    const COLS = 10;
+    const VISIBLE_ROWS = 20;
+    const BUFFER_ROWS = 20;
+    const TOTAL_ROWS = VISIBLE_ROWS + BUFFER_ROWS; // 40 rows (0..19 buffer, 20..39 visible)
+    const BLOCK_SIZE = 30;
+
+    // Official Guideline Colors + High-Contrast Glow Palettes
+    const PIECES = {
+      I: {
+        color: '#00f5ff', light: '#b3fcff', dark: '#008ba3', glow: 'rgba(0, 245, 255, 0.85)',
+        note: 523.25, // C5
+        shapes: [
+          [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+          [[0,0,1,0],[0,0,1,0],[0,0,1,0],[0,0,1,0]],
+          [[0,0,0,0],[0,0,0,0],[1,1,1,1],[0,0,0,0]],
+          [[0,1,0,0],[0,1,0,0],[0,1,0,0],[0,1,0,0]]
+        ]
+      },
+      O: {
+        color: '#ffea00', light: '#fff9b0', dark: '#b28900', glow: 'rgba(255, 234, 0, 0.85)',
+        note: 587.33, // D5
+        shapes: [
+          [[0,1,1,0],[0,1,1,0],[0,0,0,0],[0,0,0,0]],
+          [[0,1,1,0],[0,1,1,0],[0,0,0,0],[0,0,0,0]],
+          [[0,1,1,0],[0,1,1,0],[0,0,0,0],[0,0,0,0]],
+          [[0,1,1,0],[0,1,1,0],[0,0,0,0],[0,0,0,0]]
+        ]
+      },
+      T: {
+        color: '#d500f9', light: '#f3b0ff', dark: '#7b0099', glow: 'rgba(213, 0, 249, 0.9)',
+        note: 659.25, // E5
+        shapes: [
+          [[0,1,0],[1,1,1],[0,0,0]],
+          [[0,1,0],[0,1,1],[0,1,0]],
+          [[0,0,0],[1,1,1],[0,1,0]],
+          [[0,1,0],[1,1,0],[0,1,0]]
+        ]
+      },
+      S: {
+        color: '#00e676', light: '#b9f6ca', dark: '#008040', glow: 'rgba(0, 230, 118, 0.85)',
+        note: 698.46, // F5
+        shapes: [
+          [[0,1,1],[1,1,0],[0,0,0]],
+          [[0,1,0],[0,1,1],[0,0,1]],
+          [[0,0,0],[0,1,1],[1,1,0]],
+          [[1,0,0],[1,1,0],[0,1,0]]
+        ]
+      },
+      Z: {
+        color: '#ff1744', light: '#ff9eb0', dark: '#a3001e', glow: 'rgba(255, 23, 68, 0.85)',
+        note: 783.99, // G5
+        shapes: [
+          [[1,1,0],[0,1,1],[0,0,0]],
+          [[0,0,1],[0,1,1],[0,1,0]],
+          [[0,0,0],[1,1,0],[0,1,1]],
+          [[0,1,0],[1,1,0],[1,0,0]]
+        ]
+      },
+      J: {
+        color: '#2979ff', light: '#adcaff', dark: '#003c9e', glow: 'rgba(41, 121, 255, 0.85)',
+        note: 880.00, // A5
+        shapes: [
+          [[1,0,0],[1,1,1],[0,0,0]],
+          [[0,1,1],[0,1,0],[0,1,0]],
+          [[0,0,0],[1,1,1],[0,0,1]],
+          [[0,1,0],[0,1,0],[1,1,0]]
+        ]
+      },
+      L: {
+        color: '#ff9100', light: '#ffd499', dark: '#a65100', glow: 'rgba(255, 145, 0, 0.85)',
+        note: 987.77, // B5
+        shapes: [
+          [[0,0,1],[1,1,1],[0,0,0]],
+          [[0,1,0],[0,1,0],[0,1,1]],
+          [[0,0,0],[1,1,1],[1,0,0]],
+          [[1,1,0],[0,1,0],[0,1,0]]
+        ]
+      }
+    };
+
+    const PIECE_TYPES = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
+
+    // Official SRS Wall Kick Data (x right+, y up+ in standard wiki; we convert y to down+)
+    // Format: [dx, dy_up] -> when applying to grid, row += -dy_up
+    const JLSTZ_KICKS = {
+      '0>1': [[0,0], [-1,0], [-1, 1], [0,-2], [-1,-2]],
+      '1>0': [[0,0], [ 1,0], [ 1,-1], [0, 2], [ 1, 2]],
+      '1>2': [[0,0], [ 1,0], [ 1,-1], [0, 2], [ 1, 2]],
+      '2>1': [[0,0], [-1,0], [-1, 1], [0,-2], [-1,-2]],
+      '2>3': [[0,0], [ 1,0], [ 1, 1], [0,-2], [ 1,-2]],
+      '3>2': [[0,0], [-1,0], [-1,-1], [0, 2], [-1, 2]],
+      '3>0': [[0,0], [-1,0], [-1,-1], [0, 2], [-1, 2]],
+      '0>3': [[0,0], [ 1,0], [ 1, 1], [0,-2], [ 1,-2]],
+      // 180-degree kicks
+      '0>2': [[0,0], [0, 1], [ 1, 1], [-1, 1], [ 1,0], [-1,0]],
+      '2>0': [[0,0], [0,-1], [-1,-1], [ 1,-1], [-1,0], [ 1,0]],
+      '1>3': [[0,0], [ 1,0], [ 1, 2], [ 1, 1], [0, 2], [0, 1]],
+      '3>1': [[0,0], [-1,0], [-1, 2], [-1, 1], [0, 2], [0, 1]]
+    };
+
+    const I_KICKS = {
+      '0>1': [[0,0], [-2,0], [ 1,0], [-2,-1], [ 1, 2]],
+      '1>0': [[0,0], [ 2,0], [-1,0], [ 2, 1], [-1,-2]],
+      '1>2': [[0,0], [-1,0], [ 2,0], [-1, 2], [ 2,-1]],
+      '2>1': [[0,0], [ 1,0], [-2,0], [ 1,-2], [-2, 1]],
+      '2>3': [[0,0], [ 2,0], [-1,0], [ 2, 1], [-1,-2]],
+      '3>2': [[0,0], [-2,0], [ 1,0], [-2,-1], [ 1, 2]],
+      '3>0': [[0,0], [ 1,0], [-2,0], [ 1,-2], [-2, 1]],
+      '0>3': [[0,0], [-1,0], [ 2,0], [-1, 2], [ 2,-1]],
+      '0>2': [[0,0], [0, 1], [0,-1], [ 1,0], [-1,0]],
+      '2>0': [[0,0], [0,-1], [0, 1], [-1,0], [ 1,0]],
+      '1>3': [[0,0], [ 1,0], [-1,0], [0, 1], [0,-1]],
+      '3>1': [[0,0], [-1,0], [ 1,0], [0, 1], [0,-1]]
+    };
+
+    /* =========================================================================
+     * 2. EFFECT STAGES (Switches every 10 lines cleared!)
+     * ========================================================================= */
+    const EFFECT_STAGES = [
+      {
+        id: 1,
+        name: 'NEON SPARK BURST (ネオンスパーク爆発)',
+        themeColor: '#00f5ff',
+        secondaryColor: '#ff007f',
+        bgSpeed: 1.0
+      },
+      {
+        id: 2,
+        name: 'CYBER LASER SLASH (極光レーザー斬撃)',
+        themeColor: '#00e676',
+        secondaryColor: '#00f5ff',
+        bgSpeed: 1.4
+      },
+      {
+        id: 3,
+        name: 'HANABI FIREWORKS (極彩花火フェスティバル)',
+        themeColor: '#ff9100',
+        secondaryColor: '#ffea00',
+        bgSpeed: 1.8
+      },
+      {
+        id: 4,
+        name: 'THUNDER GOD STORM (雷神サンダーストーム)',
+        themeColor: '#7c4dff',
+        secondaryColor: '#00f5ff',
+        bgSpeed: 2.3
+      },
+      {
+        id: 5,
+        name: 'PRISM VORTEX SHATTER (重力プリズム粉砕)',
+        themeColor: '#ff007f',
+        secondaryColor: '#ffea00',
+        bgSpeed: 3.0
+      },
+      {
+        id: 6,
+        name: 'HYPER SUPERNOVA OVERDRIVE (超新星オーバードライブ)',
+        themeColor: '#ffffff',
+        secondaryColor: '#00f5ff',
+        bgSpeed: 4.2
+      }
+    ];
+
+    /* =========================================================================
+     * 3. PROCEDURAL WEB AUDIO SYNTHESIZER & GAMEPLAY-SYNCED SEQUENCER
+     * ========================================================================= */
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.masterGain = null;
+        this.analyser = null;
+        this.freqData = null;
+        this.muted = false;
+        this.isPlayingBGM = false;
+        this.bpm = 128;
+        this.stepIndex = 0;
+        this.nextNoteTime = 0;
+        this.schedulerTimer = null;
+        this.stageIntensity = 1;
+        this.dangerLevel = 0; // 0 = safe, 1 = high stack
+
+        // Korobeiniki / Electro-Tetris inspired minor scale motif (in MIDI note numbers)
+        // E4=64, B3=59, C4=60, D4=62, A3=57, G#3=56
+        this.leadPattern = [
+          76, 0, 71, 72, 74, 0, 72, 71,
+          69, 0, 69, 72, 76, 0, 74, 72,
+          71, 0, 71, 72, 74, 0, 76, 0,
+          72, 0, 69, 0,  69, 0, 0,  0,
+          74, 0, 74, 77, 81, 0, 79, 77,
+          76, 0, 72, 76, 74, 0, 72, 71,
+          71, 0, 71, 72, 74, 0, 76, 0,
+          72, 0, 69, 0,  69, 0, 0,  0
+        ];
+        this.bassPattern = [
+          40, 52, 40, 52, 40, 52, 40, 52,
+          45, 57, 45, 57, 45, 57, 45, 57,
+          44, 56, 44, 56, 40, 52, 40, 52,
+          45, 57, 45, 57, 45, 55, 57, 59,
+          38, 50, 38, 50, 38, 50, 38, 50,
+          48, 60, 48, 60, 47, 59, 44, 56,
+          40, 52, 40, 52, 40, 52, 40, 52,
+          45, 57, 45, 57, 45, 0,  45, 0
+        ];
+      }
+
+      init() {
+        if (this.ctx) {
+          if (this.ctx.state === 'suspended') this.ctx.resume();
+          return;
+        }
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        this.ctx = new AudioCtx();
+
+        // Dynamics Compressor for punchy arcade audio
+        const comp = this.ctx.createDynamicsCompressor();
+        comp.threshold.setValueAtTime(-16, this.ctx.currentTime);
+        comp.knee.setValueAtTime(12, this.ctx.currentTime);
+        comp.ratio.setValueAtTime(6, this.ctx.currentTime);
+        comp.attack.setValueAtTime(0.003, this.ctx.currentTime);
+        comp.release.setValueAtTime(0.15, this.ctx.currentTime);
+
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.value = this.muted ? 0 : 0.65;
+
+        this.analyser = this.ctx.createAnalyser();
+        this.analyser.fftSize = 64;
+        this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
+
+        this.masterGain.connect(comp);
+        comp.connect(this.analyser);
+        this.analyser.connect(this.ctx.destination);
+      }
+
+      setMuted(mute) {
+        this.muted = mute;
+        if (this.masterGain && this.ctx) {
+          this.masterGain.gain.setTargetAtTime(this.muted ? 0 : 0.65, this.ctx.currentTime, 0.02);
+        }
+      }
+
+      midiToFreq(midi) {
+        return 440 * Math.pow(2, (midi - 69) / 12);
+      }
+
+      startBGM() {
+        this.init();
+        if (this.isPlayingBGM) return;
+        this.isPlayingBGM = true;
+        this.stepIndex = 0;
+        this.nextNoteTime = this.ctx.currentTime + 0.05;
+        this.schedulerTimer = setInterval(() => this.schedule(), 25);
+      }
+
+      stopBGM() {
+        this.isPlayingBGM = false;
+        if (this.schedulerTimer) {
+          clearInterval(this.schedulerTimer);
+          this.schedulerTimer = null;
+        }
+      }
+
+      schedule() {
+        if (!this.isPlayingBGM || !this.ctx) return;
+        while (this.nextNoteTime < this.ctx.currentTime + 0.12) {
+          this.playStep(this.stepIndex, this.nextNoteTime);
+          const secondsPerBeat = 60.0 / this.bpm;
+          const stepDuration = secondsPerBeat / 4; // 16th note
+          this.nextNoteTime += stepDuration;
+          this.stepIndex = (this.stepIndex + 1) % 64;
+        }
+      }
+
+      playStep(step, time) {
+        if (this.muted) return;
+
+        // 1. Kick on 0, 4, 8, 12...
+        if (step % 4 === 0) {
+          this.synthKick(time);
+        }
+        // 2. Snare / Clap on 4, 12...
+        if (step % 8 === 4) {
+          this.synthSnare(time, this.stageIntensity >= 2);
+        }
+        // 3. Hi-hat on offbeats (and 16ths on higher stages)
+        if (step % 2 === 1 || this.stageIntensity >= 3) {
+          this.synthHat(time, step % 4 === 2 ? 0.14 : 0.05);
+        }
+
+        // 4. Driving Synth Bass
+        const bassMidi = this.bassPattern[step];
+        if (bassMidi > 0) {
+          const shift = this.dangerLevel ? 2 : 0;
+          this.synthBass(this.midiToFreq(bassMidi + shift), time, 0.11);
+        }
+
+        // 5. Lead Melody + Stage Arpeggio Overdrive
+        const leadMidi = this.leadPattern[step];
+        if (leadMidi > 0) {
+          const shift = this.dangerLevel ? 2 : 0;
+          this.synthLead(this.midiToFreq(leadMidi + shift), time, 0.14);
+          if (this.stageIntensity >= 4) {
+            // Add upper octave shimmer on high stages
+            this.synthLead(this.midiToFreq(leadMidi + 12 + shift), time + 0.03, 0.08, 0.05);
+          }
+        }
+      }
+
+      synthKick(time) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(145, time);
+        osc.frequency.exponentialRampToValueAtTime(36, time + 0.11);
+        gain.gain.setValueAtTime(0.55, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.14);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(time);
+        osc.stop(time + 0.15);
+      }
+
+      synthSnare(time, punchy = false) {
+        // Noise burst
+        const bufferSize = this.ctx.sampleRate * 0.12;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.setValueAtTime(800, time);
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(punchy ? 0.25 : 0.15, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.12);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+        noise.start(time);
+      }
+
+      synthHat(time, vol = 0.08) {
+        const bufferSize = this.ctx.sampleRate * 0.04;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.setValueAtTime(6500, time);
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(vol, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+        noise.start(time);
+      }
+
+      synthBass(freq, time, dur) {
+        const osc = this.ctx.createOscillator();
+        const filter = this.ctx.createBiquadFilter();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, time);
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(420 + this.stageIntensity * 130, time);
+        filter.frequency.exponentialRampToValueAtTime(120, time + dur);
+
+        gain.gain.setValueAtTime(0.22, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(time);
+        osc.stop(time + dur + 0.01);
+      }
+
+      synthLead(freq, time, dur, vol = 0.12) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = this.stageIntensity >= 3 ? 'sawtooth' : 'square';
+        osc.frequency.setValueAtTime(freq, time);
+
+        gain.gain.setValueAtTime(vol, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(time);
+        osc.stop(time + dur + 0.01);
+      }
+
+      /* --- GAMEPLAY SYNCHRONIZED SOUND EFFECTS --- */
+      playMove() {
+        if (!this.ctx || this.muted) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(290, now);
+        osc.frequency.exponentialRampToValueAtTime(440, now + 0.035);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(now);
+        osc.stop(now + 0.045);
+      }
+
+      playRotate(isTSpinSetup = false) {
+        if (!this.ctx || this.muted) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = isTSpinSetup ? 'sawtooth' : 'sine';
+        const base = isTSpinSetup ? 587.33 : 440;
+        osc.frequency.setValueAtTime(base, now);
+        osc.frequency.exponentialRampToValueAtTime(base * 1.5, now + 0.065);
+        gain.gain.setValueAtTime(isTSpinSetup ? 0.28 : 0.16, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.075);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(now);
+        osc.stop(now + 0.08);
+      }
+
+      playHold() {
+        if (!this.ctx || this.muted) return;
+        const now = this.ctx.currentTime;
+        [392, 523.25].forEach((f, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(f, now + idx * 0.04);
+          gain.gain.setValueAtTime(0.18, now + idx * 0.04);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.04 + 0.08);
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+          osc.start(now + idx * 0.04);
+          osc.stop(now + idx * 0.04 + 0.09);
+        });
+      }
+
+      playHardDrop(pieceType) {
+        if (!this.ctx || this.muted) return;
+        const now = this.ctx.currentTime;
+        // Sub-bass impact + piece harmonic note
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(180, now);
+        osc.frequency.exponentialRampToValueAtTime(42, now + 0.12);
+        gain.gain.setValueAtTime(0.45, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(now);
+        osc.stop(now + 0.15);
+
+        // Chime in piece key
+        const noteFreq = (PIECES[pieceType] && PIECES[pieceType].note) || 523.25;
+        const chime = this.ctx.createOscillator();
+        const cGain = this.ctx.createGain();
+        chime.type = 'triangle';
+        chime.frequency.setValueAtTime(noteFreq, now);
+        cGain.gain.setValueAtTime(0.14, now);
+        cGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        chime.connect(cGain);
+        cGain.connect(this.masterGain);
+        chime.start(now);
+        chime.stop(now + 0.11);
+      }
+
+      playLineClearExplosion(lines, isTSpin, b2b, combo, stageId, allClear) {
+        if (!this.ctx || this.muted) return;
+        const now = this.ctx.currentTime;
+
+        // 1. Massive Explosion Noise Burst + Filter Sweep
+        const duration = Math.min(0.35 + lines * 0.14 + (allClear ? 0.5 : 0), 1.3);
+        const bufSize = Math.floor(this.ctx.sampleRate * duration);
+        const buffer = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 0.65);
+        }
+
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.Q.setValueAtTime(1.8, now);
+        filter.frequency.setValueAtTime(1800 + stageId * 350, now);
+        filter.frequency.exponentialRampToValueAtTime(95, now + duration);
+
+        const nGain = this.ctx.createGain();
+        nGain.gain.setValueAtTime(0.55, now);
+        nGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+        noise.connect(filter);
+        filter.connect(nGain);
+        nGain.connect(this.masterGain);
+        noise.start(now);
+
+        // 2. Sub-bass Cannon Drop
+        const sub = this.ctx.createOscillator();
+        const sGain = this.ctx.createGain();
+        sub.type = 'sawtooth';
+        sub.frequency.setValueAtTime(130 + lines * 25, now);
+        sub.frequency.exponentialRampToValueAtTime(28, now + duration);
+        sGain.gain.setValueAtTime(0.45, now);
+        sGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+        sub.connect(sGain);
+        sGain.connect(this.masterGain);
+        sub.start(now);
+        sub.stop(now + duration + 0.02);
+
+        // 3. Euphoric Fanfare / Chord Arpeggio synced to Lines, T-Spin, and Combo
+        let chord = [523.25, 659.25, 783.99, 1046.5]; // C Major
+        if (isTSpin) {
+          chord = [587.33, 739.99, 880.0, 1174.66, 1479.98]; // Bright D Major 9th
+        } else if (lines >= 4 || allClear) {
+          chord = [523.25, 659.25, 783.99, 987.77, 1046.5, 1318.5, 1567.98]; // Grand Fanfare
+        }
+
+        // Pitch up with combo (REN)
+        const comboPitch = Math.pow(2, Math.min(combo, 14) / 12);
+
+        chord.slice(0, Math.min(chord.length, lines + 2 + (isTSpin ? 2 : 0))).forEach((freq, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = isTSpin || b2b ? 'sawtooth' : 'triangle';
+          const startT = now + idx * 0.045;
+          osc.frequency.setValueAtTime(freq * comboPitch, startT);
+          if (b2b) {
+            osc.frequency.exponentialRampToValueAtTime(freq * comboPitch * 1.02, startT + 0.25);
+          }
+          gain.gain.setValueAtTime(0.24, startT);
+          gain.gain.exponentialRampToValueAtTime(0.001, startT + 0.36);
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+          osc.start(startT);
+          osc.stop(startT + 0.38);
+        });
+      }
+
+      playStageUpFanfare() {
+        if (!this.ctx || this.muted) return;
+        const now = this.ctx.currentTime;
+        const notes = [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98, 2093.0];
+        notes.forEach((f, i) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          const t = now + i * 0.055;
+          osc.frequency.setValueAtTime(f, t);
+          gain.gain.setValueAtTime(0.22, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+          osc.start(t);
+          osc.stop(t + 0.46);
+        });
+      }
+
+      playGameOver() {
+        if (!this.ctx || this.muted) return;
+        const now = this.ctx.currentTime;
+        [440, 415.3, 392, 349.23].forEach((f, i) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          const t = now + i * 0.16;
+          osc.frequency.setValueAtTime(f, t);
+          gain.gain.setValueAtTime(0.2, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+          osc.start(t);
+          osc.stop(t + 0.32);
+        });
+      }
+    }
+
+    const sound = new SoundEngine();
+
+    /* =========================================================================
+     * 4. HIGH-OCTANE VISUAL FX ENGINE (Particles, Shockwaves, Lasers, Lightning, Fireworks)
+     * ========================================================================= */
+    const bgCanvas = document.getElementById('bg-canvas');
+    const bgCtx = bgCanvas.getContext('2d');
+    const fxCanvas = document.getElementById('fx-canvas');
+    const fxCtx = fxCanvas.getContext('2d');
+    const vizCanvas = document.getElementById('viz-canvas');
+    const vizCtx = vizCanvas.getContext('2d');
+    const screenFlash = document.getElementById('screen-flash');
+    const appEl = document.getElementById('app');
+
+    let particles = [];
+    let shockwaves = [];
+    let lasers = [];
+    let lightnings = [];
+    let fireworkRockets = [];
+    let stars = [];
+    let shakePower = 0;
+
+    function resizeCanvases() {
+      bgCanvas.width = window.innerWidth;
+      bgCanvas.height = window.innerHeight;
+      fxCanvas.width = window.innerWidth;
+      fxCanvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvases);
+    resizeCanvases();
+
+    // Initialize 140 background stars
+    for (let i = 0; i < 140; i++) {
+      stars.push({
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        z: Math.random() * 2.5 + 0.5,
+        hue: Math.random() * 360
+      });
+    }
+
+    function triggerScreenFlash(color = '#ffffff', alpha = 0.65) {
+      screenFlash.style.background = `radial-gradient(circle, ${color} 0%, transparent 75%)`;
+      screenFlash.style.opacity = String(alpha);
+      if (window.anime) {
+        anime.remove(screenFlash);
+        anime({
+          targets: screenFlash,
+          opacity: [alpha, 0],
+          duration: 420,
+          easing: 'easeOutExpo'
+        });
+      } else {
+        setTimeout(() => { screenFlash.style.opacity = '0'; }, 180);
+      }
+    }
+
+    function triggerChromaticHit(durationMs = 240) {
+      appEl.classList.add('chromatic-hit');
+      setTimeout(() => appEl.classList.remove('chromatic-hit'), durationMs);
+    }
+
+    function addScreenShake(amount) {
+      shakePower = Math.min(shakePower + amount, 42);
+    }
+
+    function spawnFloatingCallout(title, subtitle, color = '#00f5ff', scaleMult = 1) {
+      const layer = document.getElementById('callout-layer');
+      const el = document.createElement('div');
+      el.className = 'action-popup';
+      el.innerHTML = `
+        <div style="font-size:${1.65 * scaleMult}rem; color:${color}; text-shadow: 0 0 18px ${color}, 0 0 36px #fff;">
+          ${title}
+        </div>
+        ${subtitle ? `<div style="font-size:0.9rem; color:#fff; margin-top:2px; letter-spacing:0.12em;">${subtitle}</div>` : ''}
+      `;
+      layer.appendChild(el);
+
+      if (window.anime) {
+        anime({
+          targets: el,
+          translateY: [20, -75],
+          scale: [0.4, 1.18, 1.0],
+          opacity: [1, 1, 0],
+          duration: 1150,
+          easing: 'easeOutElastic(1, .6)',
+          complete: () => el.remove()
+        });
+      } else {
+        setTimeout(() => el.remove(), 1000);
+      }
+    }
+
+    // Create jagged lightning points between (x1,y1) and (x2,y2)
+    function createLightningBolt(x1, y1, x2, y2, color) {
+      const points = [{ x: x1, y: y1 }];
+      const segments = 12;
+      for (let i = 1; i < segments; i++) {
+        const t = i / segments;
+        const bx = x1 + (x2 - x1) * t + (Math.random() - 0.5) * 70;
+        const by = y1 + (y2 - y1) * t + (Math.random() - 0.5) * 25;
+        points.push({ x: bx, y: by });
+      }
+      points.push({ x: x2, y: y2 });
+      lightnings.push({ points, color, alpha: 1.0, width: 4 + Math.random() * 4 });
+    }
+
+    // Main Line Clear Explosion Dispatcher (scales by Stage 1..6 and Line Count!)
+    function spawnLineExplosion(clearedRows, cellsData, stageId, linesCount, isTSpin, b2b, combo, allClear) {
+      const boardRect = document.getElementById('board-canvas').getBoundingClientRect();
+      const stageCfg = EFFECT_STAGES[Math.min(stageId - 1, EFFECT_STAGES.length - 1)];
+
+      // 1. Base Shake & Flash
+      const intensity = linesCount + (isTSpin ? 2 : 0) + (b2b ? 1 : 0) + (allClear ? 4 : 0);
+      addScreenShake(8 + intensity * 5.5 + stageId * 2);
+      triggerScreenFlash(stageCfg.themeColor, Math.min(0.35 + intensity * 0.1, 0.85));
+      if (intensity >= 2 || stageId >= 3) {
+        triggerChromaticHit(180 + intensity * 55);
+      }
+
+      // 2. Explode every cleared block cell into high-velocity glowing fragments
+      const perCellCount = 10 + stageId * 4 + linesCount * 3;
+      cellsData.forEach(cell => {
+        const cx = boardRect.left + (cell.col + 0.5) * BLOCK_SIZE;
+        const cy = boardRect.top + (cell.visibleRow + 0.5) * BLOCK_SIZE;
+
+        for (let i = 0; i < perCellCount; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 2.5 + Math.random() * (9 + stageId * 2.5 + linesCount * 2);
+          const shapes = ['square', 'circle', 'spark', 'triangle'];
+          particles.push({
+            x: cx,
+            y: cy,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - Math.random() * 3,
+            gravity: stageId === 5 ? -0.04 : 0.18, // Stage 5 has anti-gravity vortex lift
+            drag: 0.975,
+            size: 3 + Math.random() * 6,
+            color: Math.random() < 0.65 ? cell.color : stageCfg.themeColor,
+            alpha: 1,
+            decay: 0.012 + Math.random() * 0.016,
+            rot: Math.random() * Math.PI * 2,
+            vRot: (Math.random() - 0.5) * 0.3,
+            shape: shapes[Math.floor(Math.random() * shapes.length)],
+            vortex: stageId >= 5
+          });
+        }
+      });
+
+      // 3. Expanding Shockwave Rings per cleared row
+      clearedRows.forEach(visRow => {
+        const ry = boardRect.top + (visRow + 0.5) * BLOCK_SIZE;
+        const rx = boardRect.left + (COLS * BLOCK_SIZE) / 2;
+        shockwaves.push({
+          x: rx,
+          y: ry,
+          radius: 10,
+          maxRadius: 280 + linesCount * 85 + stageId * 45,
+          color: stageCfg.themeColor,
+          alpha: 1.0,
+          lineWidth: 6 + linesCount * 2
+        });
+
+        // Stage 2+: Cyber Laser Beams slicing across the entire screen!
+        if (stageId >= 2 || linesCount >= 4 || isTSpin) {
+          lasers.push({
+            y: ry,
+            height: BLOCK_SIZE * (0.9 + linesCount * 0.25),
+            color: stageCfg.themeColor,
+            coreColor: '#ffffff',
+            alpha: 1.0
+          });
+        }
+
+        // Stage 3+: Hanabi Fireworks Rockets launching from cleared rows!
+        if (stageId >= 3 || linesCount >= 3 || allClear) {
+          const rocketCount = Math.min(2 + linesCount, 6);
+          for (let r = 0; r < rocketCount; r++) {
+            fireworkRockets.push({
+              x: boardRect.left + Math.random() * (COLS * BLOCK_SIZE),
+              y: ry,
+              vx: (Math.random() - 0.5) * 6,
+              vy: -9 - Math.random() * 7,
+              targetY: 70 + Math.random() * (window.innerHeight * 0.45),
+              color: `hsl(${Math.floor(Math.random() * 360)}, 100%, 60%)`
+            });
+          }
+        }
+
+        // Stage 4+: Thunder God Lightning Bolts striking the row!
+        if (stageId >= 4 || isTSpin || linesCount === 4) {
+          for (let b = 0; b < 2 + linesCount; b++) {
+            const tx = boardRect.left + Math.random() * (COLS * BLOCK_SIZE);
+            createLightningBolt(tx + (Math.random() - 0.5) * 220, 0, tx, ry, stageCfg.themeColor);
+          }
+        }
+      });
+
+      // 4. CDN canvas-confetti Celebration Burst!
+      if (window.confetti && (stageId >= 2 || linesCount >= 2 || isTSpin || allClear)) {
+        const originY = Math.min(Math.max((boardRect.top + clearedRows[0] * BLOCK_SIZE) / window.innerHeight, 0.2), 0.85);
+        window.confetti({
+          particleCount: Math.min(25 * linesCount + stageId * 12, 140),
+          spread: 70 + stageId * 12,
+          origin: { x: 0.5, y: originY },
+          colors: ['#00f5ff', '#ff007f', '#ffea00', '#00e676', '#d500f9']
+        });
+      }
+    }
+
+    function detonateFirework(x, y, baseColor) {
+      const count = 42;
+      for (let i = 0; i < count; i++) {
+        const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.1;
+        const speed = 2 + Math.random() * 6.5;
+        particles.push({
+          x, y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          gravity: 0.08,
+          drag: 0.96,
+          size: 3.5 + Math.random() * 3,
+          color: i % 2 === 0 ? baseColor : '#ffea00',
+          alpha: 1,
+          decay: 0.016 + Math.random() * 0.01,
+          rot: 0,
+          vRot: 0,
+          shape: 'circle',
+          vortex: false
+        });
+      }
+      shockwaves.push({
+        x, y,
+        radius: 5,
+        maxRadius: 140,
+        color: baseColor,
+        alpha: 0.9,
+        lineWidth: 4
+      });
+    }
+
+    /* =========================================================================
+     * 5. GAME STATE & GUIDELINE MECHANICS
+     * ========================================================================= */
+    const boardCanvas = document.getElementById('board-canvas');
+    const boardCtx = boardCanvas.getContext('2d');
+    const holdCanvas = document.getElementById('hold-canvas');
+    const holdCtx = holdCanvas.getContext('2d');
+    const nextCanvas = document.getElementById('next-canvas');
+    const nextCtx = nextCanvas.getContext('2d');
+    const lockBarEl = document.getElementById('lock-bar');
+
+    let grid = [];
+    let bag = [];
+    let nextQueue = [];
+    let currentPiece = null;
+    let holdPiece = null;
+    let canHold = true;
+
+    let score = 0;
+    let lines = 0;
+    let level = 1;
+    let combo = -1;
+    let b2bChain = 0;
+    let manualStageOffset = 0; // allows player to test/cycle stages at will
+
+    let isRunning = false;
+    let isPaused = false;
+    let isGameOver = false;
+
+    // Guideline Lock Delay (500ms, max 15 move/rotate resets)
+    const LOCK_DELAY_MS = 500;
+    const MAX_LOCK_MOVES = 15;
+    let lockTimer = 0;
+    let lockMoves = 0;
+    let lowestRowReached = 0;
+    let dropAccumulator = 0;
+    let lastFrameTime = performance.now();
+
+    // T-Spin Tracking
+    let lastActionWasRotation = false;
+    let lastKickIndex = 0;
+
+    // Hard drop trail beams
+    let dropTrails = [];
+    // White flash animation on cleared rows
+    let rowFlashEffects = [];
+
+    // Input DAS / ARR State
+    const DAS_MS = 130;
+    const ARR_MS = 25;
+    const keys = {
+      left: { down: false, timer: 0, repTimer: 0 },
+      right: { down: false, timer: 0, repTimer: 0 },
+      down: { down: false }
+    };
+    let lastDir = null;
+
+    function getCurrentStageIndex() {
+      const naturalStage = Math.floor(lines / 10);
+      return Math.min((naturalStage + manualStageOffset) % EFFECT_STAGES.length, EFFECT_STAGES.length - 1);
+    }
+
+    function getCurrentStage() {
+      return EFFECT_STAGES[getCurrentStageIndex()];
+    }
+
+    function createEmptyGrid() {
+      return Array.from({ length: TOTAL_ROWS }, () => Array(COLS).fill(null));
+    }
+
+    function refillBag() {
+      const types = [...PIECE_TYPES];
+      // Fisher-Yates shuffle
+      for (let i = types.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [types[i], types[j]] = [types[j], types[i]];
+      }
+      bag.push(...types);
+    }
+
+    function pullFromBag() {
+      if (bag.length < 7) refillBag();
+      return bag.shift();
+    }
+
+    function spawnPiece(type) {
+      const matrix = PIECES[type].shapes[0];
+      const col = Math.floor((COLS - matrix[0].length) / 2);
+      // Spawn just above visible area (row 18..19)
+      const row = BUFFER_ROWS - 2;
+
+      currentPiece = {
+        type,
+        rot: 0,
+        row,
+        col,
+        matrix
+      };
+
+      lockTimer = 0;
+      lockMoves = 0;
+      lowestRowReached = row;
+      lastActionWasRotation = false;
+      lastKickIndex = 0;
+
+      // Immediately drop 1 row if clear (Guideline standard)
+      if (!checkCollision(currentPiece.row + 1, currentPiece.col, currentPiece.matrix)) {
+        currentPiece.row++;
+        lowestRowReached = currentPiece.row;
+      }
+
+      // Block Out Check (Game Over)
+      if (checkCollision(currentPiece.row, currentPiece.col, currentPiece.matrix)) {
+        triggerGameOver();
+      }
+    }
+
+    function checkCollision(r, c, matrix) {
+      for (let y = 0; y < matrix.length; y++) {
+        for (let x = 0; x < matrix[y].length; x++) {
+          if (!matrix[y][x]) continue;
+          const nr = r + y;
+          const nc = c + x;
+          if (nc < 0 || nc >= COLS || nr >= TOTAL_ROWS) return true;
+          if (nr >= 0 && grid[nr][nc]) return true;
+        }
+      }
+      return false;
+    }
+
+    function isGrounded() {
+      if (!currentPiece) return false;
+      return checkCollision(currentPiece.row + 1, currentPiece.col, currentPiece.matrix);
+    }
+
+    function getGhostRow() {
+      if (!currentPiece) return 0;
+      let r = currentPiece.row;
+      while (!checkCollision(r + 1, currentPiece.col, currentPiece.matrix)) {
+        r++;
+      }
+      return r;
+    }
+
+    function resetLockDelayOnMove() {
+      if (isGrounded() && lockMoves < MAX_LOCK_MOVES) {
+        lockTimer = 0;
+        lockMoves++;
+      }
+    }
+
+    function moveHorizontal(dir) {
+      if (!isRunning || isPaused || !currentPiece) return false;
+      if (!checkCollision(currentPiece.row, currentPiece.col + dir, currentPiece.matrix)) {
+        currentPiece.col += dir;
+        lastActionWasRotation = false;
+        resetLockDelayOnMove();
+        sound.playMove();
+        return true;
+      }
+      return false;
+    }
+
+    function rotatePiece(dir) {
+      // dir: 1 = CW, 3 = CCW, 2 = 180
+      if (!isRunning || isPaused || !currentPiece) return;
+      const oldRot = currentPiece.rot;
+      const newRot = (oldRot + dir) % 4;
+      const newMatrix = PIECES[currentPiece.type].shapes[newRot];
+
+      const key = `${oldRot}>${newRot}`;
+      let kicks = [[0, 0]];
+      if (currentPiece.type === 'I') {
+        kicks = I_KICKS[key] || [[0, 0]];
+      } else if (currentPiece.type !== 'O') {
+        kicks = JLSTZ_KICKS[key] || [[0, 0]];
+      }
+
+      for (let i = 0; i < kicks.length; i++) {
+        const [dx, dyUp] = kicks[i];
+        const testCol = currentPiece.col + dx;
+        const testRow = currentPiece.row - dyUp; // SRS +Y is up -> -row
+        if (!checkCollision(testRow, testCol, newMatrix)) {
+          currentPiece.col = testCol;
+          currentPiece.row = testRow;
+          currentPiece.rot = newRot;
+          currentPiece.matrix = newMatrix;
+          lastActionWasRotation = true;
+          lastKickIndex = i;
+          if (currentPiece.row > lowestRowReached) {
+            lowestRowReached = currentPiece.row;
+            lockMoves = 0;
+            lockTimer = 0;
+          } else {
+            resetLockDelayOnMove();
+          }
+
+          // Check if this rotation creates a T-Spin setup for immediate audio feedback
+          const tspinCheck = detectTSpin();
+          sound.playRotate(tspinCheck.isTSpin || tspinCheck.isMini);
+          return;
+        }
+      }
+    }
+
+    // Official 3-Corner T-Spin & Mini T-Spin Detection
+    function detectTSpin() {
+      if (!currentPiece || currentPiece.type !== 'T' || !lastActionWasRotation) {
+        return { isTSpin: false, isMini: false };
+      }
+      const r = currentPiece.row;
+      const c = currentPiece.col;
+      // 4 corners of the 3x3 T bounding box: (0,0), (0,2), (2,0), (2,2)
+      const corners = [
+        [r, c],
+        [r, c + 2],
+        [r + 2, c],
+        [r + 2, c + 2]
+      ];
+      const occupied = corners.map(([yr, xc]) => {
+        if (xc < 0 || xc >= COLS || yr >= TOTAL_ROWS) return true; // wall/floor counts as occupied
+        if (yr < 0) return false;
+        return Boolean(grid[yr][xc]);
+      });
+
+      const count = occupied.filter(Boolean).length;
+      if (count < 3) return { isTSpin: false, isMini: false };
+
+      // Front two corners depend on rotation state (0: top, 1: right, 2: bottom, 3: left)
+      const frontIndices = {
+        0: [0, 1],
+        1: [1, 3],
+        2: [2, 3],
+        3: [0, 2]
+      }[currentPiece.rot];
+
+      const frontOccupied = occupied[frontIndices[0]] && occupied[frontIndices[1]];
+      // Guideline: 5th kick (index 4, TST kick) always upgrades Mini to Full T-Spin
+      if (frontOccupied || lastKickIndex === 4) {
+        return { isTSpin: true, isMini: false };
+      }
+      return { isTSpin: false, isMini: true };
+    }
+
+    function holdCurrentPiece() {
+      if (!isRunning || isPaused || !currentPiece || !canHold) return;
+      sound.playHold();
+      const prevType = currentPiece.type;
+      canHold = false;
+      if (holdPiece === null) {
+        holdPiece = prevType;
+        spawnPiece(nextQueue.shift());
+        nextQueue.push(pullFromBag());
+      } else {
+        const swapType = holdPiece;
+        holdPiece = prevType;
+        spawnPiece(swapType);
+      }
+      drawHoldAndNext();
+    }
+
+    function softDropStep() {
+      if (!isRunning || isPaused || !currentPiece) return false;
+      if (!checkCollision(currentPiece.row + 1, currentPiece.col, currentPiece.matrix)) {
+        currentPiece.row++;
+        score += 1;
+        if (currentPiece.row > lowestRowReached) {
+          lowestRowReached = currentPiece.row;
+          lockMoves = 0;
+          lockTimer = 0;
+        }
+        updateUI();
+        return true;
+      }
+      return false;
+    }
+
+    function hardDrop() {
+      if (!isRunning || isPaused || !currentPiece) return;
+      const startRow = currentPiece.row;
+      const ghostRow = getGhostRow();
+      const dropDist = Math.max(0, ghostRow - startRow);
+      score += dropDist * 2;
+
+      // Add neon light-beam trail
+      const pInfo = PIECES[currentPiece.type];
+      for (let y = 0; y < currentPiece.matrix.length; y++) {
+        for (let x = 0; x < currentPiece.matrix[y].length; x++) {
+          if (currentPiece.matrix[y][x]) {
+            dropTrails.push({
+              col: currentPiece.col + x,
+              topRow: Math.max(0, startRow + y - BUFFER_ROWS),
+              bottomRow: Math.max(0, ghostRow + y - BUFFER_ROWS),
+              color: pInfo.color,
+              alpha: 0.75
+            });
+          }
+        }
+      }
+
+      currentPiece.row = ghostRow;
+      sound.playHardDrop(currentPiece.type);
+      addScreenShake(4.5);
+      lockPiece();
+    }
+
+    function lockPiece() {
+      if (!currentPiece) return;
+      const tspin = detectTSpin();
+      const pInfo = PIECES[currentPiece.type];
+
+      // Write piece to grid
+      let lockedAboveVisible = true;
+      for (let y = 0; y < currentPiece.matrix.length; y++) {
+        for (let x = 0; x < currentPiece.matrix[y].length; x++) {
+          if (!currentPiece.matrix[y][x]) continue;
+          const r = currentPiece.row + y;
+          const c = currentPiece.col + x;
+          if (r >= BUFFER_ROWS) lockedAboveVisible = false;
+          if (r >= 0 && r < TOTAL_ROWS && c >= 0 && c < COLS) {
+            grid[r][c] = {
+              type: currentPiece.type,
+              color: pInfo.color,
+              light: pInfo.light,
+              dark: pInfo.dark,
+              glow: pInfo.glow
+            };
+          }
+        }
+      }
+
+      // Lock Out Check (entire piece locked above visible skyline)
+      if (lockedAboveVisible) {
+        triggerGameOver();
+        return;
+      }
+
+      // Check for full lines
+      const fullRows = [];
+      const clearedCells = [];
+      for (let r = 0; r < TOTAL_ROWS; r++) {
+        if (grid[r].every(cell => cell !== null)) {
+          fullRows.push(r);
+          const visRow = Math.max(0, r - BUFFER_ROWS);
+          for (let c = 0; c < COLS; c++) {
+            clearedCells.push({
+              col: c,
+              visibleRow: visRow,
+              color: grid[r][c].color
+            });
+          }
+        }
+      }
+
+      const prevStageIdx = getCurrentStageIndex();
+      const clearedCount = fullRows.length;
+
+      if (clearedCount > 0) {
+        // White flash bar on cleared rows
+        fullRows.forEach(r => {
+          if (r >= BUFFER_ROWS) {
+            rowFlashEffects.push({ visRow: r - BUFFER_ROWS, alpha: 1.0 });
+          }
+        });
+
+        // Remove cleared rows and unshift empty rows
+        for (const r of fullRows) {
+          grid.splice(r, 1);
+          grid.unshift(Array(COLS).fill(null));
+        }
+
+        lines += clearedCount;
+        level = Math.floor(lines / 10) + 1;
+        combo++;
+
+        // Check All Clear (Perfect Clear)
+        const isAllClear = grid.every(row => row.every(cell => cell === null));
+
+        // Scoring & B2B Calculation (Official Guideline)
+        const isDifficult = clearedCount === 4 || tspin.isTSpin || tspin.isMini;
+        const isB2BHit = isDifficult && b2bChain > 0;
+        const b2bMult = isB2BHit ? 1.5 : 1.0;
+
+        let basePoints = 0;
+        let actionTitle = '';
+        let popupColor = '#00f5ff';
+
+        if (tspin.isTSpin) {
+          popupColor = '#d500f9';
+          if (clearedCount === 1) { basePoints = 800; actionTitle = 'T-SPIN SINGLE!'; }
+          else if (clearedCount === 2) { basePoints = 1200; actionTitle = 'T-SPIN DOUBLE!!'; }
+          else if (clearedCount === 3) { basePoints = 1600; actionTitle = 'T-SPIN TRIPLE!!!'; }
+        } else if (tspin.isMini) {
+          popupColor = '#d500f9';
+          if (clearedCount === 1) { basePoints = 200; actionTitle = 'T-SPIN MINI SINGLE'; }
+          else if (clearedCount === 2) { basePoints = 400; actionTitle = 'T-SPIN MINI DOUBLE'; }
+        } else {
+          if (clearedCount === 1) { basePoints = 100; actionTitle = 'SINGLE'; popupColor = '#00f5ff'; }
+          else if (clearedCount === 2) { basePoints = 300; actionTitle = 'DOUBLE!'; popupColor = '#00e676'; }
+          else if (clearedCount === 3) { basePoints = 500; actionTitle = 'TRIPLE!!'; popupColor = '#ff9100'; }
+          else if (clearedCount === 4) { basePoints = 800; actionTitle = '⚡ TETRIS!! ⚡'; popupColor = '#ffea00'; }
+        }
+
+        if (isDifficult) b2bChain++;
+        else b2bChain = 0;
+
+        let totalGain = Math.floor(basePoints * b2bMult) * level;
+        if (combo > 0) {
+          totalGain += 50 * combo * level;
+        }
+        if (isAllClear) {
+          totalGain += 2000 * level;
+          actionTitle = '🌟 PERFECT ALL CLEAR!! 🌟';
+          popupColor = '#ffffff';
+        }
+
+        score += totalGain;
+
+        const subParts = [];
+        if (isB2BHit) subParts.push(`BACK-TO-BACK x${b2bChain}`);
+        if (combo > 0) subParts.push(`${combo} REN COMBO!`);
+        subParts.push(`+${totalGain.toLocaleString()}`);
+
+        const stageObj = getCurrentStage();
+        spawnFloatingCallout(
+          actionTitle,
+          subParts.join(' • '),
+          popupColor,
+          clearedCount >= 4 || tspin.isTSpin || isAllClear ? 1.35 : 1.0
+        );
+
+        const visibleClearedRows = fullRows.map(r => Math.max(0, r - BUFFER_ROWS));
+        spawnLineExplosion(
+          visibleClearedRows,
+          clearedCells,
+          stageObj.id,
+          clearedCount,
+          tspin.isTSpin || tspin.isMini,
+          isB2BHit,
+          combo,
+          isAllClear
+        );
+
+        sound.playLineClearExplosion(
+          clearedCount,
+          tspin.isTSpin || tspin.isMini,
+          isB2BHit,
+          combo,
+          stageObj.id,
+          isAllClear
+        );
+
+        // Check if 10-line Effect Stage Upgraded!
+        const newStageIdx = getCurrentStageIndex();
+        if (newStageIdx !== prevStageIdx) {
+          triggerStageUpgradeBanner(EFFECT_STAGES[newStageIdx]);
+        }
+      } else {
+        // No lines cleared
+        combo = -1;
+        if (tspin.isTSpin) {
+          const pts = 400 * level;
+          score += pts;
+          spawnFloatingCallout('T-SPIN!', `+${pts}`, '#d500f9', 0.95);
+        } else if (tspin.isMini) {
+          const pts = 100 * level;
+          score += pts;
+          spawnFloatingCallout('T-SPIN MINI', `+${pts}`, '#d500f9', 0.85);
+        }
+      }
+
+      // Check stack height for BGM danger tension
+      let highestOccupiedVisRow = VISIBLE_ROWS;
+      for (let r = BUFFER_ROWS; r < TOTAL_ROWS; r++) {
+        if (grid[r].some(c => c !== null)) {
+          highestOccupiedVisRow = r - BUFFER_ROWS;
+          break;
+        }
+      }
+      sound.dangerLevel = highestOccupiedVisRow <= 5 ? 1 : 0;
+
+      canHold = true;
+      updateUI();
+      spawnPiece(nextQueue.shift());
+      nextQueue.push(pullFromBag());
+      drawHoldAndNext();
+    }
+
+    function triggerStageUpgradeBanner(stageObj) {
+      sound.playStageUpFanfare();
+      triggerScreenFlash(stageObj.themeColor, 0.85);
+      addScreenShake(24);
+      setTimeout(() => {
+        spawnFloatingCallout(
+          `🔥 STAGE ${stageObj.id} UNLOCKED! 🔥`,
+          stageObj.name,
+          stageObj.themeColor,
+          1.25
+        );
+      }, 220);
+
+      if (window.confetti) {
+        window.confetti({
+          particleCount: 120,
+          spread: 110,
+          origin: { y: 0.4 }
+        });
+      }
+    }
+
+    function updateUI() {
+      document.getElementById('ui-score').textContent = score.toLocaleString();
+      document.getElementById('ui-lines').textContent = lines;
+      document.getElementById('ui-level').textContent = level;
+      document.getElementById('ui-combo').textContent = Math.max(0, combo);
+      document.getElementById('ui-b2b').textContent = `${Math.max(0, b2bChain - 1)}x`;
+
+      const stage = getCurrentStage();
+      document.getElementById('stage-badge').textContent = `STAGE ${stage.id}`;
+      document.getElementById('stage-name').textContent = stage.name;
+
+      const progressIn10 = (lines % 10) / 10 * 100;
+      document.getElementById('stage-meter-fill').style.width = `${progressIn10}%`;
+      document.getElementById('stage-lines-left').textContent = `${10 - (lines % 10)}L`;
+
+      // Sync BGM BPM & Stage Intensity
+      sound.stageIntensity = stage.id;
+      sound.bpm = Math.min(126 + (level - 1) * 4 + (stage.id - 1) * 5 + (sound.dangerLevel ? 14 : 0), 190);
+      document.getElementById('bpm-readout').textContent = `${sound.bpm} BPM`;
+
+      // Update Board Wrapper Glow to match current stage theme
+      const wrapper = document.getElementById('board-wrapper');
+      wrapper.style.boxShadow = `0 0 35px ${stage.themeColor}66, 0 0 80px ${stage.secondaryColor}44, inset 0 0 20px ${stage.themeColor}44`;
+    }
+
+    /* =========================================================================
+     * 6. RENDERING: BOARD, MINI QUEUES, AND FULLSCREEN FX
+     * ========================================================================= */
+    function drawBevelBlock(ctx, x, y, size, color, light, dark, alpha = 1) {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+
+      // Base fill
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, size, size);
+
+      // Top/Left Highlight Bevel
+      const b = Math.max(2, size * 0.13);
+      ctx.fillStyle = light;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + size, y);
+      ctx.lineTo(x + size - b, y + b);
+      ctx.lineTo(x + b, y + b);
+      ctx.lineTo(x + b, y + size - b);
+      ctx.lineTo(x, y + size);
+      ctx.closePath();
+      ctx.fill();
+
+      // Bottom/Right Shadow Bevel
+      ctx.fillStyle = dark;
+      ctx.beginPath();
+      ctx.moveTo(x + size, y + size);
+      ctx.lineTo(x, y + size);
+      ctx.lineTo(x + b, y + size - b);
+      ctx.lineTo(x + size - b, y + size - b);
+      ctx.lineTo(x + size - b, y + b);
+      ctx.lineTo(x + size, y);
+      ctx.closePath();
+      ctx.fill();
+
+      // Inner Glossy Core
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.14)';
+      ctx.fillRect(x + b + 2, y + b + 2, size - (b + 2) * 2, (size - (b + 2) * 2) * 0.45);
+
+      ctx.restore();
+    }
+
+    function drawHoldAndNext() {
+      // Draw HOLD
+      holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
+      if (holdPiece) {
+        const p = PIECES[holdPiece];
+        const mat = p.shapes[0];
+        const bSize = 22;
+        const ox = (holdCanvas.width - mat[0].length * bSize) / 2;
+        const oy = (holdCanvas.height - mat.length * bSize) / 2 + (holdPiece === 'I' ? 0 : 6);
+        for (let r = 0; r < mat.length; r++) {
+          for (let c = 0; c < mat[r].length; c++) {
+            if (mat[r][c]) {
+              drawBevelBlock(
+                holdCtx,
+                ox + c * bSize,
+                oy + r * bSize,
+                bSize - 1,
+                canHold ? p.color : '#606b85',
+                canHold ? p.light : '#8e99b3',
+                canHold ? p.dark : '#394054'
+              );
+            }
+          }
+        }
+      }
+
+      // Draw NEXT 5
+      nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+      nextQueue.slice(0, 5).forEach((type, idx) => {
+        const p = PIECES[type];
+        const mat = p.shapes[0];
+        const bSize = idx === 0 ? 22 : 17;
+        const ox = (nextCanvas.width - mat[0].length * bSize) / 2;
+        const oy = 12 + idx * 60;
+        for (let r = 0; r < mat.length; r++) {
+          for (let c = 0; c < mat[r].length; c++) {
+            if (mat[r][c]) {
+              drawBevelBlock(
+                nextCtx,
+                ox + c * bSize,
+                oy + r * bSize,
+                bSize - 1,
+                p.color,
+                p.light,
+                p.dark
+              );
+            }
+          }
+        }
+      });
+    }
+
+    function renderBoard() {
+      boardCtx.clearRect(0, 0, boardCanvas.width, boardCanvas.height);
+
+      // 1. Subtle Cyber Grid Lines
+      boardCtx.strokeStyle = 'rgba(0, 245, 255, 0.07)';
+      boardCtx.lineWidth = 1;
+      for (let c = 1; c < COLS; c++) {
+        boardCtx.beginPath();
+        boardCtx.moveTo(c * BLOCK_SIZE, 0);
+        boardCtx.lineTo(c * BLOCK_SIZE, boardCanvas.height);
+        boardCtx.stroke();
+      }
+      for (let r = 1; r < VISIBLE_ROWS; r++) {
+        boardCtx.beginPath();
+        boardCtx.moveTo(0, r * BLOCK_SIZE);
+        boardCtx.lineTo(boardCanvas.width, r * BLOCK_SIZE);
+        boardCtx.stroke();
+      }
+
+      // 2. Hard Drop Light Trails
+      for (let i = dropTrails.length - 1; i >= 0; i--) {
+        const tr = dropTrails[i];
+        const grad = boardCtx.createLinearGradient(0, tr.topRow * BLOCK_SIZE, 0, (tr.bottomRow + 1) * BLOCK_SIZE);
+        grad.addColorStop(0, 'transparent');
+        grad.addColorStop(1, tr.color);
+        boardCtx.save();
+        boardCtx.globalAlpha = tr.alpha * 0.55;
+        boardCtx.fillStyle = grad;
+        boardCtx.fillRect(
+          tr.col * BLOCK_SIZE + 2,
+          tr.topRow * BLOCK_SIZE,
+          BLOCK_SIZE - 4,
+          (tr.bottomRow - tr.topRow + 1) * BLOCK_SIZE
+        );
+        boardCtx.restore();
+        tr.alpha -= 0.06;
+        if (tr.alpha <= 0) dropTrails.splice(i, 1);
+      }
+
+      // 3. Locked Stack Blocks
+      for (let r = BUFFER_ROWS; r < TOTAL_ROWS; r++) {
+        const visR = r - BUFFER_ROWS;
+        for (let c = 0; c < COLS; c++) {
+          const cell = grid[r][c];
+          if (cell) {
+            drawBevelBlock(
+              boardCtx,
+              c * BLOCK_SIZE,
+              visR * BLOCK_SIZE,
+              BLOCK_SIZE - 1,
+              cell.color,
+              cell.light,
+              cell.dark
+            );
+          }
+        }
+      }
+
+      // 4. Ghost Piece & Active Piece
+      if (currentPiece && isRunning && !isGameOver) {
+        const pInfo = PIECES[currentPiece.type];
+        const ghostRow = getGhostRow();
+
+        // Draw Ghost Piece
+        boardCtx.save();
+        boardCtx.strokeStyle = pInfo.color;
+        boardCtx.lineWidth = 2;
+        boardCtx.shadowColor = pInfo.color;
+        boardCtx.shadowBlur = 8;
+        for (let y = 0; y < currentPiece.matrix.length; y++) {
+          for (let x = 0; x < currentPiece.matrix[y].length; x++) {
+            if (!currentPiece.matrix[y][x]) continue;
+            const gr = ghostRow + y - BUFFER_ROWS;
+            const gc = currentPiece.col + x;
+            if (gr >= 0) {
+              boardCtx.fillStyle = pInfo.color + '26';
+              boardCtx.fillRect(gc * BLOCK_SIZE + 2, gr * BLOCK_SIZE + 2, BLOCK_SIZE - 4, BLOCK_SIZE - 4);
+              boardCtx.strokeRect(gc * BLOCK_SIZE + 2, gr * BLOCK_SIZE + 2, BLOCK_SIZE - 4, BLOCK_SIZE - 4);
+            }
+          }
+        }
+        boardCtx.restore();
+
+        // Draw Active Piece (pulses slightly during Lock Delay)
+        const lockPulse = isGrounded() ? 1 - (lockTimer / LOCK_DELAY_MS) * 0.35 : 1;
+        for (let y = 0; y < currentPiece.matrix.length; y++) {
+          for (let x = 0; x < currentPiece.matrix[y].length; x++) {
+            if (!currentPiece.matrix[y][x]) continue;
+            const pr = currentPiece.row + y - BUFFER_ROWS;
+            const pc = currentPiece.col + x;
+            if (pr >= -1) {
+              drawBevelBlock(
+                boardCtx,
+                pc * BLOCK_SIZE,
+                pr * BLOCK_SIZE,
+                BLOCK_SIZE - 1,
+                pInfo.color,
+                pInfo.light,
+                pInfo.dark,
+                lockPulse
+              );
+            }
+          }
+        }
+      }
+
+      // 5. Cleared Row White-Hot Flash Bars
+      for (let i = rowFlashEffects.length - 1; i >= 0; i--) {
+        const rf = rowFlashEffects[i];
+        boardCtx.save();
+        boardCtx.globalAlpha = rf.alpha;
+        boardCtx.fillStyle = '#ffffff';
+        boardCtx.shadowColor = '#00f5ff';
+        boardCtx.shadowBlur = 25;
+        boardCtx.fillRect(0, rf.visRow * BLOCK_SIZE, boardCanvas.width, BLOCK_SIZE);
+        boardCtx.restore();
+        rf.alpha -= 0.08;
+        if (rf.alpha <= 0) rowFlashEffects.splice(i, 1);
+      }
+    }
+
+    function renderBackgroundAndFX() {
+      const stage = getCurrentStage();
+
+      // 1. Background Starfield & Audio-Reactive Equalizer
+      bgCtx.fillStyle = 'rgba(5, 5, 15, 0.38)';
+      bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+
+      let audioEnergy = 0;
+      if (sound.analyser && sound.freqData && !sound.muted) {
+        sound.analyser.getByteFrequencyData(sound.freqData);
+        for (let i = 0; i < 8; i++) audioEnergy += sound.freqData[i];
+        audioEnergy /= (8 * 255);
+      }
+
+      // Draw Mini Audio Visualizer in Left Panel
+      vizCtx.clearRect(0, 0, vizCanvas.width, vizCanvas.height);
+      if (sound.analyser && sound.freqData) {
+        const barCount = 16;
+        const barW = vizCanvas.width / barCount;
+        for (let i = 0; i < barCount; i++) {
+          const val = sound.muted ? 4 : (sound.freqData[i] / 255) * vizCanvas.height;
+          vizCtx.fillStyle = i % 2 === 0 ? stage.themeColor : stage.secondaryColor;
+          vizCtx.fillRect(i * barW + 1, vizCanvas.height - val, barW - 2, val);
+        }
+      }
+
+      // Warp stars faster on higher stages
+      const speedMult = stage.bgSpeed + audioEnergy * 4.5;
+      for (const st of stars) {
+        st.y += st.z * speedMult;
+        if (st.y > bgCanvas.height) {
+          st.y = 0;
+          st.x = Math.random() * bgCanvas.width;
+        }
+        bgCtx.fillStyle = stage.id >= 5
+          ? `hsl(${(st.hue + performance.now() * 0.1) % 360}, 100%, 75%)`
+          : stage.themeColor;
+        bgCtx.fillRect(st.x, st.y, st.z * 1.4, st.z * (stage.id >= 6 ? 6 : 1.8));
+      }
+
+      // 2. Foreground High-Energy Explosions Canvas
+      fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+
+      // Apply Screen Shake to Arena Container
+      const arenaEl = document.getElementById('arena-container');
+      if (shakePower > 0.2) {
+        const dx = (Math.random() - 0.5) * shakePower;
+        const dy = (Math.random() - 0.5) * shakePower;
+        arenaEl.style.transform = `translate(${dx}px, ${dy}px)`;
+        shakePower *= 0.87;
+      } else {
+        shakePower = 0;
+        arenaEl.style.transform = 'none';
+      }
+
+      // A. Shockwave Rings
+      for (let i = shockwaves.length - 1; i >= 0; i--) {
+        const sw = shockwaves[i];
+        fxCtx.save();
+        fxCtx.beginPath();
+        fxCtx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
+        fxCtx.strokeStyle = sw.color;
+        fxCtx.globalAlpha = sw.alpha;
+        fxCtx.lineWidth = sw.lineWidth;
+        fxCtx.shadowColor = sw.color;
+        fxCtx.shadowBlur = 20;
+        fxCtx.stroke();
+        fxCtx.restore();
+
+        sw.radius += (sw.maxRadius - sw.radius) * 0.14;
+        sw.alpha -= 0.032;
+        sw.lineWidth *= 0.96;
+        if (sw.alpha <= 0) shockwaves.splice(i, 1);
+      }
+
+      // B. Horizontal Cyber Lasers
+      for (let i = lasers.length - 1; i >= 0; i--) {
+        const lz = lasers[i];
+        fxCtx.save();
+        fxCtx.globalAlpha = lz.alpha;
+        fxCtx.fillStyle = lz.color;
+        fxCtx.shadowColor = lz.color;
+        fxCtx.shadowBlur = 35;
+        fxCtx.fillRect(0, lz.y - lz.height / 2, fxCanvas.width, lz.height);
+
+        fxCtx.fillStyle = lz.coreColor;
+        fxCtx.fillRect(0, lz.y - lz.height * 0.2, fxCanvas.width, lz.height * 0.4);
+        fxCtx.restore();
+
+        lz.height *= 0.88;
+        lz.alpha -= 0.055;
+        if (lz.alpha <= 0) lasers.splice(i, 1);
+      }
+
+      // C. Thunder God Lightning Bolts
+      for (let i = lightnings.length - 1; i >= 0; i--) {
+        const lt = lightnings[i];
+        fxCtx.save();
+        fxCtx.globalAlpha = lt.alpha;
+        fxCtx.strokeStyle = '#ffffff';
+        fxCtx.shadowColor = lt.color;
+        fxCtx.shadowBlur = 25;
+        fxCtx.lineWidth = lt.width;
+        fxCtx.beginPath();
+        lt.points.forEach((pt, idx) => {
+          if (idx === 0) fxCtx.moveTo(pt.x, pt.y);
+          else fxCtx.lineTo(pt.x, pt.y);
+        });
+        fxCtx.stroke();
+        fxCtx.restore();
+
+        lt.alpha -= 0.06;
+        if (lt.alpha <= 0) lightnings.splice(i, 1);
+      }
+
+      // D. Ascending Firework Rockets
+      for (let i = fireworkRockets.length - 1; i >= 0; i--) {
+        const rk = fireworkRockets[i];
+        rk.x += rk.vx;
+        rk.y += rk.vy;
+        // Trail spark
+        particles.push({
+          x: rk.x, y: rk.y,
+          vx: (Math.random() - 0.5) * 1.5,
+          vy: 1 + Math.random() * 2,
+          gravity: 0.05, drag: 0.95,
+          size: 3, color: rk.color,
+          alpha: 0.9, decay: 0.05,
+          rot: 0, vRot: 0, shape: 'circle', vortex: false
+        });
+        if (rk.y <= rk.targetY || rk.vy >= 0) {
+          detonateFirework(rk.x, rk.y, rk.color);
+          fireworkRockets.splice(i, 1);
+        }
+      }
+
+      // E. High-Density Explosion Particles
+      const centerX = fxCanvas.width / 2;
+      const centerY = fxCanvas.height / 2;
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.vx *= p.drag;
+        p.vy = p.vy * p.drag + p.gravity;
+
+        // Stage 5+ Vortex Swirl Acceleration
+        if (p.vortex) {
+          const dx = p.x - centerX;
+          const dy = p.y - centerY;
+          const dist = Math.hypot(dx, dy) + 1;
+          p.vx += (-dy / dist) * 0.35;
+          p.vy += (dx / dist) * 0.35;
+        }
+
+        p.x += p.vx;
+        p.y += p.vy;
+        p.rot += p.vRot;
+        p.alpha -= p.decay;
+
+        if (p.alpha <= 0) {
+          particles.splice(i, 1);
+          continue;
+        }
+
+        fxCtx.save();
+        fxCtx.globalAlpha = p.alpha;
+        fxCtx.translate(p.x, p.y);
+        fxCtx.rotate(p.rot);
+        fxCtx.fillStyle = p.color;
+        fxCtx.shadowColor = p.color;
+        fxCtx.shadowBlur = 10;
+
+        if (p.shape === 'circle') {
+          fxCtx.beginPath();
+          fxCtx.arc(0, 0, p.size * 0.6, 0, Math.PI * 2);
+          fxCtx.fill();
+        } else if (p.shape === 'spark') {
+          fxCtx.fillRect(-p.size * 1.6, -1.5, p.size * 3.2, 3);
+        } else if (p.shape === 'triangle') {
+          fxCtx.beginPath();
+          fxCtx.moveTo(0, -p.size);
+          fxCtx.lineTo(p.size, p.size);
+          fxCtx.lineTo(-p.size, p.size);
+          fxCtx.closePath();
+          fxCtx.fill();
+        } else {
+          fxCtx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+        }
+        fxCtx.restore();
+      }
+    }
+
+    /* =========================================================================
+     * 7. MAIN GAME LOOP & TIMING (Gravity, DAS/ARR, Lock Delay)
+     * ========================================================================= */
+    function getGravityMs(lvl) {
+      // Official Marathon Guideline Gravity Formula: (0.8 - ((Level - 1) * 0.007))^(Level - 1) seconds
+      const sec = Math.pow(0.8 - (lvl - 1) * 0.007, lvl - 1);
+      return Math.max(sec * 1000, 16);
+    }
+
+    function handleContinuousInput(dt) {
+      if (!isRunning || isPaused || !currentPiece) return;
+
+      const activeDir = lastDir && keys[lastDir].down
+        ? lastDir
+        : (keys.left.down ? 'left' : (keys.right.down ? 'right' : null));
+
+      if (activeDir) {
+        const k = keys[activeDir];
+        const moveSign = activeDir === 'left' ? -1 : 1;
+        k.timer += dt;
+        if (k.timer >= DAS_MS) {
+          k.repTimer += dt;
+          while (k.repTimer >= ARR_MS) {
+            k.repTimer -= ARR_MS;
+            if (!moveHorizontal(moveSign)) break;
+          }
+        }
+      }
+    }
+
+    function gameLoop(now) {
+      const dt = Math.min(now - lastFrameTime, 100);
+      lastFrameTime = now;
+
+      if (isRunning && !isPaused && !isGameOver && currentPiece) {
+        handleContinuousInput(dt);
+
+        // Gravity & Soft Drop
+        const baseGravity = getGravityMs(level);
+        const effectiveGravity = keys.down.down ? Math.min(baseGravity / 20, 35) : baseGravity;
+
+        dropAccumulator += dt;
+        while (dropAccumulator >= effectiveGravity) {
+          dropAccumulator -= effectiveGravity;
+          if (!checkCollision(currentPiece.row + 1, currentPiece.col, currentPiece.matrix)) {
+            currentPiece.row++;
+            if (keys.down.down) {
+              score += 1;
+              updateUI();
+            }
+            if (currentPiece.row > lowestRowReached) {
+              lowestRowReached = currentPiece.row;
+              lockMoves = 0;
+              lockTimer = 0;
+            }
+          } else {
+            dropAccumulator = 0;
+            break;
+          }
+        }
+
+        // Guideline Lock Delay (500ms or 15 moves cap)
+        if (isGrounded()) {
+          lockTimer += dt;
+          const pct = Math.min((lockTimer / LOCK_DELAY_MS) * 100, 100);
+          lockBarEl.style.width = `${pct}%`;
+          if (lockTimer >= LOCK_DELAY_MS || lockMoves >= MAX_LOCK_MOVES) {
+            lockBarEl.style.width = '0%';
+            lockPiece();
+          }
+        } else {
+          lockBarEl.style.width = '0%';
+        }
+      }
+
+      renderBoard();
+      renderBackgroundAndFX();
+      requestAnimationFrame(gameLoop);
+    }
+
+    /* =========================================================================
+     * 8. START / PAUSE / GAME OVER / DEMO CONTROLS
+     * ========================================================================= */
+    const modalEl = document.getElementById('overlay-modal');
+    const modalTitleEl = document.getElementById('modal-title');
+    const modalSubEl = document.getElementById('modal-sub');
+    const startBtnEl = document.getElementById('btn-start');
+
+    function startGame() {
+      sound.init();
+      grid = createEmptyGrid();
+      bag = [];
+      nextQueue = [];
+      refillBag();
+      for (let i = 0; i < 6; i++) nextQueue.push(pullFromBag());
+
+      holdPiece = null;
+      canHold = true;
+      score = 0;
+      lines = 0;
+      level = 1;
+      combo = -1;
+      b2bChain = 0;
+      sound.dangerLevel = 0;
+
+      isRunning = true;
+      isPaused = false;
+      isGameOver = false;
+      modalEl.classList.add('hidden');
+
+      spawnPiece(nextQueue.shift());
+      drawHoldAndNext();
+      updateUI();
+      sound.startBGM();
+    }
+
+    function togglePause() {
+      if (!isRunning || isGameOver) return;
+      isPaused = !isPaused;
+      if (isPaused) {
+        sound.stopBGM();
+        modalTitleEl.innerHTML = 'PAUSED';
+        modalSubEl.innerHTML = '一息ついたら再開しよう！';
+        startBtnEl.textContent = 'RESUME';
+        modalEl.classList.remove('hidden');
+      } else {
+        modalEl.classList.add('hidden');
+        sound.startBGM();
+      }
+    }
+
+    function triggerGameOver() {
+      isRunning = false;
+      isGameOver = true;
+      sound.stopBGM();
+      sound.playGameOver();
+      addScreenShake(20);
+      modalTitleEl.innerHTML = 'GAME OVER';
+      modalSubEl.innerHTML = `FINAL SCORE: <strong style="color:#ffea00">${score.toLocaleString()}</strong> (${lines} LINES / STAGE ${getCurrentStage().id})`;
+      startBtnEl.textContent = 'RETRY GAME';
+      modalEl.classList.remove('hidden');
+    }
+
+    startBtnEl.addEventListener('click', () => {
+      if (isPaused) togglePause();
+      else startGame();
+    });
+
+    document.getElementById('btn-mute').addEventListener('click', (e) => {
+      sound.init();
+      sound.setMuted(!sound.muted);
+      e.currentTarget.textContent = sound.muted ? '🔇 MUTED' : '🔊 SOUND ON';
+    });
+
+    document.getElementById('btn-pause').addEventListener('click', () => {
+      togglePause();
+    });
+
+    // FX Demo Button: Lets player immediately trigger a spectacular explosion in the current stage!
+    document.getElementById('btn-demo-fx').addEventListener('click', () => {
+      sound.init();
+      const stage = getCurrentStage();
+      const demoRows = [8, 9, 10, 11];
+      const demoCells = [];
+      const colors = ['#00f5ff', '#ff007f', '#ffea00', '#00e676', '#d500f9', '#ff9100'];
+      demoRows.forEach(visRow => {
+        for (let c = 0; c < COLS; c++) {
+          demoCells.push({
+            col: c,
+            visibleRow: visRow,
+            color: colors[(c + visRow) % colors.length]
+          });
+        }
+        rowFlashEffects.push({ visRow, alpha: 1.0 });
+      });
+
+      spawnFloatingCallout(
+        `💥 STAGE ${stage.id} HYPER BLAST!! 💥`,
+        stage.name,
+        stage.themeColor,
+        1.25
+      );
+      spawnLineExplosion(demoRows, demoCells, stage.id, 4, true, true, 5, stage.id >= 6);
+      sound.playLineClearExplosion(4, true, true, 5, stage.id, stage.id >= 6);
+    });
+
+    // Stage Switch Button: Lets player cycle through all 6 stages immediately
+    document.getElementById('btn-next-stage').addEventListener('click', () => {
+      sound.init();
+      manualStageOffset = (manualStageOffset + 1) % EFFECT_STAGES.length;
+      updateUI();
+      triggerStageUpgradeBanner(getCurrentStage());
+    });
+
+    // Keyboard Controls
+    window.addEventListener('keydown', (e) => {
+      if (['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'Space'].includes(e.code)) {
+        e.preventDefault();
+      }
+      if (e.code === 'KeyP' || e.code === 'Escape') {
+        togglePause();
+        return;
+      }
+      if (e.code === 'KeyR') {
+        startGame();
+        return;
+      }
+      if (!isRunning || isPaused || isGameOver) {
+        if (e.code === 'Enter' || e.code === 'Space') startGame();
+        return;
+      }
+
+      if (e.repeat) return; // Handled smoothly by custom DAS/ARR
+
+      switch (e.code) {
+        case 'ArrowLeft':
+          keys.left.down = true;
+          keys.left.timer = 0;
+          keys.left.repTimer = 0;
+          lastDir = 'left';
+          moveHorizontal(-1);
+          break;
+        case 'ArrowRight':
+          keys.right.down = true;
+          keys.right.timer = 0;
+          keys.right.repTimer = 0;
+          lastDir = 'right';
+          moveHorizontal(1);
+          break;
+        case 'ArrowDown':
+          keys.down.down = true;
+          softDropStep();
+          break;
+        case 'ArrowUp':
+        case 'KeyX':
+          rotatePiece(1); // CW
+          break;
+        case 'KeyZ':
+        case 'ControlLeft':
+        case 'ControlRight':
+          rotatePiece(3); // CCW
+          break;
+        case 'KeyA':
+          rotatePiece(2); // 180 deg
+          break;
+        case 'Space':
+          hardDrop();
+          break;
+        case 'KeyC':
+        case 'ShiftLeft':
+        case 'ShiftRight':
+          holdCurrentPiece();
+          break;
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'ArrowLeft') {
+        keys.left.down = false;
+        if (lastDir === 'left' && keys.right.down) {
+          lastDir = 'right';
+          keys.right.timer = 0;
+        }
+      } else if (e.code === 'ArrowRight') {
+        keys.right.down = false;
+        if (lastDir === 'right' && keys.left.down) {
+          lastDir = 'left';
+          keys.left.timer = 0;
+        }
+      } else if (e.code === 'ArrowDown') {
+        keys.down.down = false;
+      }
+    });
+
+    // Touch / Click Virtual Buttons
+    document.querySelectorAll('.touch-controls button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const act = btn.dataset.act;
+        if (act === 'left') moveHorizontal(-1);
+        else if (act === 'right') moveHorizontal(1);
+        else if (act === 'rotL') rotatePiece(3);
+        else if (act === 'rotR') rotatePiece(1);
+        else if (act === 'soft') softDropStep();
+        else if (act === 'hard') hardDrop();
+        else if (act === 'hold') holdCurrentPiece();
+      });
+    });
+
+    // Initialize UI & Start Render Loop
+    grid = createEmptyGrid();
+    updateUI();
+    requestAnimationFrame(gameLoop);
+  })();
+  </script>
+</body>
+</html>
