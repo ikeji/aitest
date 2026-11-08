@@ -269,7 +269,7 @@ def collect(root):
         if isinstance(links, str):  # 内蔵パーサでは "[a, b]" が文字列で来るので分解する
             links = [x.strip() for x in links.strip("[]").split(",") if x.strip()]
         row["other_html"] = [x for x in (links or []) if isinstance(x, str)]
-        row["extra"] = {k: v for k, v in env.items() if k not in row and k not in ("score", "stats", "links")}
+        row["extra"] = {k: v for k, v in env.items() if k not in row and k not in ("score", "stats", "links", "session")}
         if not has_env and not row["has_index"] and not row["has_idea"]:
             continue  # 無関係なディレクトリ
         rows.append(row)
