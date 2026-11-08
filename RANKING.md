@@ -94,4 +94,6 @@ argon-202611051005 > opus55-202609231032   # Medium 版。10:57 の High 版と�
 argon-202611051057 > opus55-202610141029   # High 版
 argon-202611051057 > opus55-202609231032   # High 版
 argon-202611051005 > argon-202611051057   # Medium 版が High 版より上
+iceman > deepseekv4flash
+haiku55 > inkling2small > ornith
 ```
