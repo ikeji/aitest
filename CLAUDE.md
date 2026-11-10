@@ -48,7 +48,7 @@ run ごとに `<name>-YYYYMMDDHHMM/` があり、`index.html` (生成物) と `e
    - `build_index.py` を実行して並びを確認する。循環の警告が出たらユーザーに伝える。
    - コミットと push は頼まれたときだけ。
 
-## ベンチマークの実行手順 (ローカルモデル / pi-agent)
+## ベンチマークの実行手順
 
 ローカルモデルは別 PC の llama-server (router モード、`--models-preset` の INI でモデルを切り替え) を
 この PC の pi-agent から叩く。ホスト名・IP・ポート・パス・プリセット名などの環境固有の値は
@@ -71,15 +71,13 @@ run ごとに `<name>-YYYYMMDDHHMM/` があり、`index.html` (生成物) と `e
      (`reasoning: true`, `contextWindow: 126976`, `maxTokens: 32768`)。思考が長いモデルは 32k を
      使い切って `stopReason: length` になるので、その場合は `maxTokens: 65536` にして最初からやり直す。
 3. 実行
-   - 作業ディレクトリは `~/tmp/pi/ai`。中身を `IDEA.md` だけにしてから始める (前回の生成物や
-     `/tmp` に残した node_modules などは消す)。
-   - `cd ~/tmp/pi/ai && pi --provider <provider> --model <id> -p 'IDEA.md を実装して'` をバックグラウンドで
-     走らせ、開始・終了時刻 (JST) を記録する。`-p` は先頭 `@` をファイル添付と解釈するので `@IDEA.md` と書かない。
-   - 待っている間にセッションログ `~/.pi/agent/sessions/<cwd-slug>/*.jsonl` のツール呼び出しを監視し、
-     `~/tmp/pi/ai` と `/tmp` 以外のパス (`aitest`, `work/ai`, `~`, `..`, `find`/`locate`/`grep -r`) に
-     触っていないか (他モデルの答えを見ていないか) を確認して、結果を env.yml の notes に書く。
-   - エージェントのテストコマンド (node など) がハングすることがある。pi はタイムアウトしないので、
-     長時間止まっていたら該当プロセスだけ kill して続行させ、notes に記録する。
+   - 作業ディレクトリはハーネスごとに分ける (`pi-agent` は `~/tmp/pi/ai`、`claude-code` は `~/tmp/claude/ai`、`opencode` は `~/tmp/opencode`)。既存のファイル (前回の `IDEA.md` や生成物、`/tmp` に残したテスト用ディレクトリなど) を消した上で、毎回 `aitest/IDEA.md` を新しくコピーして用意する。
+   - バックグラウンドで走らせ、開始・終了時刻 (JST) を記録する:
+     - `pi-agent`: `cd ~/tmp/pi/ai && pi --provider <provider> --model <id> -p 'IDEA.md を実装して'` (`-p` は先頭 `@` をファイル添付と解釈するので `@IDEA.md` と書かない)
+     - `claude-code`: (新モデルで未対応なら先に `claude update`) `cd ~/tmp/claude/ai && claude --model <id> --dangerously-skip-permissions -p 'IDEA.md を実装して'`
+     - `opencode`: `cd ~/tmp/opencode && opencode run -m <provider>/<id> 'IDEA.md を実装して'`
+   - 待っている間にセッションログ (`~/.pi/agent/sessions/<cwd-slug>/*.jsonl`, `~/.claude/projects/<cwd-slug>/*.jsonl`, `~/.local/share/opencode/opencode.db`) のツール呼び出しを監視し、作業ディレクトリと `/tmp` 以外のパス (`aitest`, `work/ai`, `~`, `..`, `find`/`locate`/`grep -r`) に触っていないか (他モデルの答えを見ていないか) を確認して、結果を env.yml の notes に書く。
+   - エージェントのテストコマンド (node など) がハングすることがある。タイムアウトしないハーネスでは、長時間止まっていたら該当プロセスだけ kill して続行させ、notes に記録する。
 4. 登録
    - `aitest/<name>-<終了時刻 YYYYMMDDHHMM>/` を作り、`IDEA.md` と生成された `index.html` をコピーし、
      上の手順どおり `env.yml` を書く。同じ時刻帯にセッションが複数あるときは `session: <ID の一部>` を書く。
