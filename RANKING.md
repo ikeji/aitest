@@ -85,6 +85,7 @@ gemma4 > gemma431b
 gemma4 > museglimmer
 gemma4 > step37flash-202610282328   # ローカル llama.cpp 版
 gemma4 > nemotronbolt
+gemma4 > opus48
 opus55-202609231032 > pulse-alpha-opencode
 opus55-202610141029 > pulse-alpha-opencode
 pulse-alpha-opencode > sonnet55
@@ -96,4 +97,6 @@ argon-202611051057 > opus55-202609231032   # High 版
 argon-202611051005 > argon-202611051057   # Medium 版が High 版より上
 iceman > deepseekv4flash
 haiku55 > inkling2small > ornith
+qwen38-202609160535 > fable5
+grok46 > fable5
 ```

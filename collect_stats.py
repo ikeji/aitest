@@ -351,7 +351,7 @@ def find_sessions(runs):
     unmatched = []  # 名前で run に紐付かなかったセッション (時刻ベース照合の候補)
 
     def note(kind, f, d):
-        if d:
+        if d and (not env_session(d) or env_session(d) in f):
             found[d].append((kind, f))
         else:
             unmatched.append((kind, f))
