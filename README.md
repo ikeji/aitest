@@ -61,8 +61,8 @@ python3 build_index.py     # regenerate index.html and the table in README
 | 40 | [gemini-3.6-flash-high](gemini36flash-202609082352/index.html) | - | google | antigravity-cli | 2026-09-08 23:52 | 2m57s | - | - | C | 1 | 3 | 2 |
 | 41 | [LongCat-2.5](longcat25free-202611051306/index.html) | - | nous | pi-agent | 2026-11-05 13:06 | 20m17s | 82.8k | 68 | C | 1 | 3 | 1 |
 | 42 | [gpt-5.6-terra](gpt56terra-202609032330/index.html) | - | openai | codex | 2026-09-03 23:30 | 2m19s | 6.3k | 45 | C | 1 | 2 | 1 |
-| 43 | [Crouton-Alpha (stealth)](crouton-alpha-202611041124/index.html) | - | openrouter | pi-agent | 2026-11-04 11:24 | 1m17s | 10.9k | 141 | C | 1 | 2 | 1 |
-| 44 | [Crouton-Alpha (stealth)](crouton-alpha-opencode-202611041138/index.html) | - | opencode | opencode | 2026-11-04 11:38 | 2m04s | 10.0k | 80 | C | 1 | 2 | 0 |
+| 43 | [Muse Ember (Crouton-Alpha stealth)](crouton-alpha-202611041124/index.html) | - | openrouter | pi-agent | 2026-11-04 11:24 | 1m17s | 10.9k | 141 | C | 1 | 2 | 1 |
+| 44 | [Muse Ember (Crouton-Alpha stealth)](crouton-alpha-opencode-202611041138/index.html) | - | opencode | opencode | 2026-11-04 11:38 | 2m04s | 10.0k | 80 | C | 1 | 2 | 0 |
 | 45 | [LongCat-2.5-preview](longcat25preview-202610070104/index.html) | 1600B-A48B | opencode | opencode | 2026-10-07 01:04 | 11m18s | 29.6k | 44 | C | 1 | 1 | 1 |
 | 46 | [Flint v1.0 (40B)](flint-202610220857/index.html) | 40B-A2.5B | opencode | opencode | 2026-10-22 08:57 | 13m48s | 76.1k | 92 | C | 1 | 1 | 1 |
 | 47 | [Flint v1.0 (40B)](flint-202610220911/index.html) | 40B-A2.5B | openrouter | pi-agent | 2026-10-22 09:11 | 11m30s | 86.7k | 126 | C | 1 | 1 | 1 |
