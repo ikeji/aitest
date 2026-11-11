@@ -1,0 +1,3036 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>HYPER BLAST TETRIS — 派手エフェクト・テトリス</title>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js" defer></script>
+<style>
+  :root {
+    --bg-deep: #05060d;
+    --panel-bg: rgba(12, 15, 30, 0.78);
+    --panel-border: rgba(110, 220, 255, 0.28);
+    --accent: #00f0ff;
+    --accent-2: #ff2a85;
+    --text-main: #f2f7ff;
+    --text-dim: #8ca0c8;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: radial-gradient(circle at 50% 45%, #111633 0%, #060813 65%, #020308 100%);
+    color: var(--text-main);
+    font-family: 'Segoe UI', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Fullscreen background & foreground VFX canvases */
+  #bgCanvas, #fxCanvas {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+  }
+  #bgCanvas { z-index: 1; }
+  #fxCanvas { z-index: 20; }
+
+  /* Screen flash overlay */
+  #flashOverlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 25;
+    opacity: 0;
+    mix-blend-mode: screen;
+  }
+
+  /* Main layout wrapper */
+  #app {
+    position: relative;
+    z-index: 10;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    will-change: transform;
+  }
+
+  .arena {
+    display: grid;
+    grid-template-columns: 230px auto 230px;
+    gap: 18px;
+    align-items: start;
+    max-height: 96vh;
+  }
+
+  .side-col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .card {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    padding: 12px 14px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    transition: border-color 0.35s ease, box-shadow 0.35s ease;
+  }
+
+  .card-title {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* Stage / Effect Mode Evolution Card */
+  .effect-card {
+    position: relative;
+    overflow: hidden;
+  }
+  .effect-name {
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    line-height: 1.25;
+    margin-bottom: 3px;
+    text-shadow: 0 0 14px var(--accent);
+  }
+  .effect-sub {
+    font-size: 11.5px;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+  .progress-track {
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.6);
+  }
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    border-radius: 999px;
+    box-shadow: 0 0 12px var(--accent);
+    transition: width 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .progress-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Stats */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .stat-box {
+    background: rgba(255,255,255,0.03);
+    border-radius: 9px;
+    padding: 8px 10px;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .stat-box.full {
+    grid-column: 1 / -1;
+  }
+  .stat-label {
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    color: var(--text-dim);
+    font-weight: 700;
+  }
+  .stat-value {
+    font-size: 22px;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    color: #fff;
+    text-shadow: 0 0 12px rgba(0, 240, 255, 0.35);
+  }
+  #scoreVal {
+    font-size: 26px;
+  }
+
+  /* Center Board Wrapper */
+  .board-frame {
+    position: relative;
+    padding: 8px;
+    border-radius: 16px;
+    background: rgba(6, 9, 20, 0.88);
+    border: 2px solid var(--accent);
+    box-shadow:
+      0 0 28px rgba(0, 240, 255, 0.32),
+      inset 0 0 24px rgba(0, 240, 255, 0.12);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+  .board-frame.danger {
+    animation: dangerPulse 0.55s infinite alternate;
+  }
+  @keyframes dangerPulse {
+    from {
+      border-color: #ff2255;
+      box-shadow: 0 0 24px rgba(255, 30, 80, 0.45), inset 0 0 22px rgba(255, 30, 80, 0.22);
+    }
+    to {
+      border-color: #ff9900;
+      box-shadow: 0 0 46px rgba(255, 40, 90, 0.85), inset 0 0 36px rgba(255, 40, 90, 0.45);
+    }
+  }
+  .board-frame.chromatic {
+    filter: drop-shadow(-3px 0 0 rgba(255,0,90,0.85)) drop-shadow(3px 0 0 rgba(0,245,255,0.85));
+  }
+
+  #boardCanvas {
+    display: block;
+    border-radius: 8px;
+    background: rgba(4, 6, 15, 0.92);
+  }
+
+  /* Hold & Next Canvases */
+  .mini-canvas-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  #holdCanvas, #nextCanvas {
+    display: block;
+  }
+
+  /* Controls & Sound Panel */
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .ui-btn {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    color: var(--text-main);
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 7px 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .ui-btn:hover {
+    background: rgba(0, 240, 255, 0.18);
+    border-color: var(--accent);
+  }
+  .ui-btn.active {
+    background: rgba(0, 240, 255, 0.22);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  .key-list {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 10px;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.4;
+  }
+  .kbd {
+    color: #e8f3ff;
+    font-weight: 700;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: rgba(255,255,255,0.09);
+    padding: 1px 6px;
+    border-radius: 4px;
+    border-bottom: 2px solid rgba(255,255,255,0.2);
+    text-align: center;
+    font-size: 10.5px;
+  }
+
+  /* Badges for B2B & Combo */
+  .badge-strip {
+    min-height: 26px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .badge {
+    font-size: 11px;
+    font-weight: 900;
+    padding: 3px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.06em;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: all 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .badge.visible {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .badge-b2b {
+    background: linear-gradient(135deg, #ff9900, #ff2a85);
+    color: #fff;
+    box-shadow: 0 0 12px rgba(255, 80, 120, 0.65);
+  }
+  .badge-ren {
+    background: linear-gradient(135deg, #00f0ff, #4466ff);
+    color: #fff;
+    box-shadow: 0 0 12px rgba(0, 220, 255, 0.65);
+  }
+
+  /* Start / Pause / GameOver Modal Overlay inside Board */
+  .board-overlay {
+    position: absolute;
+    inset: 8px;
+    border-radius: 8px;
+    background: rgba(5, 8, 20, 0.84);
+    backdrop-filter: blur(8px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+    z-index: 15;
+    transition: opacity 0.22s ease;
+  }
+  .board-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .overlay-kicker {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.24em;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .overlay-title {
+    font-size: 30px;
+    font-weight: 900;
+    line-height: 1.12;
+    letter-spacing: 0.04em;
+    background: linear-gradient(135deg, #ffffff 0%, #00f0ff 50%, #ff3399 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 10px;
+    filter: drop-shadow(0 0 18px rgba(0, 240, 255, 0.4));
+  }
+  .overlay-desc {
+    font-size: 12.5px;
+    color: #b7c7e8;
+    line-height: 1.55;
+    margin-bottom: 20px;
+    max-width: 260px;
+  }
+  .primary-btn {
+    background: linear-gradient(135deg, #00e5ff, #2979ff 55%, #ff2a85);
+    border: none;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    padding: 13px 28px;
+    border-radius: 999px;
+    cursor: pointer;
+    box-shadow: 0 0 26px rgba(0, 229, 255, 0.55);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .primary-btn:hover {
+    transform: translateY(-2px) scale(1.04);
+    box-shadow: 0 0 36px rgba(255, 42, 133, 0.75);
+  }
+  .primary-btn:active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  /* Touch pad for mobile / narrow viewports */
+  #touchControls {
+    display: none;
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    gap: 8px;
+    width: min(96vw, 440px);
+    justify-content: space-between;
+  }
+  .touch-group {
+    display: flex;
+    gap: 6px;
+  }
+  .touch-btn {
+    width: 48px;
+    height: 44px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(12, 18, 38, 0.8);
+    color: #fff;
+    font-weight: 800;
+    font-size: 14px;
+    backdrop-filter: blur(6px);
+  }
+
+  @media (max-width: 820px) {
+    .arena {
+      grid-template-columns: 130px auto 130px;
+      gap: 8px;
+    }
+    .keys-card { display: none; }
+    .stat-value { font-size: 16px; }
+    #scoreVal { font-size: 19px; }
+    .effect-name { font-size: 13px; }
+  }
+  @media (max-width: 580px) {
+    .arena {
+      grid-template-columns: 92px auto 92px;
+      gap: 6px;
+      margin-bottom: 52px;
+    }
+    .card { padding: 7px 8px; border-radius: 10px; }
+    .effect-sub, .progress-meta { display: none; }
+    #touchControls { display: flex; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="bgCanvas"></canvas>
+<div id="flashOverlay"></div>
+
+<div id="app">
+  <div class="arena">
+    <!-- LEFT COLUMN -->
+    <div class="side-col">
+      <div class="card">
+        <div class="card-title">
+          <span>HOLD</span>
+          <span style="opacity:0.65;font-size:10px;">C / SHIFT</span>
+        </div>
+        <div class="mini-canvas-wrap">
+          <canvas id="holdCanvas" width="120" height="76"></canvas>
+        </div>
+      </div>
+
+      <div class="card effect-card" id="effectCard">
+        <div class="card-title">
+          <span>BLAST MODE</span>
+          <span id="stageBadge">STAGE 01</span>
+        </div>
+        <div class="effect-name" id="effectName">NEON SPARKS</div>
+        <div class="effect-sub" id="effectSub">ネオン火花＆衝撃波リング</div>
+        <div class="progress-track">
+          <div class="progress-fill" id="stageProgress"></div>
+        </div>
+        <div class="progress-meta">
+          <span>NEXT EVOLUTION</span>
+          <span id="nextEvoText">0 / 10 LINES</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="stats-grid">
+          <div class="stat-box full">
+            <div class="stat-label">SCORE</div>
+            <div class="stat-value" id="scoreVal">0</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">LEVEL</div>
+            <div class="stat-value" id="levelVal">1</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">LINES</div>
+            <div class="stat-value" id="linesVal">0</div>
+          </div>
+        </div>
+        <div class="badge-strip">
+          <span class="badge badge-b2b" id="b2bBadge">B2B x1.5</span>
+          <span class="badge badge-ren" id="renBadge">0 REN</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER PLAYFIELD -->
+    <div class="board-frame" id="boardFrame">
+      <canvas id="boardCanvas" width="300" height="600"></canvas>
+
+      <div class="board-overlay" id="overlay">
+        <div class="overlay-kicker" id="overlayKicker">GUIDELINE TETRIS × HYPER VFX</div>
+        <div class="overlay-title" id="overlayTitle">HYPER BLAST<br>TETRIS</div>
+        <div class="overlay-desc" id="overlayDesc">
+          ラインを消すたび画面が大爆発！<br>
+          <strong>10ラインごと</strong>にエフェクトとBGMが進化し、進むほどド派手に加速します。
+        </div>
+        <button class="primary-btn" id="startBtn">START GAME</button>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="side-col">
+      <div class="card">
+        <div class="card-title">
+          <span>NEXT</span>
+          <span style="opacity:0.65;font-size:10px;">5 BAG</span>
+        </div>
+        <div class="mini-canvas-wrap">
+          <canvas id="nextCanvas" width="120" height="300"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span>AUDIO &amp; SYSTEM</span></div>
+        <div class="btn-row">
+          <button class="ui-btn active" id="muteBtn" title="Shortcut: M">SOUND: ON</button>
+          <button class="ui-btn" id="pauseBtn" title="Shortcut: P / ESC">PAUSE</button>
+        </div>
+      </div>
+
+      <div class="card keys-card">
+        <div class="card-title"><span>CONTROLS</span></div>
+        <div class="key-list">
+          <span class="kbd">← →</span><span>移動 (DAS/ARR)</span>
+          <span class="kbd">↓</span><span>ソフトドロップ</span>
+          <span class="kbd">SPACE</span><span>ハードドロップ</span>
+          <span class="kbd">↑ / X</span><span>右回転 (SRS)</span>
+          <span class="kbd">Z / CTRL</span><span>左回転 (SRS)</span>
+          <span class="kbd">A</span><span>180°回転</span>
+          <span class="kbd">C / SHIFT</span><span>ホールド</span>
+          <span class="kbd">P / M</span><span>一時停止 / 消音</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Mobile Touch Controls -->
+<div id="touchControls">
+  <div class="touch-group">
+    <button class="touch-btn" data-act="left">←</button>
+    <button class="touch-btn" data-act="down">↓</button>
+    <button class="touch-btn" data-act="right">→</button>
+  </div>
+  <div class="touch-group">
+    <button class="touch-btn" data-act="hold">H</button>
+    <button class="touch-btn" data-act="ccw">↺</button>
+    <button class="touch-btn" data-act="cw">↻</button>
+    <button class="touch-btn" data-act="hard">⤓</button>
+  </div>
+</div>
+
+<canvas id="fxCanvas"></canvas>
+
+<script>
+(() => {
+  'use strict';
+
+  /* =========================================================================
+     1. CONSTANTS, TETRIS GUIDELINE DATA & 10-LINE EFFECT STAGES
+     ========================================================================= */
+  const COLS = 10;
+  const VISIBLE_ROWS = 20;
+  const BUFFER_ROWS = 20;
+  const TOTAL_ROWS = VISIBLE_ROWS + BUFFER_ROWS; // 40 rows (0..19 hidden, 20..39 visible)
+
+  const DAS_MS = 130;
+  const ARR_MS = 16;
+  const SOFT_DROP_MS = 22;
+  const LOCK_DELAY_MS = 500;
+  const MAX_LOCK_MOVES = 15;
+
+  const PIECE_TYPES = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
+
+  const PIECE_COLORS = {
+    I: { main: '#00f0ff', light: '#99fbff', dark: '#0088aa', glow: 'rgba(0, 240, 255, 0.85)' },
+    O: { main: '#ffe600', light: '#fff799', dark: '#b39200', glow: 'rgba(255, 230, 0, 0.85)' },
+    T: { main: '#c828ff', light: '#ebb3ff', dark: '#7300aa', glow: 'rgba(200, 40, 255, 0.85)' },
+    S: { main: '#00f566', light: '#99ffc2', dark: '#009438', glow: 'rgba(0, 245, 102, 0.85)' },
+    Z: { main: '#ff2455', light: '#ff9eb3', dark: '#a80028', glow: 'rgba(255, 36, 85, 0.85)' },
+    J: { main: '#2b6cff', light: '#9ebbff', dark: '#0b34a8', glow: 'rgba(43, 108, 255, 0.85)' },
+    L: { main: '#ff8c00', light: '#ffd094', dark: '#ad5100', glow: 'rgba(255, 140, 0, 0.85)' }
+  };
+
+  // SRS base shapes (state 0). 3x3 for JLSTZ, 4x4 for I and O.
+  const BASE_CELLS = {
+    I: [[0,1], [1,1], [2,1], [3,1]],
+    O: [[1,0], [2,0], [1,1], [2,1]],
+    T: [[1,0], [0,1], [1,1], [2,1]],
+    S: [[1,0], [2,0], [0,1], [1,1]],
+    Z: [[0,0], [1,0], [1,1], [2,1]],
+    J: [[0,0], [0,1], [1,1], [2,1]],
+    L: [[2,0], [0,1], [1,1], [2,1]]
+  };
+
+  const BOX_SIZE = { I: 4, O: 4, T: 3, S: 3, Z: 3, J: 3, L: 3 };
+
+  function buildRotations() {
+    const out = {};
+    for (const type of PIECE_TYPES) {
+      const n = BOX_SIZE[type];
+      const states = [];
+      let curr = BASE_CELLS[type].map(c => [c[0], c[1]]);
+      for (let r = 0; r < 4; r++) {
+        states.push(curr);
+        if (type === 'O') {
+          curr = curr.map(c => [c[0], c[1]]);
+        } else {
+          curr = curr.map(([x, y]) => [n - 1 - y, x]);
+        }
+      }
+      out[type] = states;
+    }
+    return out;
+  }
+  const ROTATIONS = buildRotations();
+
+  // Official SRS Wall Kick Data in (dx, dy_up). Remember board y increases downward, so board_dy = -dy_up!
+  const JLSTZ_KICKS = {
+    '0>1': [[0,0], [-1,0], [-1, 1], [0,-2], [-1,-2]],
+    '1>0': [[0,0], [ 1,0], [ 1,-1], [0, 2], [ 1, 2]],
+    '1>2': [[0,0], [ 1,0], [ 1,-1], [0, 2], [ 1, 2]],
+    '2>1': [[0,0], [-1,0], [-1, 1], [0,-2], [-1,-2]],
+    '2>3': [[0,0], [ 1,0], [ 1, 1], [0,-2], [ 1,-2]],
+    '3>2': [[0,0], [-1,0], [-1,-1], [0, 2], [-1, 2]],
+    '3>0': [[0,0], [-1,0], [-1,-1], [0, 2], [-1, 2]],
+    '0>3': [[0,0], [ 1,0], [ 1, 1], [0,-2], [ 1,-2]]
+  };
+
+  const I_KICKS = {
+    '0>1': [[0,0], [-2,0], [ 1,0], [-2,-1], [ 1, 2]],
+    '1>0': [[0,0], [ 2,0], [-1,0], [ 2, 1], [-1,-2]],
+    '1>2': [[0,0], [-1,0], [ 2,0], [-1, 2], [ 2,-1]],
+    '2>1': [[0,0], [ 1,0], [-2,0], [ 1,-2], [-2, 1]],
+    '2>3': [[0,0], [ 2,0], [-1,0], [ 2, 1], [-1,-2]],
+    '3>2': [[0,0], [-2,0], [ 1,0], [-2,-1], [ 1, 2]],
+    '3>0': [[0,0], [ 1,0], [-2,0], [ 1,-2], [-2, 1]],
+    '0>3': [[0,0], [-1,0], [ 2,0], [-1, 2], [ 2,-1]]
+  };
+
+  const KICKS_180 = {
+    '0>2': [[0,0], [0, 1], [ 1, 1], [-1, 1], [ 1,0], [-1,0]],
+    '2>0': [[0,0], [0,-1], [-1,-1], [ 1,-1], [-1,0], [ 1,0]],
+    '1>3': [[0,0], [ 1,0], [ 1, 2], [ 1, 1], [0, 2], [0, 1]],
+    '3>1': [[0,0], [-1,0], [-1, 2], [-1, 1], [0, 2], [0, 1]]
+  };
+
+  // 10-Line Effect Evolution Modes (Switches every 10 lines!)
+  const EFFECT_MODES = [
+    {
+      id: 'neon',
+      name: 'NEON SPARKS',
+      sub: 'ネオン火花＆衝撃波リング',
+      accent: '#00f0ff',
+      accent2: '#ff2a85',
+      bgHue: 192
+    },
+    {
+      id: 'laser',
+      name: 'LASER OVERDRIVE',
+      sub: '極太プラズマレーザー照射',
+      accent: '#ff2a85',
+      accent2: '#00f0ff',
+      bgHue: 332
+    },
+    {
+      id: 'fireworks',
+      name: 'STARLIGHT FIREWORKS',
+      sub: '打ち上げ大輪スターマイン花火',
+      accent: '#ffbb00',
+      accent2: '#ff3377',
+      bgHue: 40
+    },
+    {
+      id: 'thunder',
+      name: 'THUNDERSTRIKE',
+      sub: '稲妻サンダーボルト落雷放電',
+      accent: '#66d9ff',
+      accent2: '#b266ff',
+      bgHue: 215
+    },
+    {
+      id: 'prism',
+      name: 'PRISM SHATTER',
+      sub: '虹色クリスタル破砕＆色収差',
+      accent: '#df66ff',
+      accent2: '#00ffcc',
+      bgHue: 285
+    },
+    {
+      id: 'magma',
+      name: 'MAGMA ERUPTION',
+      sub: '灼熱ボルケーノ噴火＆火柱',
+      accent: '#ff5500',
+      accent2: '#ffdd00',
+      bgHue: 16
+    },
+    {
+      id: 'cyber',
+      name: 'CYBER GLITCH',
+      sub: 'デジタル空間断裂＆マトリックス',
+      accent: '#00ff88',
+      accent2: '#00ccff',
+      bgHue: 150
+    },
+    {
+      id: 'vortex',
+      name: 'GRAVITY VORTEX',
+      sub: '超重力ブラックホール大爆発',
+      accent: '#9d4edd',
+      accent2: '#ff007f',
+      bgHue: 268
+    },
+    {
+      id: 'aurora',
+      name: 'COSMIC AURORA',
+      sub: '銀河スターダスト＆流星リボン',
+      accent: '#00ffd5',
+      accent2: '#7b61ff',
+      bgHue: 172
+    },
+    {
+      id: 'supernova',
+      name: 'SUPERNOVA OMEGA',
+      sub: '全エフェクト融合・超新星フィーバー',
+      accent: '#ffe600',
+      accent2: '#ff006e',
+      bgHue: 52
+    }
+  ];
+
+  /* =========================================================================
+     2. WEB AUDIO SYNTHESIZER & GAMEPLAY-SYNCED BGM ENGINE
+     ========================================================================= */
+  class SoundEngine {
+    constructor() {
+      this.ctx = null;
+      this.master = null;
+      this.musicGain = null;
+      this.sfxGain = null;
+      this.delayNode = null;
+      this.musicFilter = null;
+      this.muted = false;
+      this.isPlayingBgm = false;
+      this.step = 0;
+      this.nextNoteTime = 0;
+      this.beatPulse = 0;
+      this.noiseBuffer = null;
+
+      // Energetic arcade Tetris-inspired A-minor synth lead (32 16th-note steps = 2 bars)
+      // MIDI notes: 69=A4, 76=E5, 71=B4, 72=C5, 74=D5, 69=A4, 68=G#4...
+      this.leadPattern = [
+        76, null, 71, 72, 74, null, 72, 71,
+        69, null, 69, 72, 76, null, 74, 72,
+        71, null, 71, 72, 74, null, 76, null,
+        72, null, 69, null, 69, null, 68, 71,
+
+        74, null, 74, 77, 81, null, 79, 77,
+        76, null, 72, null, 76, null, 74, 72,
+        71, null, 71, 72, 74, null, 76, null,
+        72, null, 69, null, 69, null, null, null
+      ];
+
+      this.bassPattern = [
+        45, 57, 45, 57, 45, 57, 45, 57,
+        45, 57, 45, 57, 48, 60, 48, 60,
+        40, 52, 40, 52, 40, 52, 40, 52,
+        45, 57, 45, 57, 40, 52, 44, 56,
+
+        50, 62, 50, 62, 53, 65, 53, 65,
+        48, 60, 48, 60, 45, 57, 45, 57,
+        40, 52, 40, 52, 44, 56, 44, 56,
+        45, 57, 48, 60, 45, 57, 45, 40
+      ];
+
+      this.arpChords = [
+        [69, 72, 76, 81], [69, 72, 76, 81], [68, 71, 76, 79], [69, 72, 76, 81],
+        [74, 77, 81, 86], [72, 76, 79, 84], [68, 71, 76, 80], [69, 72, 76, 81]
+      ];
+    }
+
+    init() {
+      if (this.ctx) {
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        return;
+      }
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      this.ctx = new AudioCtx();
+
+      const comp = this.ctx.createDynamicsCompressor();
+      comp.threshold.value = -14;
+      comp.knee.value = 18;
+      comp.ratio.value = 6;
+      comp.attack.value = 0.003;
+      comp.release.value = 0.18;
+
+      this.master = this.ctx.createGain();
+      this.master.gain.value = this.muted ? 0 : 0.72;
+
+      this.musicFilter = this.ctx.createBiquadFilter();
+      this.musicFilter.type = 'lowpass';
+      this.musicFilter.frequency.value = 16000;
+
+      this.musicGain = this.ctx.createGain();
+      this.musicGain.gain.value = 0.36;
+
+      this.sfxGain = this.ctx.createGain();
+      this.sfxGain.gain.value = 0.78;
+
+      // Stereo echo bus for juicy leads & clear fanfares
+      this.delayNode = this.ctx.createDelay(1.0);
+      this.delayNode.delayTime.value = 0.19;
+      const delayFb = this.ctx.createGain();
+      delayFb.gain.value = 0.28;
+      const delayFilter = this.ctx.createBiquadFilter();
+      delayFilter.type = 'highpass';
+      delayFilter.frequency.value = 500;
+      const delayWet = this.ctx.createGain();
+      delayWet.gain.value = 0.22;
+
+      this.delayNode.connect(delayFilter);
+      delayFilter.connect(delayFb);
+      delayFb.connect(this.delayNode);
+      this.delayNode.connect(delayWet);
+
+      this.musicGain.connect(this.musicFilter);
+      this.musicFilter.connect(comp);
+      this.sfxGain.connect(comp);
+      delayWet.connect(comp);
+      comp.connect(this.master);
+      this.master.connect(this.ctx.destination);
+
+      // Pre-build white noise buffer
+      const len = this.ctx.sampleRate * 1.5;
+      this.noiseBuffer = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const data = this.noiseBuffer.getChannelData(0);
+      for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    }
+
+    toggleMute() {
+      this.muted = !this.muted;
+      if (this.master && this.ctx) {
+        this.master.gain.setTargetAtTime(this.muted ? 0 : 0.72, this.ctx.currentTime, 0.02);
+      }
+      return this.muted;
+    }
+
+    midiToFreq(m) {
+      return 440 * Math.pow(2, (m - 69) / 12);
+    }
+
+    startBgm() {
+      this.init();
+      if (!this.ctx) return;
+      this.isPlayingBgm = true;
+      this.step = 0;
+      this.nextNoteTime = this.ctx.currentTime + 0.05;
+    }
+
+    stopBgm() {
+      this.isPlayingBgm = false;
+    }
+
+    updateBgm(level, danger, paused) {
+      if (!this.ctx || !this.isPlayingBgm || paused) return;
+      const stageIdx = Math.floor((game.lines || 0) / 10);
+      const baseBpm = Math.min(172, 128 + (level - 1) * 3.2 + (danger ? 14 : 0));
+      const stepDur = (60 / baseBpm) / 4; // 16th note
+
+      while (this.nextNoteTime < this.ctx.currentTime + 0.11) {
+        this.scheduleBgmStep(this.step, this.nextNoteTime, stepDur, stageIdx, danger);
+        this.nextNoteTime += stepDur;
+        this.step = (this.step + 1) % 64;
+      }
+    }
+
+    scheduleBgmStep(step, t, dur, stageIdx, danger) {
+      // Beat pulse synced to quarter notes
+      if (step % 4 === 0) {
+        const delayMs = Math.max(0, (t - this.ctx.currentTime) * 1000);
+        setTimeout(() => { this.beatPulse = 1.0; }, delayMs);
+        this.playKick(t, stageIdx >= 2 ? 0.52 : 0.42);
+      }
+      // Snare / Clap on beats 2 & 4 from Stage 1+
+      if (step % 8 === 4) {
+        this.playSnare(t, stageIdx >= 1 ? 0.28 : 0.16);
+      }
+      // Off-beat / 16th hi-hats escalate with 10-line stage
+      if (stageIdx >= 1 && step % 2 === 1) {
+        this.playHat(t, step % 4 === 2 ? 0.14 : 0.07, step % 4 === 2 ? 0.07 : 0.03);
+      } else if (step % 4 === 2) {
+        this.playHat(t, 0.11, 0.05);
+      }
+
+      // Driving octave bass
+      const bassNote = this.bassPattern[step];
+      if (bassNote) {
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        const f = this.ctx.createBiquadFilter();
+        osc.type = stageIdx >= 3 ? 'sawtooth' : 'triangle';
+        osc.frequency.setValueAtTime(this.midiToFreq(bassNote + (danger ? 2 : 0)), t);
+        f.type = 'lowpass';
+        f.frequency.setValueAtTime(stageIdx >= 3 ? 950 : 650, t);
+        f.frequency.exponentialRampToValueAtTime(180, t + dur * 0.9);
+        g.gain.setValueAtTime(0.24, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.92);
+        osc.connect(f);
+        f.connect(g);
+        g.connect(this.musicGain);
+        osc.start(t);
+        osc.stop(t + dur);
+      }
+
+      // Lead melody
+      const leadNote = this.leadPattern[step];
+      if (leadNote) {
+        const osc = this.ctx.createOscillator();
+        const osc2 = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        const pitchShift = danger ? 2 : 0;
+        const freq = this.midiToFreq(leadNote + pitchShift);
+        osc.type = 'square';
+        osc2.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, t);
+        osc2.frequency.setValueAtTime(freq * 1.004, t);
+
+        g.gain.setValueAtTime(0.001, t);
+        g.gain.linearRampToValueAtTime(0.13, t + 0.008);
+        g.gain.exponentialRampToValueAtTime(0.001, t + dur * 1.65);
+
+        osc.connect(g);
+        if (stageIdx >= 2) osc2.connect(g);
+        g.connect(this.musicGain);
+        g.connect(this.delayNode);
+        osc.start(t);
+        osc.stop(t + dur * 1.7);
+        if (stageIdx >= 2) {
+          osc2.start(t);
+          osc2.stop(t + dur * 1.7);
+        }
+      }
+
+      // Shimmering 16th arpeggio unlocks at 20+ lines (Stage 3+) and intensifies
+      if (stageIdx >= 2) {
+        const barIdx = Math.floor(step / 8);
+        const chord = this.arpChords[barIdx];
+        const note = chord[step % 4] + (stageIdx >= 5 && step % 2 === 0 ? 12 : 0) + (danger ? 2 : 0);
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = stageIdx >= 6 ? 'sawtooth' : 'triangle';
+        osc.frequency.setValueAtTime(this.midiToFreq(note), t);
+        const vol = Math.min(0.11, 0.05 + stageIdx * 0.008);
+        g.gain.setValueAtTime(vol, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.85);
+        osc.connect(g);
+        g.connect(this.musicGain);
+        g.connect(this.delayNode);
+        osc.start(t);
+        osc.stop(t + dur * 0.9);
+      }
+    }
+
+    playKick(t, vol = 0.45) {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(145, t);
+      osc.frequency.exponentialRampToValueAtTime(38, t + 0.11);
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
+      osc.connect(g);
+      g.connect(this.musicGain);
+      osc.start(t);
+      osc.stop(t + 0.14);
+    }
+
+    playSnare(t, vol = 0.22) {
+      if (!this.noiseBuffer) return;
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.noiseBuffer;
+      const f = this.ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.setValueAtTime(1900, t);
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+      src.connect(f);
+      f.connect(g);
+      g.connect(this.musicGain);
+      src.start(t);
+      src.stop(t + 0.12);
+    }
+
+    playHat(t, vol = 0.1, decay = 0.04) {
+      if (!this.noiseBuffer) return;
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.noiseBuffer;
+      const f = this.ctx.createBiquadFilter();
+      f.type = 'highpass';
+      f.frequency.setValueAtTime(7500, t);
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + decay);
+      src.connect(f);
+      f.connect(g);
+      g.connect(this.musicGain);
+      src.start(t);
+      src.stop(t + decay + 0.01);
+    }
+
+    /* --- Gameplay SFX --- */
+    sfxMove() {
+      if (!this.ctx) return;
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(360, t);
+      osc.frequency.exponentialRampToValueAtTime(520, t + 0.025);
+      g.gain.setValueAtTime(0.08, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
+      osc.connect(g);
+      g.connect(this.sfxGain);
+      osc.start(t);
+      osc.stop(t + 0.035);
+    }
+
+    sfxRotate(isTSpinSetup = false) {
+      if (!this.ctx) return;
+      const t = this.ctx.currentTime;
+      if (isTSpinSetup) {
+        // Iconic crystalline metallic T-Spin twist charge sound!
+        const notes = [587.33, 880, 1174.66, 1760];
+        notes.forEach((freq, i) => {
+          const osc = this.ctx.createOscillator();
+          const g = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq * 0.85, t + i * 0.018);
+          osc.frequency.exponentialRampToValueAtTime(freq * 1.15, t + i * 0.018 + 0.09);
+          g.gain.setValueAtTime(0.18, t + i * 0.018);
+          g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.018 + 0.13);
+          osc.connect(g);
+          g.connect(this.sfxGain);
+          g.connect(this.delayNode);
+          osc.start(t + i * 0.018);
+          osc.stop(t + i * 0.018 + 0.14);
+        });
+        return;
+      }
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(520, t);
+      osc.frequency.exponentialRampToValueAtTime(840, t + 0.045);
+      g.gain.setValueAtTime(0.12, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+      osc.connect(g);
+      g.connect(this.sfxGain);
+      osc.start(t);
+      osc.stop(t + 0.055);
+    }
+
+    sfxSoftDrop() {
+      if (!this.ctx) return;
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(240, t);
+      g.gain.setValueAtTime(0.05, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.022);
+      osc.connect(g);
+      g.connect(this.sfxGain);
+      osc.start(t);
+      osc.stop(t + 0.025);
+    }
+
+    sfxHardDrop() {
+      if (!this.ctx) return;
+      const t = this.ctx.currentTime;
+      // Punchy sub impact + crisp transient
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(190, t);
+      osc.frequency.exponentialRampToValueAtTime(36, t + 0.14);
+      g.gain.setValueAtTime(0.45, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+      osc.connect(g);
+      g.connect(this.sfxGain);
+      osc.start(t);
+      osc.stop(t + 0.16);
+
+      if (this.noiseBuffer) {
+        const src = this.ctx.createBufferSource();
+        src.buffer = this.noiseBuffer;
+        const f = this.ctx.createBiquadFilter();
+        f.type = 'bandpass';
+        f.frequency.setValueAtTime(1400, t);
+        const ng = this.ctx.createGain();
+        ng.gain.setValueAtTime(0.18, t);
+        ng.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+        src.connect(f);
+        f.connect(ng);
+        ng.connect(this.sfxGain);
+        src.start(t);
+        src.stop(t + 0.07);
+      }
+    }
+
+    sfxLock() {
+      if (!this.ctx) return;
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(220, t);
+      osc.frequency.exponentialRampToValueAtTime(110, t + 0.055);
+      g.gain.setValueAtTime(0.16, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+      osc.connect(g);
+      g.connect(this.sfxGain);
+      osc.start(t);
+      osc.stop(t + 0.065);
+    }
+
+    sfxHold() {
+      if (!this.ctx) return;
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(380, t);
+      osc.frequency.exponentialRampToValueAtTime(680, t + 0.08);
+      g.gain.setValueAtTime(0.15, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+      osc.connect(g);
+      g.connect(this.sfxGain);
+      osc.start(t);
+      osc.stop(t + 0.1);
+    }
+
+    sfxClear({ count, isTSpin, isB2B, combo, modeId, allClear }) {
+      if (!this.ctx) return;
+      const t = this.ctx.currentTime;
+      const big = count >= 4 || isTSpin || allClear;
+
+      // Momentary BGM filter duck/sweep on big clears so the explosion punches through!
+      if (big && this.musicFilter) {
+        this.musicFilter.frequency.cancelScheduledValues(t);
+        this.musicFilter.frequency.setValueAtTime(450, t);
+        this.musicFilter.frequency.exponentialRampToValueAtTime(16000, t + 0.55);
+      }
+
+      // 1) Explosion noise + sub boom scaled by clear power
+      if (this.noiseBuffer) {
+        const src = this.ctx.createBufferSource();
+        src.buffer = this.noiseBuffer;
+        const f = this.ctx.createBiquadFilter();
+        f.type = modeId === 'laser' || modeId === 'prism' ? 'bandpass' : 'lowpass';
+        f.frequency.setValueAtTime(big ? 3600 : 2200, t);
+        f.frequency.exponentialRampToValueAtTime(140, t + (big ? 0.55 : 0.28));
+        const ng = this.ctx.createGain();
+        ng.gain.setValueAtTime(big ? 0.45 : 0.26, t);
+        ng.gain.exponentialRampToValueAtTime(0.001, t + (big ? 0.58 : 0.3));
+        src.connect(f);
+        f.connect(ng);
+        ng.connect(this.sfxGain);
+        src.start(t);
+        src.stop(t + 0.62);
+      }
+
+      const sub = this.ctx.createOscillator();
+      const sg = this.ctx.createGain();
+      sub.type = 'sine';
+      sub.frequency.setValueAtTime(big ? 160 : 125, t);
+      sub.frequency.exponentialRampToValueAtTime(28, t + (big ? 0.48 : 0.24));
+      sg.gain.setValueAtTime(big ? 0.58 : 0.36, t);
+      sg.gain.exponentialRampToValueAtTime(0.001, t + (big ? 0.5 : 0.26));
+      sub.connect(sg);
+      sg.connect(this.sfxGain);
+      sub.start(t);
+      sub.stop(t + 0.52);
+
+      // 2) Mode-flavored signature layer (Laser pew / Thunder crack / Prism chime / Firework whistle)
+      if (modeId === 'laser' || modeId === 'supernova') {
+        const lOsc = this.ctx.createOscillator();
+        const lg = this.ctx.createGain();
+        lOsc.type = 'sawtooth';
+        lOsc.frequency.setValueAtTime(1800, t);
+        lOsc.frequency.exponentialRampToValueAtTime(95, t + 0.26);
+        lg.gain.setValueAtTime(0.22, t);
+        lg.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+        lOsc.connect(lg);
+        lg.connect(this.sfxGain);
+        lOsc.start(t);
+        lOsc.stop(t + 0.3);
+      } else if (modeId === 'prism' || modeId === 'aurora') {
+        [1567.98, 2093, 2637, 3135.96].forEach((fr, idx) => {
+          const co = this.ctx.createOscillator();
+          const cg = this.ctx.createGain();
+          co.type = 'sine';
+          co.frequency.setValueAtTime(fr, t + idx * 0.025);
+          cg.gain.setValueAtTime(0.11, t + idx * 0.025);
+          cg.gain.exponentialRampToValueAtTime(0.001, t + idx * 0.025 + 0.26);
+          co.connect(cg);
+          cg.connect(this.sfxGain);
+          cg.connect(this.delayNode);
+          co.start(t + idx * 0.025);
+          co.stop(t + idx * 0.025 + 0.28);
+        });
+      }
+
+      // 3) Harmonized musical fanfare (synced to A-minor / C-major key of BGM!)
+      const scale = [69, 71, 72, 74, 76, 77, 79, 81, 83, 84, 86, 88, 93];
+      const comboStep = Math.min(scale.length - 1, Math.max(0, combo));
+      const rootMidi = scale[comboStep];
+
+      let intervals = [0, 4, 7];
+      if (count === 2) intervals = [0, 4, 7, 12];
+      else if (count === 3) intervals = [0, 4, 7, 11, 12];
+      else if (count >= 4) intervals = [0, 4, 7, 12, 16, 19, 24];
+      if (isTSpin) intervals = [0, 3, 7, 10, 14, 19, 24];
+      if (allClear) intervals = [0, 4, 7, 11, 12, 16, 19, 23, 24];
+
+      intervals.forEach((iv, i) => {
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = isTSpin ? 'sawtooth' : (count >= 4 ? 'square' : 'triangle');
+        const noteMidi = rootMidi + iv + (isB2B ? 12 : 0);
+        osc.frequency.setValueAtTime(this.midiToFreq(noteMidi), t + i * 0.032);
+        const peak = big ? 0.16 : 0.12;
+        g.gain.setValueAtTime(0.001, t + i * 0.032);
+        g.gain.linearRampToValueAtTime(peak, t + i * 0.032 + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.032 + (big ? 0.42 : 0.24));
+        osc.connect(g);
+        g.connect(this.sfxGain);
+        g.connect(this.delayNode);
+        osc.start(t + i * 0.032);
+        osc.stop(t + i * 0.032 + 0.46);
+      });
+    }
+
+    sfxStageUp() {
+      if (!this.ctx) return;
+      const t = this.ctx.currentTime;
+      const notes = [69, 72, 76, 81, 84, 88, 93];
+      notes.forEach((m, i) => {
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(this.midiToFreq(m), t + i * 0.045);
+        g.gain.setValueAtTime(0.14, t + i * 0.045);
+        g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.045 + 0.35);
+        osc.connect(g);
+        g.connect(this.sfxGain);
+        g.connect(this.delayNode);
+        osc.start(t + i * 0.045);
+        osc.stop(t + i * 0.045 + 0.38);
+      });
+    }
+
+    sfxGameOver() {
+      if (!this.ctx) return;
+      const t = this.ctx.currentTime;
+      [69, 67, 65, 64, 57].forEach((m, i) => {
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(this.midiToFreq(m), t + i * 0.11);
+        g.gain.setValueAtTime(0.18, t + i * 0.11);
+        g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.11 + 0.3);
+        osc.connect(g);
+        g.connect(this.sfxGain);
+        osc.start(t + i * 0.11);
+        osc.stop(t + i * 0.11 + 0.32);
+      });
+    }
+  }
+
+  const sound = new SoundEngine();
+
+  /* =========================================================================
+     3. HYPER VISUAL EFFECTS ENGINE (10 DISTINCT STAGE EXPLOSIONS + AMBIENT)
+     ========================================================================= */
+  const bgCanvas = document.getElementById('bgCanvas');
+  const bgCtx = bgCanvas.getContext('2d');
+  const fxCanvas = document.getElementById('fxCanvas');
+  const fxCtx = fxCanvas.getContext('2d');
+  const boardCanvas = document.getElementById('boardCanvas');
+  const boardCtx = boardCanvas.getContext('2d');
+  const holdCanvas = document.getElementById('holdCanvas');
+  const holdCtx = holdCanvas.getContext('2d');
+  const nextCanvas = document.getElementById('nextCanvas');
+  const nextCtx = nextCanvas.getContext('2d');
+  const appEl = document.getElementById('app');
+  const flashEl = document.getElementById('flashOverlay');
+  const boardFrame = document.getElementById('boardFrame');
+
+  let CELL = 30;
+  let viewW = window.innerWidth;
+  let viewH = window.innerHeight;
+  let boardRect = { left: 0, top: 0, width: 300, height: 600 };
+
+  function resizeAll() {
+    viewW = window.innerWidth;
+    viewH = window.innerHeight;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    bgCanvas.width = viewW * dpr;
+    bgCanvas.height = viewH * dpr;
+    bgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    fxCanvas.width = viewW * dpr;
+    fxCanvas.height = viewH * dpr;
+    fxCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const maxBoardH = Math.max(360, Math.min(viewH - (viewW <= 580 ? 110 : 48), 720));
+    CELL = Math.max(18, Math.floor(maxBoardH / VISIBLE_ROWS));
+    const bw = CELL * COLS;
+    const bh = CELL * VISIBLE_ROWS;
+
+    boardCanvas.style.width = bw + 'px';
+    boardCanvas.style.height = bh + 'px';
+    boardCanvas.width = bw * dpr;
+    boardCanvas.height = bh * dpr;
+    boardCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    requestAnimationFrame(() => {
+      boardRect = boardCanvas.getBoundingClientRect();
+    });
+  }
+  window.addEventListener('resize', resizeAll);
+
+  const vfx = {
+    particles: [],
+    shockwaves: [],
+    beams: [],
+    lightnings: [],
+    vortices: [],
+    dropTrails: [],
+    texts: [],
+    ambientStars: [],
+    shakeTime: 0,
+    shakeMag: 0,
+    hitStopMs: 0,
+    chromaticTimer: 0,
+
+    initAmbient() {
+      this.ambientStars = [];
+      for (let i = 0; i < 95; i++) {
+        this.ambientStars.push({
+          x: Math.random() * viewW,
+          y: Math.random() * viewH,
+          r: Math.random() * 2.2 + 0.5,
+          vx: (Math.random() - 0.5) * 20,
+          vy: -(Math.random() * 35 + 12),
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+    },
+
+    triggerShake(mag, durationMs = 260) {
+      this.shakeMag = Math.max(this.shakeMag, mag);
+      this.shakeTime = Math.max(this.shakeTime, durationMs);
+    },
+
+    triggerFlash(color, alpha = 0.45) {
+      flashEl.style.background = color;
+      flashEl.style.transition = 'none';
+      flashEl.style.opacity = String(alpha);
+      requestAnimationFrame(() => {
+        flashEl.style.transition = 'opacity 0.34s ease-out';
+        flashEl.style.opacity = '0';
+      });
+    },
+
+    triggerChromatic(ms = 280) {
+      this.chromaticTimer = Math.max(this.chromaticTimer, ms);
+      boardFrame.classList.add('chromatic');
+    },
+
+    addDropTrail(colX, startRow, endRow, widthCells, color) {
+      boardRect = boardCanvas.getBoundingClientRect();
+      const x = boardRect.left + colX * CELL;
+      const y1 = boardRect.top + Math.max(0, startRow) * CELL;
+      const y2 = boardRect.top + endRow * CELL;
+      if (y2 <= y1) return;
+      this.dropTrails.push({
+        x, y1, y2,
+        w: widthCells * CELL,
+        color,
+        life: 1,
+        decay: 4.5
+      });
+    },
+
+    spawnBanner(title, subtitle, color = '#00f0ff', scale = 1.0) {
+      boardRect = boardCanvas.getBoundingClientRect();
+      const cx = boardRect.left + boardRect.width / 2;
+      const cy = boardRect.top + boardRect.height * 0.38;
+      this.texts.push({
+        x: cx,
+        y: cy,
+        title,
+        subtitle,
+        color,
+        scale,
+        life: 1,
+        decay: 0.85
+      });
+    },
+
+    /* =====================================================================
+       THE SIGNATURE 10-LINE EVOLVING LINE-CLEAR EXPLOSION GENERATOR
+       ===================================================================== */
+    explodeLines({ clearedRows, rowColors, count, isTSpin, isMini, isB2B, combo, allClear, stageIdx, mode }) {
+      boardRect = boardCanvas.getBoundingClientRect();
+      const intensity = 1 + Math.min(stageIdx * 0.14, 1.6) + (count - 1) * 0.38 + (isTSpin ? 0.6 : 0) + (allClear ? 1.0 : 0);
+
+      // Tactile Hitstop + Screen Shake + Flash
+      this.hitStopMs = Math.min(75, 22 + count * 12 + (isTSpin ? 20 : 0));
+      this.triggerShake(7 + count * 5.5 + (isTSpin ? 9 : 0) + stageIdx * 1.2, 240 + count * 85);
+      this.triggerFlash(
+        `radial-gradient(circle at 50% 50%, ${mode.accent}, ${mode.accent2}, transparent 75%)`,
+        Math.min(0.75, 0.22 + count * 0.11 + (isTSpin ? 0.15 : 0))
+      );
+
+      if (count >= 4 || isTSpin || mode.id === 'prism' || mode.id === 'cyber' || mode.id === 'supernova') {
+        this.triggerChromatic(320 + count * 60);
+      }
+
+      // Confetti cannon via CDN library on TETRIS / T-Spin Double+ / All Clear / Fireworks / Supernova!
+      if (typeof window.confetti === 'function' && (count >= 4 || (isTSpin && count >= 2) || allClear || mode.id === 'fireworks' || mode.id === 'supernova')) {
+        window.confetti({
+          particleCount: Math.min(130, Math.floor(38 * intensity)),
+          spread: 85,
+          startVelocity: 42,
+          origin: {
+            x: (boardRect.left + boardRect.width / 2) / viewW,
+            y: (boardRect.top + (clearedRows[0] - BUFFER_ROWS) * CELL) / viewH
+          },
+          colors: [mode.accent, mode.accent2, '#ffffff', '#ffe600', '#00f566']
+        });
+      }
+
+      const activeModeId = mode.id;
+      const runMode = (mId, mult = 1) => {
+        clearedRows.forEach((rowIdx, rOrder) => {
+          const visRow = rowIdx - BUFFER_ROWS;
+          const rowY = boardRect.top + (visRow + 0.5) * CELL;
+          const colors = rowColors[rOrder];
+
+          // Base per-cell explosion fragments
+          for (let col = 0; col < COLS; col++) {
+            const cellX = boardRect.left + (col + 0.5) * CELL;
+            const colInfo = PIECE_COLORS[colors[col]] || { main: mode.accent, light: '#ffffff' };
+            this.spawnModeCellFX(mId, cellX, rowY, colInfo.main, intensity * mult);
+          }
+
+          // Row-wide signature effects
+          this.spawnModeRowFX(mId, rowY, mode, intensity * mult);
+        });
+      };
+
+      if (activeModeId === 'supernova') {
+        // Stage 10+: OMEGA SUPERNOVA layers multiple signature effects together!
+        runMode('laser', 0.75);
+        runMode('prism', 0.75);
+        runMode('thunder', 0.7);
+        if (stageIdx >= 10) runMode(EFFECT_MODES[stageIdx % 9].id, 0.65);
+      } else {
+        runMode(activeModeId, 1.0);
+        // Progressive liveliness: higher stages also add bonus secondary sparks/rings!
+        if (stageIdx >= 3) {
+          const centerRow = clearedRows[Math.floor(clearedRows.length / 2)] - BUFFER_ROWS;
+          const cy = boardRect.top + (centerRow + 0.5) * CELL;
+          const cx = boardRect.left + boardRect.width / 2;
+          this.shockwaves.push({
+            x: cx, y: cy, r: 10,
+            maxR: 260 + stageIdx * 28 + count * 55,
+            color: mode.accent2,
+            width: 5 + count * 2,
+            life: 1, decay: 2.1
+          });
+        }
+      }
+
+      // Action Callout Text
+      let label = '';
+      let sub = '';
+      let bannerColor = mode.accent;
+      let scale = 1.0;
+
+      if (allClear) {
+        label = 'PERFECT CLEAR!!';
+        sub = 'ALL BLOCKS OBLITERATED!';
+        bannerColor = '#ffe600';
+        scale = 1.45;
+      } else if (isTSpin) {
+        const names = ['', 'SINGLE', 'DOUBLE', 'TRIPLE'];
+        label = (isMini ? 'T-SPIN MINI ' : 'T-SPIN ') + (names[count] || '');
+        bannerColor = '#e066ff';
+        scale = 1.18 + count * 0.1;
+      } else if (count === 4) {
+        label = 'TETRIS!!';
+        bannerColor = '#00f0ff';
+        scale = 1.38;
+      } else if (count === 3) {
+        label = 'TRIPLE!';
+        bannerColor = '#00f566';
+        scale = 1.12;
+      } else if (count === 2) {
+        label = 'DOUBLE!';
+        bannerColor = '#ffbb00';
+        scale = 1.0;
+      } else {
+        label = 'SINGLE';
+        scale = 0.88;
+      }
+
+      const tags = [];
+      if (isB2B) tags.push('BACK-TO-BACK ×1.5');
+      if (combo >= 1) tags.push(`${combo} REN COMBO!`);
+      sub = sub || tags.join('  •  ');
+      this.spawnBanner(label, sub, bannerColor, scale);
+    },
+
+    spawnModeCellFX(mId, x, y, cellColor, power) {
+      const pCount = Math.min(18, Math.ceil(6 * power));
+
+      if (mId === 'neon') {
+        for (let i = 0; i < pCount; i++) {
+          const ang = Math.random() * Math.PI * 2;
+          const spd = (90 + Math.random() * 360) * Math.sqrt(power);
+          this.particles.push({
+            shape: i % 2 === 0 ? 'square' : 'spark',
+            x, y,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd - 60,
+            gravity: 420,
+            drag: 0.97,
+            size: 4 + Math.random() * 6,
+            color: i % 3 === 0 ? '#ffffff' : cellColor,
+            rot: Math.random() * 6.28,
+            vrot: (Math.random() - 0.5) * 12,
+            life: 1,
+            decay: 1.2 + Math.random() * 0.9
+          });
+        }
+      } else if (mId === 'laser') {
+        for (let i = 0; i < pCount; i++) {
+          const dir = Math.random() < 0.5 ? -1 : 1;
+          this.particles.push({
+            shape: 'streak',
+            x, y: y + (Math.random() - 0.5) * CELL,
+            vx: dir * (320 + Math.random() * 680),
+            vy: (Math.random() - 0.5) * 140,
+            gravity: 0,
+            drag: 0.95,
+            size: 3 + Math.random() * 4,
+            len: 22 + Math.random() * 34,
+            color: i % 2 === 0 ? '#ff2a85' : '#00f0ff',
+            life: 1,
+            decay: 1.9 + Math.random()
+          });
+        }
+      } else if (mId === 'fireworks') {
+        // Rocket burst + multi-color chrysanthemum ring!
+        const burstHue = Math.floor(Math.random() * 360);
+        for (let i = 0; i < pCount + 3; i++) {
+          const ang = (Math.PI * 2 * i) / (pCount + 3) + (Math.random() - 0.5) * 0.2;
+          const spd = 160 + Math.random() * 260;
+          this.particles.push({
+            shape: 'circle',
+            x, y,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd - 90,
+            gravity: 280,
+            drag: 0.96,
+            size: 3.5 + Math.random() * 4.5,
+            color: `hsl(${(burstHue + i * 14) % 360}, 100%, 65%)`,
+            twinkle: true,
+            life: 1,
+            decay: 0.95 + Math.random() * 0.6
+          });
+        }
+      } else if (mId === 'thunder') {
+        for (let i = 0; i < pCount; i++) {
+          const ang = Math.random() * Math.PI * 2;
+          const spd = 180 + Math.random() * 460;
+          this.particles.push({
+            shape: 'spark',
+            x, y,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd,
+            gravity: 120,
+            drag: 0.92,
+            size: 3 + Math.random() * 5,
+            color: i % 2 === 0 ? '#99ecff' : '#c77dff',
+            jitter: 18,
+            life: 1,
+            decay: 1.8 + Math.random()
+          });
+        }
+      } else if (mId === 'prism') {
+        for (let i = 0; i < pCount; i++) {
+          const ang = Math.random() * Math.PI * 2;
+          const spd = 130 + Math.random() * 390;
+          this.particles.push({
+            shape: 'shard',
+            x, y,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd - 80,
+            gravity: 360,
+            drag: 0.98,
+            size: 7 + Math.random() * 9,
+            color: `hsl(${Math.floor(Math.random() * 360)}, 100%, 72%)`,
+            rot: Math.random() * 6.28,
+            vrot: (Math.random() - 0.5) * 16,
+            life: 1,
+            decay: 1.0 + Math.random() * 0.7
+          });
+        }
+      } else if (mId === 'magma') {
+        const magmaPalette = ['#fff3b0', '#ffbe0b', '#fb5607', '#ff006e'];
+        for (let i = 0; i < pCount + 2; i++) {
+          const ang = -Math.PI / 2 + (Math.random() - 0.5) * 1.9;
+          const spd = 180 + Math.random() * 460;
+          this.particles.push({
+            shape: 'circle',
+            x, y,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd,
+            gravity: 540,
+            drag: 0.98,
+            size: 5 + Math.random() * 8,
+            color: magmaPalette[i % magmaPalette.length],
+            life: 1,
+            decay: 1.05 + Math.random() * 0.7
+          });
+        }
+      } else if (mId === 'cyber') {
+        const glyphs = ['0', '1', 'Ξ', 'Δ', '◈', '⚡', 'X', '7'];
+        for (let i = 0; i < pCount; i++) {
+          this.particles.push({
+            shape: i % 2 === 0 ? 'glyph' : 'rectSlice',
+            glyph: glyphs[Math.floor(Math.random() * glyphs.length)],
+            x: x + (Math.random() - 0.5) * 20,
+            y: y + (Math.random() - 0.5) * 16,
+            vx: (Math.random() - 0.5) * 420,
+            vy: -80 - Math.random() * 240,
+            gravity: 190,
+            drag: 0.96,
+            size: 11 + Math.random() * 8,
+            color: i % 3 === 0 ? '#00ff99' : (i % 3 === 1 ? '#00e5ff' : '#ff2a85'),
+            life: 1,
+            decay: 1.25 + Math.random() * 0.7
+          });
+        }
+      } else if (mId === 'vortex') {
+        const cx = boardRect.left + boardRect.width / 2;
+        const cy = boardRect.top + boardRect.height * 0.5;
+        for (let i = 0; i < pCount; i++) {
+          const ang = Math.random() * Math.PI * 2;
+          const spd = 150 + Math.random() * 260;
+          this.particles.push({
+            shape: 'circle',
+            x, y,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd,
+            gravity: 0,
+            drag: 0.97,
+            vortexX: cx,
+            vortexY: cy,
+            size: 4 + Math.random() * 5,
+            color: i % 2 === 0 ? '#c77dff' : '#ff007f',
+            life: 1,
+            decay: 0.9 + Math.random() * 0.5
+          });
+        }
+      } else if (mId === 'aurora') {
+        for (let i = 0; i < pCount + 2; i++) {
+          const ang = Math.random() * Math.PI * 2;
+          const spd = 90 + Math.random() * 310;
+          this.particles.push({
+            shape: 'star',
+            x, y,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd - 50,
+            gravity: -60, // floats upwards like cosmic stardust!
+            drag: 0.97,
+            size: 5 + Math.random() * 7,
+            color: i % 2 === 0 ? '#00ffd5' : '#9d7bff',
+            rot: Math.random() * 6.28,
+            vrot: 6,
+            twinkle: true,
+            life: 1,
+            decay: 0.85 + Math.random() * 0.6
+          });
+        }
+      }
+    },
+
+    spawnModeRowFX(mId, rowY, mode, power) {
+      const cx = boardRect.left + boardRect.width / 2;
+
+      if (mId === 'neon') {
+        this.shockwaves.push({
+          x: cx, y: rowY, r: 8,
+          maxR: 240 * power,
+          color: mode.accent,
+          width: 6,
+          life: 1, decay: 2.3
+        });
+      } else if (mId === 'laser') {
+        // Full-viewport piercing horizontal plasma laser beam!
+        this.beams.push({
+          y: rowY,
+          h: CELL * (1.1 + 0.35 * power),
+          color: '#ff2a85',
+          core: '#ffffff',
+          life: 1,
+          decay: 2.8
+        });
+      } else if (mId === 'fireworks') {
+        this.shockwaves.push({
+          x: cx + (Math.random() - 0.5) * 120,
+          y: rowY,
+          r: 5,
+          maxR: 220 * power,
+          color: '#ffdd00',
+          width: 4,
+          dashed: true,
+          life: 1, decay: 1.9
+        });
+      } else if (mId === 'thunder') {
+        // Horizontal bolt across screen + vertical sky bolt!
+        this.lightnings.push(this.makeBolt(0, rowY, viewW, rowY, 26, '#70e4ff'));
+        const strikeX = boardRect.left + (0.15 + Math.random() * 0.7) * boardRect.width;
+        this.lightnings.push(this.makeBolt(strikeX, 0, strikeX, rowY, 22, '#d896ff'));
+      } else if (mId === 'prism') {
+        this.shockwaves.push({
+          x: cx, y: rowY, r: 12,
+          maxR: 310 * power,
+          color: '#00ffcc',
+          width: 7,
+          polygon: 6,
+          life: 1, decay: 2.0
+        });
+      } else if (mId === 'magma') {
+        this.beams.push({
+          y: rowY,
+          h: CELL * 0.9,
+          color: '#ff5500',
+          core: '#fff3b0',
+          life: 1,
+          decay: 2.2
+        });
+      } else if (mId === 'cyber') {
+        for (let k = 0; k < 4; k++) {
+          this.beams.push({
+            y: rowY + (Math.random() - 0.5) * 70,
+            h: 4 + Math.random() * 8,
+            color: k % 2 === 0 ? '#00ff99' : '#00e5ff',
+            core: '#ffffff',
+            life: 1,
+            decay: 3.6
+          });
+        }
+      } else if (mId === 'vortex') {
+        const vy = boardRect.top + boardRect.height * 0.5;
+        this.vortices.push({
+          x: cx, y: vy,
+          r: 95 * Math.min(1.6, power),
+          rot: 0,
+          life: 1,
+          decay: 1.35
+        });
+      } else if (mId === 'aurora') {
+        this.beams.push({
+          y: rowY,
+          h: CELL * 1.35,
+          color: '#00ffd5',
+          core: '#d8ccff',
+          life: 1,
+          decay: 1.8
+        });
+      }
+    },
+
+    makeBolt(x1, y1, x2, y2, segs, color) {
+      const pts = [{ x: x1, y: y1 }];
+      for (let i = 1; i < segs; i++) {
+        const t = i / segs;
+        const bx = x1 + (x2 - x1) * t + (Math.random() - 0.5) * 44;
+        const by = y1 + (y2 - y1) * t + (Math.random() - 0.5) * 44;
+        pts.push({ x: bx, y: by });
+      }
+      pts.push({ x: x2, y: y2 });
+      return { pts, color, life: 1, decay: 3.8 };
+    },
+
+    updateAndRender(dt) {
+      // Screen Shake
+      if (this.shakeTime > 0) {
+        this.shakeTime = Math.max(0, this.shakeTime - dt * 1000);
+        const curMag = this.shakeMag * (this.shakeTime / 280);
+        const sx = (Math.random() - 0.5) * 2 * curMag;
+        const sy = (Math.random() - 0.5) * 2 * curMag;
+        appEl.style.transform = `translate3d(${sx.toFixed(1)}px, ${sy.toFixed(1)}px, 0)`;
+        if (this.shakeTime === 0) {
+          this.shakeMag = 0;
+          appEl.style.transform = '';
+        }
+      }
+
+      if (this.chromaticTimer > 0) {
+        this.chromaticTimer = Math.max(0, this.chromaticTimer - dt * 1000);
+        if (this.chromaticTimer === 0) boardFrame.classList.remove('chromatic');
+      }
+
+      /* --- 1. Render Reactive Background Canvas --- */
+      bgCtx.clearRect(0, 0, viewW, viewH);
+      const stageIdx = Math.floor((game.lines || 0) / 10);
+      const mode = EFFECT_MODES[Math.min(EFFECT_MODES.length - 1, stageIdx)];
+      sound.beatPulse = Math.max(0, sound.beatPulse - dt * 3.4);
+      const beat = sound.beatPulse;
+
+      // Ambient stage radial aura that grows brighter as you clear more 10-line stages!
+      const auraAlpha = Math.min(0.36, 0.08 + stageIdx * 0.025 + beat * 0.08);
+      const grad = bgCtx.createRadialGradient(viewW / 2, viewH / 2, 30, viewW / 2, viewH / 2, Math.max(viewW, viewH) * 0.62);
+      grad.addColorStop(0, `hsla(${mode.bgHue}, 95%, 52%, ${auraAlpha})`);
+      grad.addColorStop(0.55, `hsla(${(mode.bgHue + 45) % 360}, 90%, 30%, ${auraAlpha * 0.45})`);
+      grad.addColorStop(1, 'rgba(3, 5, 14, 0)');
+      bgCtx.fillStyle = grad;
+      bgCtx.fillRect(0, 0, viewW, viewH);
+
+      // Perspective cyber horizon grid synced to level speed!
+      const horizonY = viewH * 0.68;
+      bgCtx.save();
+      bgCtx.strokeStyle = `hsla(${mode.bgHue}, 100%, 62%, ${0.09 + Math.min(0.18, stageIdx * 0.02) + beat * 0.07})`;
+      bgCtx.lineWidth = 1;
+      for (let i = -12; i <= 12; i++) {
+        bgCtx.beginPath();
+        bgCtx.moveTo(viewW / 2 + i * 32, horizonY);
+        bgCtx.lineTo(viewW / 2 + i * 190, viewH);
+        bgCtx.stroke();
+      }
+      const gridOffset = ((performance.now() * 0.04 * (1 + stageIdx * 0.25)) % 40) / 40;
+      for (let r = 0; r < 8; r++) {
+        const p = Math.pow((r + gridOffset) / 8, 1.8);
+        const gy = horizonY + p * (viewH - horizonY);
+        bgCtx.beginPath();
+        bgCtx.moveTo(0, gy);
+        bgCtx.lineTo(viewW, gy);
+        bgCtx.stroke();
+      }
+      bgCtx.restore();
+
+      // Beat-synced equalizer bars behind the arena (unlocks more energy every 10 lines)
+      if (stageIdx >= 1 || beat > 0.02) {
+        const barCount = 24;
+        const barW = viewW / barCount;
+        bgCtx.save();
+        for (let i = 0; i < barCount; i++) {
+          const wave = Math.sin(performance.now() * 0.006 + i * 0.55) * 0.5 + 0.5;
+          const h = (18 + stageIdx * 11) * wave * (0.4 + beat * 0.9);
+          bgCtx.fillStyle = `hsla(${(mode.bgHue + i * 5) % 360}, 95%, 60%, ${0.06 + Math.min(0.14, stageIdx * 0.015)})`;
+          bgCtx.fillRect(i * barW + 2, viewH - h, barW - 4, h);
+        }
+        bgCtx.restore();
+      }
+
+      // Rising ambient stars
+      const starSpeedMult = 1 + stageIdx * 0.35;
+      for (const s of this.ambientStars) {
+        s.x += s.vx * dt * starSpeedMult;
+        s.y += s.vy * dt * starSpeedMult;
+        if (s.y < -10) { s.y = viewH + 10; s.x = Math.random() * viewW; }
+        if (s.x < -10) s.x = viewW + 10;
+        if (s.x > viewW + 10) s.x = -10;
+        const tw = 0.45 + 0.55 * Math.sin(performance.now() * 0.005 + s.phase);
+        bgCtx.fillStyle = `hsla(${mode.bgHue}, 100%, 78%, ${tw * (0.35 + Math.min(0.5, stageIdx * 0.06))})`;
+        bgCtx.beginPath();
+        bgCtx.arc(s.x, s.y, s.r * (1 + beat * 0.4), 0, Math.PI * 2);
+        bgCtx.fill();
+      }
+
+      /* --- 2. Render Foreground Explosion FX Canvas --- */
+      fxCtx.clearRect(0, 0, viewW, viewH);
+      fxCtx.save();
+      fxCtx.globalCompositeOperation = 'lighter';
+
+      // Hard-Drop Light Trails
+      for (let i = this.dropTrails.length - 1; i >= 0; i--) {
+        const tr = this.dropTrails[i];
+        tr.life -= tr.decay * dt;
+        if (tr.life <= 0) { this.dropTrails.splice(i, 1); continue; }
+        const lg = fxCtx.createLinearGradient(0, tr.y1, 0, tr.y2);
+        lg.addColorStop(0, 'rgba(255,255,255,0)');
+        lg.addColorStop(1, tr.color);
+        fxCtx.globalAlpha = tr.life * 0.55;
+        fxCtx.fillStyle = lg;
+        fxCtx.fillRect(tr.x, tr.y1, tr.w, tr.y2 - tr.y1);
+      }
+
+      // Gravity Vortices (Stage 8)
+      for (let i = this.vortices.length - 1; i >= 0; i--) {
+        const v = this.vortices[i];
+        v.life -= v.decay * dt;
+        v.rot += 9 * dt;
+        if (v.life <= 0) { this.vortices.splice(i, 1); continue; }
+        fxCtx.save();
+        fxCtx.translate(v.x, v.y);
+        fxCtx.rotate(v.rot);
+        fxCtx.globalAlpha = v.life * 0.85;
+        for (let arm = 0; arm < 4; arm++) {
+          fxCtx.rotate(Math.PI / 2);
+          fxCtx.strokeStyle = arm % 2 === 0 ? '#c77dff' : '#ff007f';
+          fxCtx.lineWidth = 4 * v.life;
+          fxCtx.beginPath();
+          for (let a = 0; a < 3.2; a += 0.2) {
+            const rad = (a / 3.2) * v.r * (2 - v.life * 0.7);
+            const px = Math.cos(a * 2.2) * rad;
+            const py = Math.sin(a * 2.2) * rad;
+            if (a === 0) fxCtx.moveTo(px, py);
+            else fxCtx.lineTo(px, py);
+          }
+          fxCtx.stroke();
+        }
+        fxCtx.restore();
+      }
+
+      // Horizontal Laser / Plasma Beams
+      for (let i = this.beams.length - 1; i >= 0; i--) {
+        const b = this.beams[i];
+        b.life -= b.decay * dt;
+        if (b.life <= 0) { this.beams.splice(i, 1); continue; }
+        const curH = b.h * b.life;
+        fxCtx.globalAlpha = Math.min(1, b.life * 1.2);
+        fxCtx.fillStyle = b.color;
+        fxCtx.fillRect(0, b.y - curH / 2, viewW, curH);
+        fxCtx.fillStyle = b.core;
+        fxCtx.fillRect(0, b.y - curH * 0.22, viewW, curH * 0.44);
+      }
+
+      // Shockwaves
+      for (let i = this.shockwaves.length - 1; i >= 0; i--) {
+        const sw = this.shockwaves[i];
+        sw.life -= sw.decay * dt;
+        if (sw.life <= 0) { this.shockwaves.splice(i, 1); continue; }
+        const prog = 1 - sw.life;
+        const rad = sw.r + (sw.maxR - sw.r) * (1 - Math.pow(1 - prog, 3));
+        fxCtx.save();
+        fxCtx.globalAlpha = sw.life;
+        fxCtx.strokeStyle = sw.color;
+        fxCtx.lineWidth = Math.max(1.5, sw.width * sw.life);
+        if (sw.dashed) fxCtx.setLineDash([12, 10]);
+        fxCtx.beginPath();
+        if (sw.polygon) {
+          for (let k = 0; k <= sw.polygon; k++) {
+            const a = (k / sw.polygon) * Math.PI * 2 + prog * 1.2;
+            const px = sw.x + Math.cos(a) * rad;
+            const py = sw.y + Math.sin(a) * rad;
+            if (k === 0) fxCtx.moveTo(px, py); else fxCtx.lineTo(px, py);
+          }
+        } else {
+          fxCtx.arc(sw.x, sw.y, rad, 0, Math.PI * 2);
+        }
+        fxCtx.stroke();
+        fxCtx.restore();
+      }
+
+      // Lightning Bolts
+      for (let i = this.lightnings.length - 1; i >= 0; i--) {
+        const lt = this.lightnings[i];
+        lt.life -= lt.decay * dt;
+        if (lt.life <= 0) { this.lightnings.splice(i, 1); continue; }
+        fxCtx.globalAlpha = lt.life;
+        fxCtx.strokeStyle = lt.color;
+        fxCtx.lineWidth = 6 * lt.life;
+        fxCtx.beginPath();
+        lt.pts.forEach((p, idx) => idx === 0 ? fxCtx.moveTo(p.x, p.y) : fxCtx.lineTo(p.x, p.y));
+        fxCtx.stroke();
+
+        fxCtx.strokeStyle = '#ffffff';
+        fxCtx.lineWidth = 2 * lt.life;
+        fxCtx.stroke();
+      }
+
+      // Particles (Cap at 900 for rock-solid 60fps even in Supernova!)
+      if (this.particles.length > 900) {
+        this.particles.splice(0, this.particles.length - 900);
+      }
+
+      for (let i = this.particles.length - 1; i >= 0; i--) {
+        const p = this.particles[i];
+        p.life -= p.decay * dt;
+        if (p.life <= 0) { this.particles.splice(i, 1); continue; }
+
+        if (p.vortexX !== undefined) {
+          const dx = p.vortexX - p.x;
+          const dy = p.vortexY - p.y;
+          const dist = Math.hypot(dx, dy) + 12;
+          // Swirl inwards first half, blast outwards second half!
+          const pull = p.life > 0.45 ? 1150 : -1800;
+          p.vx += ((dx / dist) * pull - (dy / dist) * 650) * dt;
+          p.vy += ((dy / dist) * pull + (dx / dist) * 650) * dt;
+        }
+
+        p.vy += (p.gravity || 0) * dt;
+        const drag = Math.pow(p.drag || 0.98, dt * 60);
+        p.vx *= drag;
+        p.vy *= drag;
+        p.x += p.vx * dt + (p.jitter ? (Math.random() - 0.5) * p.jitter : 0);
+        p.y += p.vy * dt + (p.jitter ? (Math.random() - 0.5) * p.jitter : 0);
+        if (p.rot !== undefined) p.rot += (p.vrot || 0) * dt;
+
+        let alpha = p.life;
+        if (p.twinkle) alpha *= 0.45 + 0.55 * Math.sin(performance.now() * 0.03 + i);
+        fxCtx.globalAlpha = Math.max(0, Math.min(1, alpha));
+        fxCtx.fillStyle = p.color;
+        fxCtx.strokeStyle = p.color;
+
+        if (p.shape === 'circle') {
+          fxCtx.beginPath();
+          fxCtx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+          fxCtx.fill();
+        } else if (p.shape === 'square') {
+          fxCtx.save();
+          fxCtx.translate(p.x, p.y);
+          fxCtx.rotate(p.rot || 0);
+          const sz = p.size * p.life;
+          fxCtx.fillRect(-sz / 2, -sz / 2, sz, sz);
+          fxCtx.restore();
+        } else if (p.shape === 'spark' || p.shape === 'streak') {
+          const ang = Math.atan2(p.vy, p.vx);
+          const len = p.len || (p.size * 3.2);
+          fxCtx.lineWidth = Math.max(1.5, p.size * 0.65 * p.life);
+          fxCtx.beginPath();
+          fxCtx.moveTo(p.x, p.y);
+          fxCtx.lineTo(p.x - Math.cos(ang) * len, p.y - Math.sin(ang) * len);
+          fxCtx.stroke();
+        } else if (p.shape === 'shard') {
+          fxCtx.save();
+          fxCtx.translate(p.x, p.y);
+          fxCtx.rotate(p.rot || 0);
+          const s = p.size * (0.4 + 0.6 * p.life);
+          fxCtx.beginPath();
+          fxCtx.moveTo(0, -s);
+          fxCtx.lineTo(s * 0.85, s * 0.7);
+          fxCtx.lineTo(-s * 0.85, s * 0.5);
+          fxCtx.closePath();
+          fxCtx.fill();
+          fxCtx.restore();
+        } else if (p.shape === 'star') {
+          fxCtx.save();
+          fxCtx.translate(p.x, p.y);
+          fxCtx.rotate(p.rot || 0);
+          const s = p.size * p.life;
+          fxCtx.beginPath();
+          fxCtx.moveTo(0, -s * 1.4);
+          fxCtx.lineTo(s * 0.35, -s * 0.35);
+          fxCtx.lineTo(s * 1.4, 0);
+          fxCtx.lineTo(s * 0.35, s * 0.35);
+          fxCtx.lineTo(0, s * 1.4);
+          fxCtx.lineTo(-s * 0.35, s * 0.35);
+          fxCtx.lineTo(-s * 1.4, 0);
+          fxCtx.lineTo(-s * 0.35, -s * 0.35);
+          fxCtx.closePath();
+          fxCtx.fill();
+          fxCtx.restore();
+        } else if (p.shape === 'glyph') {
+          fxCtx.font = `900 ${Math.round(p.size)}px monospace`;
+          fxCtx.fillText(p.glyph, p.x, p.y);
+        } else if (p.shape === 'rectSlice') {
+          fxCtx.fillRect(p.x - 14, p.y - 2, 28 * p.life, 4);
+        }
+      }
+      fxCtx.restore();
+
+      // Kinetic Action Callouts (Normal blend with crisp outline & neon glow)
+      for (let i = this.texts.length - 1; i >= 0; i--) {
+        const tx = this.texts[i];
+        tx.life -= tx.decay * dt;
+        if (tx.life <= 0) { this.texts.splice(i, 1); continue; }
+        tx.y -= 28 * dt;
+        const pop = tx.life > 0.85 ? 1 + (1 - tx.life) * 2.2 : 1;
+        const sc = tx.scale * pop;
+
+        fxCtx.save();
+        fxCtx.translate(tx.x, tx.y);
+        fxCtx.scale(sc, sc);
+        fxCtx.globalAlpha = Math.min(1, tx.life * 1.5);
+        fxCtx.textAlign = 'center';
+
+        fxCtx.font = '900 28px "Segoe UI", system-ui, sans-serif';
+        fxCtx.shadowColor = tx.color;
+        fxCtx.shadowBlur = 22;
+        fxCtx.lineWidth = 6;
+        fxCtx.strokeStyle = 'rgba(4, 6, 18, 0.92)';
+        fxCtx.strokeText(tx.title, 0, 0);
+        fxCtx.fillStyle = '#ffffff';
+        fxCtx.fillText(tx.title, 0, 0);
+
+        if (tx.subtitle) {
+          fxCtx.font = '800 13px "Segoe UI", system-ui, sans-serif';
+          fxCtx.shadowBlur = 12;
+          fxCtx.lineWidth = 4;
+          fxCtx.strokeText(tx.subtitle, 0, 22);
+          fxCtx.fillStyle = tx.color;
+          fxCtx.fillText(tx.subtitle, 0, 22);
+        }
+        fxCtx.restore();
+      }
+    }
+  };
+
+  /* =========================================================================
+     4. TETRIS GUIDELINE GAME ENGINE
+     ========================================================================= */
+  const game = {
+    state: 'idle', // 'idle' | 'playing' | 'paused' | 'gameover'
+    grid: [],
+    bag: [],
+    nextQueue: [],
+    holdType: null,
+    holdUsed: false,
+    active: null,
+    score: 0,
+    lines: 0,
+    level: 1,
+    combo: -1,
+    b2b: false,
+    dropTimer: 0,
+    lockTimer: 0,
+    lockMoves: 0,
+    lowestY: 0,
+    lastActionRotate: false,
+    lastKickIndex: 0,
+    lockFlashCells: [],
+
+    createEmptyGrid() {
+      return Array.from({ length: TOTAL_ROWS }, () => Array(COLS).fill(null));
+    },
+
+    refillBag() {
+      const b = PIECE_TYPES.slice();
+      for (let i = b.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [b[i], b[j]] = [b[j], b[i]];
+      }
+      this.bag.push(...b);
+    },
+
+    pullNextType() {
+      while (this.bag.length < 7) this.refillBag();
+      return this.bag.shift();
+    },
+
+    start() {
+      sound.init();
+      this.grid = this.createEmptyGrid();
+      this.bag = [];
+      this.nextQueue = [];
+      for (let i = 0; i < 5; i++) this.nextQueue.push(this.pullNextType());
+      this.holdType = null;
+      this.holdUsed = false;
+      this.score = 0;
+      this.lines = 0;
+      this.level = 1;
+      this.combo = -1;
+      this.b2b = false;
+      this.lockFlashCells = [];
+      this.state = 'playing';
+
+      resetInputState();
+      this.spawnPiece(this.nextQueue.shift());
+      this.nextQueue.push(this.pullNextType());
+
+      updateHUD(true);
+      hideOverlay();
+      sound.startBgm();
+    },
+
+    spawnPiece(type) {
+      // Spawn at x=3, y=19 (just above visible row 20) and immediately drop 1 row if clear (Guideline)
+      const p = {
+        type,
+        rot: 0,
+        x: 3,
+        y: BUFFER_ROWS - 1
+      };
+
+      if (this.collides(p.type, p.rot, p.x, p.y)) {
+        // Try 1 row higher in buffer before declaring Block Out
+        p.y = BUFFER_ROWS - 2;
+        if (this.collides(p.type, p.rot, p.x, p.y)) {
+          this.triggerGameOver();
+          return;
+        }
+      } else if (!this.collides(p.type, p.rot, p.x, p.y + 1)) {
+        p.y += 1;
+      }
+
+      this.active = p;
+      this.dropTimer = 0;
+      this.lockTimer = 0;
+      this.lockMoves = 0;
+      this.lowestY = p.y;
+      this.lastActionRotate = false;
+      this.lastKickIndex = 0;
+    },
+
+    collides(type, rot, px, py) {
+      const cells = ROTATIONS[type][rot];
+      for (let i = 0; i < 4; i++) {
+        const cx = px + cells[i][0];
+        const cy = py + cells[i][1];
+        if (cx < 0 || cx >= COLS || cy >= TOTAL_ROWS) return true;
+        if (cy >= 0 && this.grid[cy][cx] !== null) return true;
+      }
+      return false;
+    },
+
+    isGrounded() {
+      if (!this.active) return false;
+      return this.collides(this.active.type, this.active.rot, this.active.x, this.active.y + 1);
+    },
+
+    getGhostY() {
+      if (!this.active) return 0;
+      let gy = this.active.y;
+      while (!this.collides(this.active.type, this.active.rot, this.active.x, gy + 1)) {
+        gy++;
+      }
+      return gy;
+    },
+
+    registerMoveReset() {
+      if (this.isGrounded() && this.lockMoves < MAX_LOCK_MOVES) {
+        this.lockTimer = 0;
+        this.lockMoves++;
+      }
+    },
+
+    moveHorizontal(dx) {
+      if (this.state !== 'playing' || !this.active) return false;
+      const nx = this.active.x + dx;
+      if (!this.collides(this.active.type, this.active.rot, nx, this.active.y)) {
+        this.active.x = nx;
+        this.lastActionRotate = false;
+        this.registerMoveReset();
+        if (this.active.y > this.lowestY) {
+          this.lowestY = this.active.y;
+          this.lockMoves = 0;
+        }
+        sound.sfxMove();
+        return true;
+      }
+      return false;
+    },
+
+    rotate(dir) {
+      // dir: 1 = CW, -1 = CCW, 2 = 180
+      if (this.state !== 'playing' || !this.active) return false;
+      const p = this.active;
+      const from = p.rot;
+      const to = (from + dir + 4) % 4;
+      const key = `${from}>${to}`;
+
+      let kicks;
+      if (dir === 2) {
+        kicks = KICKS_180[key] || [[0, 0]];
+      } else if (p.type === 'O') {
+        kicks = [[0, 0]];
+      } else if (p.type === 'I') {
+        kicks = I_KICKS[key];
+      } else {
+        kicks = JLSTZ_KICKS[key];
+      }
+
+      for (let i = 0; i < kicks.length; i++) {
+        const dx = kicks[i][0];
+        const dy = -kicks[i][1]; // Convert SRS +y(up) to board +y(down)!
+        if (!this.collides(p.type, to, p.x + dx, p.y + dy)) {
+          p.rot = to;
+          p.x += dx;
+          p.y += dy;
+          this.lastActionRotate = true;
+          this.lastKickIndex = i;
+          if (p.y > this.lowestY) {
+            this.lowestY = p.y;
+            this.lockMoves = 0;
+          }
+          this.registerMoveReset();
+
+          const tCheck = this.detectTSpin();
+          sound.sfxRotate(tCheck.isTSpin);
+          return true;
+        }
+      }
+      return false;
+    },
+
+    softDropStep() {
+      if (this.state !== 'playing' || !this.active) return false;
+      if (!this.collides(this.active.type, this.active.rot, this.active.x, this.active.y + 1)) {
+        this.active.y++;
+        this.score += 1;
+        this.dropTimer = 0;
+        this.lastActionRotate = false;
+        if (this.active.y > this.lowestY) {
+          this.lowestY = this.active.y;
+          this.lockMoves = 0;
+          this.lockTimer = 0;
+        }
+        sound.sfxSoftDrop();
+        updateScoreOnly();
+        return true;
+      }
+      return false;
+    },
+
+    hardDrop() {
+      if (this.state !== 'playing' || !this.active) return;
+      const startY = this.active.y;
+      const gy = this.getGhostY();
+      const dist = gy - startY;
+      if (dist > 0) {
+        this.score += dist * 2;
+        this.lastActionRotate = false;
+        const cells = ROTATIONS[this.active.type][this.active.rot];
+        const xs = cells.map(c => c[0]);
+        const minC = Math.min(...xs);
+        const maxC = Math.max(...xs);
+        vfx.addDropTrail(
+          this.active.x + minC,
+          startY - BUFFER_ROWS + 1,
+          gy - BUFFER_ROWS + 2,
+          maxC - minC + 1,
+          PIECE_COLORS[this.active.type].main
+        );
+      }
+      this.active.y = gy;
+      sound.sfxHardDrop();
+      vfx.triggerShake(3.2, 95);
+      this.lockPiece();
+    },
+
+    hold() {
+      if (this.state !== 'playing' || !this.active || this.holdUsed) return;
+      const curType = this.active.type;
+      this.holdUsed = true;
+      sound.sfxHold();
+
+      if (this.holdType === null) {
+        this.holdType = curType;
+        this.spawnPiece(this.nextQueue.shift());
+        this.nextQueue.push(this.pullNextType());
+      } else {
+        const swapType = this.holdType;
+        this.holdType = curType;
+        this.spawnPiece(swapType);
+      }
+      updateHUD(false);
+    },
+
+    /* Official 3-Corner T-Spin + Mini T-Spin Detection */
+    detectTSpin() {
+      const p = this.active;
+      if (!p || p.type !== 'T' || !this.lastActionRotate) {
+        return { isTSpin: false, isMini: false };
+      }
+      // Center of T's 3x3 box is (p.x + 1, p.y + 1)
+      const corners = [
+        [p.x,     p.y    ], // TL (0)
+        [p.x + 2, p.y    ], // TR (1)
+        [p.x + 2, p.y + 2], // BR (2)
+        [p.x,     p.y + 2]  // BL (3)
+      ];
+      const occupied = corners.map(([cx, cy]) => {
+        if (cx < 0 || cx >= COLS || cy >= TOTAL_ROWS) return true;
+        if (cy < 0) return false;
+        return this.grid[cy][cx] !== null;
+      });
+      const filledCount = occupied.filter(Boolean).length;
+      if (filledCount < 3) return { isTSpin: false, isMini: false };
+
+      // Front corners for each rotation state (0: TL&TR, 1: TR&BR, 2: BR&BL, 3: BL&TL)
+      const frontPairs = [[0, 1], [1, 2], [2, 3], [3, 0]];
+      const [f1, f2] = frontPairs[p.rot];
+      const frontFilled = (occupied[f1] ? 1 : 0) + (occupied[f2] ? 1 : 0);
+
+      // Kick index 4 (5th test, e.g., TST kick) upgrades Mini to full T-Spin per Guideline!
+      const isFull = frontFilled === 2 || this.lastKickIndex === 4;
+      return { isTSpin: true, isMini: !isFull };
+    },
+
+    lockPiece() {
+      const p = this.active;
+      if (!p) return;
+      const tSpin = this.detectTSpin();
+      const cells = ROTATIONS[p.type][p.rot];
+
+      let allAboveSkyline = true;
+      for (let i = 0; i < 4; i++) {
+        const cx = p.x + cells[i][0];
+        const cy = p.y + cells[i][1];
+        if (cy >= BUFFER_ROWS) allAboveSkyline = false;
+        if (cy >= 0 && cy < TOTAL_ROWS) {
+          this.grid[cy][cx] = p.type;
+          this.lockFlashCells.push({ x: cx, y: cy, life: 1 });
+        }
+      }
+
+      // Lock Out condition (Tetris Guideline: piece locks completely above visible skyline)
+      if (allAboveSkyline) {
+        this.triggerGameOver();
+        return;
+      }
+
+      // Check full lines
+      const clearedRows = [];
+      const rowColors = [];
+      for (let r = 0; r < TOTAL_ROWS; r++) {
+        if (this.grid[r].every(cell => cell !== null)) {
+          clearedRows.push(r);
+          rowColors.push(this.grid[r].slice());
+        }
+      }
+
+      const count = clearedRows.length;
+      const prevStageIdx = Math.floor(this.lines / 10);
+
+      if (count > 0) {
+        // Remove full rows & insert empty rows at top
+        for (const r of clearedRows) {
+          this.grid.splice(r, 1);
+          this.grid.unshift(Array(COLS).fill(null));
+        }
+
+        this.combo++;
+        this.lines += count;
+        this.level = Math.floor(this.lines / 10) + 1;
+
+        const isDifficult = count === 4 || tSpin.isTSpin;
+        const gotB2B = isDifficult && this.b2b;
+
+        // Official Guideline Base Points
+        let basePts = 0;
+        if (tSpin.isTSpin) {
+          if (tSpin.isMini) {
+            basePts = count === 1 ? 200 : 400;
+          } else {
+            basePts = [400, 800, 1200, 1600][count] || 1600;
+          }
+        } else {
+          basePts = [0, 100, 300, 500, 800][count] || 800;
+        }
+        if (gotB2B) basePts = Math.floor(basePts * 1.5);
+        if (this.combo > 0) basePts += 50 * this.combo;
+
+        // Check All Clear (Perfect Clear)
+        const allClear = this.grid.every(row => row.every(c => c === null));
+        if (allClear) {
+          const pcBonus = [0, 800, 1200, 1800, 2000][count] || 2000;
+          basePts += gotB2B && count === 4 ? 3200 : pcBonus;
+        }
+
+        this.score += basePts * this.level;
+        this.b2b = isDifficult;
+
+        const curStageIdx = Math.floor((this.lines - count) / 10); // Mode active at moment of clear
+        const newStageIdx = Math.floor(this.lines / 10);
+        const mode = EFFECT_MODES[Math.min(EFFECT_MODES.length - 1, curStageIdx)];
+
+        vfx.explodeLines({
+          clearedRows,
+          rowColors,
+          count,
+          isTSpin: tSpin.isTSpin,
+          isMini: tSpin.isMini,
+          isB2B: gotB2B,
+          combo: this.combo,
+          allClear,
+          stageIdx: curStageIdx,
+          mode
+        });
+
+        sound.sfxClear({
+          count,
+          isTSpin: tSpin.isTSpin,
+          isB2B: gotB2B,
+          combo: this.combo,
+          modeId: mode.id,
+          allClear
+        });
+
+        // Did we cross a 10-line threshold? Announce new Blast Mode!
+        if (newStageIdx > prevStageIdx) {
+          const nextMode = EFFECT_MODES[Math.min(EFFECT_MODES.length - 1, newStageIdx)];
+          setTimeout(() => {
+            sound.sfxStageUp();
+            vfx.triggerFlash(`radial-gradient(circle, ${nextMode.accent}, transparent 70%)`, 0.55);
+            vfx.spawnBanner(`STAGE ${String(newStageIdx + 1).padStart(2, '0')} UNLOCKED!`, `MODE: ${nextMode.name}`, nextMode.accent, 1.28);
+          }, 260);
+        }
+      } else {
+        this.combo = -1;
+        if (tSpin.isTSpin) {
+          const pts = (tSpin.isMini ? 100 : 400) * this.level;
+          this.score += pts;
+          vfx.spawnBanner(tSpin.isMini ? 'T-SPIN MINI' : 'T-SPIN!', `+${pts}`, '#e066ff', 0.95);
+          vfx.triggerShake(4, 130);
+        } else {
+          sound.sfxLock();
+        }
+      }
+
+      this.holdUsed = false;
+      this.spawnPiece(this.nextQueue.shift());
+      this.nextQueue.push(this.pullNextType());
+      updateHUD(newStageCheck(prevStageIdx, this.lines));
+    },
+
+    getGravityIntervalMs() {
+      // Official Tetris Guideline speed curve: (0.8 - ((level - 1) * 0.007))^(level - 1) seconds
+      const lv = Math.min(20, this.level);
+      const sec = Math.pow(0.8 - (lv - 1) * 0.007, lv - 1);
+      return Math.max(12, sec * 1000);
+    },
+
+    isDangerZone() {
+      for (let r = BUFFER_ROWS; r < BUFFER_ROWS + 4; r++) {
+        if (this.grid[r] && this.grid[r].some(c => c !== null)) return true;
+      }
+      return false;
+    },
+
+    update(dtMs) {
+      if (this.state !== 'playing' || !this.active) return;
+
+      // Decay lock flash cells
+      for (let i = this.lockFlashCells.length - 1; i >= 0; i--) {
+        this.lockFlashCells[i].life -= dtMs / 220;
+        if (this.lockFlashCells[i].life <= 0) this.lockFlashCells.splice(i, 1);
+      }
+
+      // Gravity
+      const gravMs = this.getGravityIntervalMs();
+      this.dropTimer += dtMs;
+      while (this.dropTimer >= gravMs) {
+        this.dropTimer -= gravMs;
+        if (!this.collides(this.active.type, this.active.rot, this.active.x, this.active.y + 1)) {
+          this.active.y++;
+          this.lastActionRotate = false;
+          if (this.active.y > this.lowestY) {
+            this.lowestY = this.active.y;
+            this.lockMoves = 0;
+            this.lockTimer = 0;
+          }
+        } else {
+          this.dropTimer = 0;
+          break;
+        }
+      }
+
+      // Lock Delay (500ms Extended Placement)
+      if (this.isGrounded()) {
+        this.lockTimer += dtMs;
+        if (this.lockTimer >= LOCK_DELAY_MS) {
+          this.lockPiece();
+        }
+      } else {
+        this.lockTimer = 0;
+      }
+
+      boardFrame.classList.toggle('danger', this.isDangerZone());
+    },
+
+    togglePause() {
+      if (this.state === 'playing') {
+        this.state = 'paused';
+        resetInputState();
+        showOverlay('PAUSED', 'GAME PAUSED', 'ひと休み中。準備ができたら再開しよう！', 'RESUME');
+      } else if (this.state === 'paused') {
+        this.state = 'playing';
+        hideOverlay();
+        sound.init();
+      }
+    },
+
+    triggerGameOver() {
+      this.state = 'gameover';
+      this.active = null;
+      sound.stopBgm();
+      sound.sfxGameOver();
+      boardFrame.classList.remove('danger');
+      vfx.triggerShake(16, 480);
+      vfx.triggerFlash('radial-gradient(circle, #ff1e56, transparent 75%)', 0.6);
+      showOverlay(
+        'GAME OVER',
+        `SCORE: ${this.score.toLocaleString()}`,
+        `到達: LEVEL ${this.level} (${this.lines} LINES) — もう一度さらに先のエフェクトを目指そう！`,
+        'PLAY AGAIN'
+      );
+    }
+  };
+
+  function newStageCheck(prevStage, lines) {
+    return Math.floor(lines / 10) !== prevStage;
+  }
+
+  /* =========================================================================
+     5. RENDERING PLAYFIELD, GHOST, HOLD & NEXT QUEUE
+     ========================================================================= */
+  function drawBlock(ctx, x, y, size, type, alpha = 1.0, lockProgress = 0) {
+    const col = PIECE_COLORS[type];
+    if (!col) return;
+    const px = x * size;
+    const py = y * size;
+    const pad = 1;
+    const w = size - pad * 2;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // Main block body gradient
+    const g = ctx.createLinearGradient(px, py, px + size, py + size);
+    g.addColorStop(0, col.light);
+    g.addColorStop(0.35, col.main);
+    g.addColorStop(1, col.dark);
+    ctx.fillStyle = g;
+    ctx.fillRect(px + pad, py + pad, w, w);
+
+    // Specular inner bevel
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.32)';
+    ctx.fillRect(px + pad + 2, py + pad + 2, w - 4, Math.max(2, size * 0.16));
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+    ctx.fillRect(px + pad + 2, py + size - pad - Math.max(3, size * 0.16), w - 4, Math.max(2, size * 0.14));
+
+    // Subtle inner jewel core
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(px + pad + 3.5, py + pad + 3.5, w - 7, w - 7);
+
+    if (lockProgress > 0) {
+      ctx.fillStyle = `rgba(255, 255, 255, ${0.28 * lockProgress})`;
+      ctx.fillRect(px + pad, py + pad, w, w);
+    }
+
+    ctx.restore();
+  }
+
+  function renderBoard() {
+    const bw = CELL * COLS;
+    const bh = CELL * VISIBLE_ROWS;
+    boardCtx.clearRect(0, 0, bw, bh);
+
+    // Subtle grid lines
+    boardCtx.strokeStyle = 'rgba(130, 175, 255, 0.07)';
+    boardCtx.lineWidth = 1;
+    for (let c = 1; c < COLS; c++) {
+      boardCtx.beginPath();
+      boardCtx.moveTo(c * CELL + 0.5, 0);
+      boardCtx.lineTo(c * CELL + 0.5, bh);
+      boardCtx.stroke();
+    }
+    for (let r = 1; r < VISIBLE_ROWS; r++) {
+      boardCtx.beginPath();
+      boardCtx.moveTo(0, r * CELL + 0.5);
+      boardCtx.lineTo(bw, r * CELL + 0.5);
+      boardCtx.stroke();
+    }
+
+    if (!game.grid.length) return;
+
+    // Locked blocks
+    for (let r = BUFFER_ROWS; r < TOTAL_ROWS; r++) {
+      const visY = r - BUFFER_ROWS;
+      for (let c = 0; c < COLS; c++) {
+        const type = game.grid[r][c];
+        if (type) {
+          drawBlock(boardCtx, c, visY, CELL, type, 1.0, 0);
+        }
+      }
+    }
+
+    // Lock-flash highlight
+    for (const fc of game.lockFlashCells) {
+      if (fc.y >= BUFFER_ROWS) {
+        boardCtx.fillStyle = `rgba(255, 255, 255, ${fc.life * 0.55})`;
+        boardCtx.fillRect(fc.x * CELL, (fc.y - BUFFER_ROWS) * CELL, CELL, CELL);
+      }
+    }
+
+    // Ghost & Active Piece
+    if (game.active && game.state === 'playing') {
+      const p = game.active;
+      const cells = ROTATIONS[p.type][p.rot];
+      const gy = game.getGhostY();
+      const col = PIECE_COLORS[p.type];
+
+      // Ghost Piece
+      boardCtx.save();
+      for (let i = 0; i < 4; i++) {
+        const cx = p.x + cells[i][0];
+        const cy = gy + cells[i][1] - BUFFER_ROWS;
+        if (cy >= 0) {
+          boardCtx.fillStyle = col.main;
+          boardCtx.globalAlpha = 0.16;
+          boardCtx.fillRect(cx * CELL + 2, cy * CELL + 2, CELL - 4, CELL - 4);
+          boardCtx.globalAlpha = 0.72;
+          boardCtx.strokeStyle = col.main;
+          boardCtx.lineWidth = 2;
+          boardCtx.strokeRect(cx * CELL + 2, cy * CELL + 2, CELL - 4, CELL - 4);
+        }
+      }
+      boardCtx.restore();
+
+      // Active Piece
+      const lockProg = game.isGrounded() ? Math.min(1, game.lockTimer / LOCK_DELAY_MS) : 0;
+      for (let i = 0; i < 4; i++) {
+        const cx = p.x + cells[i][0];
+        const cy = p.y + cells[i][1] - BUFFER_ROWS;
+        if (cy >= -1) {
+          drawBlock(boardCtx, cx, cy, CELL, p.type, 1.0, lockProg);
+        }
+      }
+    }
+  }
+
+  function drawMiniPiece(ctx, type, cx, cy, size, dimmed = false) {
+    if (!type) return;
+    const cells = BASE_CELLS[type];
+    const xs = cells.map(c => c[0]);
+    const ys = cells.map(c => c[1]);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const pw = (maxX - minX + 1) * size;
+    const ph = (maxY - minY + 1) * size;
+    const ox = (cx - pw / 2) / size - minX;
+    const oy = (cy - ph / 2) / size - minY;
+
+    for (const [bx, by] of cells) {
+      drawBlock(ctx, ox + bx, oy + by, size, type, dimmed ? 0.35 : 1.0, 0);
+    }
+  }
+
+  function renderSideQueues() {
+    holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
+    if (game.holdType) {
+      drawMiniPiece(holdCtx, game.holdType, holdCanvas.width / 2, holdCanvas.height / 2, 22, game.holdUsed);
+    }
+
+    nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+    for (let i = 0; i < Math.min(5, game.nextQueue.length); i++) {
+      const sz = i === 0 ? 22 : 17;
+      const cy = i === 0 ? 38 : 42 + i * 56;
+      drawMiniPiece(nextCtx, game.nextQueue[i], nextCanvas.width / 2, cy, sz, false);
+    }
+  }
+
+  /* =========================================================================
+     6. HUD & OVERLAY UPDATES
+     ========================================================================= */
+  const scoreEl = document.getElementById('scoreVal');
+  const levelEl = document.getElementById('levelVal');
+  const linesEl = document.getElementById('linesVal');
+  const stageBadgeEl = document.getElementById('stageBadge');
+  const effectNameEl = document.getElementById('effectName');
+  const effectSubEl = document.getElementById('effectSub');
+  const stageProgEl = document.getElementById('stageProgress');
+  const nextEvoEl = document.getElementById('nextEvoText');
+  const b2bBadge = document.getElementById('b2bBadge');
+  const renBadge = document.getElementById('renBadge');
+  const overlayEl = document.getElementById('overlay');
+  const overlayKicker = document.getElementById('overlayKicker');
+  const overlayTitle = document.getElementById('overlayTitle');
+  const overlayDesc = document.getElementById('overlayDesc');
+  const startBtn = document.getElementById('startBtn');
+
+  function updateScoreOnly() {
+    scoreEl.textContent = game.score.toLocaleString();
+  }
+
+  function updateHUD(themeChanged) {
+    scoreEl.textContent = game.score.toLocaleString();
+    levelEl.textContent = String(game.level);
+    linesEl.textContent = String(game.lines);
+
+    const stageIdx = Math.floor(game.lines / 10);
+    const mode = EFFECT_MODES[Math.min(EFFECT_MODES.length - 1, stageIdx)];
+    const intoStage = game.lines % 10;
+
+    stageBadgeEl.textContent = `STAGE ${String(stageIdx + 1).padStart(2, '0')}`;
+    effectNameEl.textContent = mode.name;
+    effectSubEl.textContent = mode.sub;
+    stageProgEl.style.width = `${(intoStage / 10) * 100}%`;
+    nextEvoEl.textContent = `${intoStage} / 10 LINES`;
+
+    if (themeChanged) {
+      document.documentElement.style.setProperty('--accent', mode.accent);
+      document.documentElement.style.setProperty('--accent-2', mode.accent2);
+    }
+
+    b2bBadge.classList.toggle('visible', game.b2b);
+    if (game.combo >= 1) {
+      renBadge.textContent = `${game.combo} REN`;
+      renBadge.classList.add('visible');
+    } else {
+      renBadge.classList.remove('visible');
+    }
+
+    renderSideQueues();
+  }
+
+  function showOverlay(kicker, title, desc, btnLabel) {
+    overlayKicker.textContent = kicker;
+    overlayTitle.innerHTML = title;
+    overlayDesc.innerHTML = desc;
+    startBtn.textContent = btnLabel;
+    overlayEl.classList.remove('hidden');
+  }
+
+  function hideOverlay() {
+    overlayEl.classList.add('hidden');
+  }
+
+  /* =========================================================================
+     7. RESPONSIVE DAS / ARR KEYBOARD & TOUCH INPUT HANDLING
+     ========================================================================= */
+  const input = {
+    left: false,
+    right: false,
+    down: false,
+    dir: 0,
+    dasTimer: 0,
+    arrTimer: 0,
+    softTimer: 0
+  };
+
+  function resetInputState() {
+    input.left = false;
+    input.right = false;
+    input.down = false;
+    input.dir = 0;
+    input.dasTimer = 0;
+    input.arrTimer = 0;
+    input.softTimer = 0;
+  }
+
+  window.addEventListener('blur', resetInputState);
+
+  window.addEventListener('keydown', (e) => {
+    const gameKeys = ['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'Space'];
+    if (gameKeys.includes(e.code)) e.preventDefault();
+    if (e.repeat) return;
+
+    if (e.code === 'KeyM') {
+      const muted = sound.toggleMute();
+      const mb = document.getElementById('muteBtn');
+      mb.textContent = muted ? 'SOUND: OFF' : 'SOUND: ON';
+      mb.classList.toggle('active', !muted);
+      return;
+    }
+
+    if (e.code === 'Escape' || e.code === 'KeyP') {
+      if (game.state === 'playing' || game.state === 'paused') {
+        game.togglePause();
+      }
+      return;
+    }
+
+    if (game.state !== 'playing') {
+      if (e.code === 'Enter' || e.code === 'Space') {
+        if (game.state === 'paused') game.togglePause();
+        else game.start();
+      }
+      return;
+    }
+
+    switch (e.code) {
+      case 'ArrowLeft':
+        input.left = true;
+        input.dir = -1;
+        input.dasTimer = 0;
+        input.arrTimer = 0;
+        game.moveHorizontal(-1);
+        break;
+      case 'ArrowRight':
+        input.right = true;
+        input.dir = 1;
+        input.dasTimer = 0;
+        input.arrTimer = 0;
+        game.moveHorizontal(1);
+        break;
+      case 'ArrowDown':
+        input.down = true;
+        input.softTimer = 0;
+        game.softDropStep();
+        break;
+      case 'Space':
+        game.hardDrop();
+        break;
+      case 'ArrowUp':
+      case 'KeyX':
+        game.rotate(1);
+        break;
+      case 'KeyZ':
+      case 'ControlLeft':
+      case 'ControlRight':
+        game.rotate(-1);
+        break;
+      case 'KeyA':
+        game.rotate(2);
+        break;
+      case 'KeyC':
+      case 'ShiftLeft':
+      case 'ShiftRight':
+        game.hold();
+        break;
+    }
+  });
+
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'ArrowLeft') {
+      input.left = false;
+      if (input.right) {
+        input.dir = 1;
+        input.dasTimer = 0;
+        input.arrTimer = 0;
+      } else {
+        input.dir = 0;
+      }
+    } else if (e.code === 'ArrowRight') {
+      input.right = false;
+      if (input.left) {
+        input.dir = -1;
+        input.dasTimer = 0;
+        input.arrTimer = 0;
+      } else {
+        input.dir = 0;
+      }
+    } else if (e.code === 'ArrowDown') {
+      input.down = false;
+    }
+  });
+
+  function updateInput(dtMs) {
+    if (game.state !== 'playing') return;
+
+    if (input.dir !== 0) {
+      input.dasTimer += dtMs;
+      if (input.dasTimer >= DAS_MS) {
+        input.arrTimer += dtMs;
+        while (input.arrTimer >= ARR_MS) {
+          input.arrTimer -= ARR_MS;
+          if (!game.moveHorizontal(input.dir)) break;
+        }
+      }
+    }
+
+    if (input.down) {
+      input.softTimer += dtMs;
+      while (input.softTimer >= SOFT_DROP_MS) {
+        input.softTimer -= SOFT_DROP_MS;
+        if (!game.softDropStep()) break;
+      }
+    }
+  }
+
+  // UI Buttons & Touch Controls
+  startBtn.addEventListener('click', () => {
+    if (game.state === 'paused') game.togglePause();
+    else game.start();
+  });
+
+  document.getElementById('pauseBtn').addEventListener('click', () => {
+    if (game.state === 'playing' || game.state === 'paused') game.togglePause();
+  });
+
+  document.getElementById('muteBtn').addEventListener('click', (e) => {
+    sound.init();
+    const muted = sound.toggleMute();
+    e.currentTarget.textContent = muted ? 'SOUND: OFF' : 'SOUND: ON';
+    e.currentTarget.classList.toggle('active', !muted);
+  });
+
+  document.querySelectorAll('.touch-btn').forEach(btn => {
+    btn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (game.state !== 'playing') return;
+      const act = btn.dataset.act;
+      if (act === 'left') game.moveHorizontal(-1);
+      else if (act === 'right') game.moveHorizontal(1);
+      else if (act === 'down') game.softDropStep();
+      else if (act === 'hard') game.hardDrop();
+      else if (act === 'cw') game.rotate(1);
+      else if (act === 'ccw') game.rotate(-1);
+      else if (act === 'hold') game.hold();
+    });
+  });
+
+  /* =========================================================================
+     8. MAIN 60FPS GAME & VFX LOOP
+     ========================================================================= */
+  resizeAll();
+  vfx.initAmbient();
+  updateHUD(true);
+
+  let lastTs = performance.now();
+
+  function frame(now) {
+    const rawDtMs = Math.min(50, Math.max(0, now - lastTs));
+    lastTs = now;
+
+    // Hit-stop freezes board gravity briefly on huge clears while explosions & input keep running!
+    updateInput(rawDtMs);
+    if (vfx.hitStopMs > 0) {
+      vfx.hitStopMs = Math.max(0, vfx.hitStopMs - rawDtMs);
+    } else {
+      game.update(rawDtMs);
+    }
+
+    sound.updateBgm(game.level, game.isDangerZone(), game.state !== 'playing');
+    renderBoard();
+    vfx.updateAndRender(rawDtMs / 1000);
+
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

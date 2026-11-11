@@ -77,7 +77,7 @@ gemma4 > sarashina3mini
 gemma4 > sarashina3nano
 gemma4 > nemotron35supervl
 gemma4 > northminicode
-gemma4 > minimaxm31flash
+gemma4 > minimaxm31flash-202610201027   # openrouter / pi-agent 版。11/11 の opencode 版と曖昧なのでフルネーム
 gemma4 > solarmini4
 gemma4 > step37flash-202610241710   # hermes-agent 版。10/28 のローカル版と曖昧なのでフルネーム
 gemma4 > lagunaxs21
@@ -86,6 +86,7 @@ gemma4 > museglimmer
 gemma4 > step37flash-202610282328   # ローカル llama.cpp 版
 gemma4 > nemotronbolt
 gemma4 > opus48
+gemma4 > minimaxm31flash-202611111154   # opencode 版
 opus55-202609231032 > pulse-alpha-opencode
 opus55-202610141029 > pulse-alpha-opencode
 pulse-alpha-opencode > sonnet55
@@ -99,4 +100,8 @@ iceman > deepseekv4flash
 haiku55 > inkling2small > ornith
 qwen38-202609160535 > fable5
 grok46 > fable5
+qwen38-202609160535 > longcat25free-202611111224
+glm53flash-202610280446 > longcat25free-202611111224 > sonnet5
+opus55-202609231032 > carbon > pulse-alpha-opencode
+opus55-202610141029 > carbon > pulse-alpha-opencode
 ```
