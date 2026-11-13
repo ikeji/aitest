@@ -104,4 +104,8 @@ qwen38-202609160535 > longcat25free-202611111224
 glm53flash-202610280446 > longcat25free-202611111224 > sonnet5
 opus55-202609231032 > carbon > pulse-alpha-opencode
 opus55-202610141029 > carbon > pulse-alpha-opencode
+hydrogen > longcat25free-202611111224
+hydrogen > glm53flash-202610280446
+hydrogen > fable5
+qwen38-202609160535 > hydrogen
 ```

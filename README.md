@@ -35,78 +35,79 @@ python3 build_index.py     # regenerate index.html and the table in README
 | 14 | [Grok 4.6 (Extra High)](grok46-202609130137/index.html) | - | - | opencode | 2026-09-13 01:37 | 29m41s | - | - | A | 4 | 3 | 3 |
 | 15 | [MiniMax-M3.1-Flash (Space Bunny, Max think)](spacebunny-202609240250/index.html) | 428B-A23B | - | - | 2026-09-24 02:50 | 43m21s | - | - | A | 4 | 3 | 3 |
 | 16 | [Qwen3.8-27B (EXL3 3.5bpw)](qwen38-202609160535/index.html) | 27B | exllamav3 | Deepseek Harness | 2026-09-16 05:35 | 1h02m | - | - | A | 4 | 3 | 3 |
-| 17 | [claude-fable-5](fable5-202611101338/index.html) | - | anthropic | claude-code | 2026-11-10 13:38 | 11m04s | 54.5k | 82 | A | 4 | 3 | 3 |
-| 18 | [GLM-5.3-Flash](glm53flash-202610280446/index.html) | 321B-A17B | llama.cpp | pi-agent | 2026-10-28 04:46 | 3h18m | 87.3k | 12 | A | 4 | 3 | 2 |
-| 19 | [LongCat-2.5](longcat25free-202611111224/index.html) | 1600B-A48B | opencode | opencode | 2026-11-11 12:24 | 29m01s | 108.0k | 62 | A | 4 | 3 | 3 |
-| 20 | [claude-sonnet-5](sonnet5-202609022244/index.html) | - | anthropic | claude-code | 2026-09-02 22:44 | 17m20s | 87.8k | 100 | A | 4 | 2 | 3 |
-| 21 | [DeepSeek-V4.1-Flash (1017)](deepseekv411017-202610201458/index.html) | 552B-A16B | opencode | opencode | 2026-10-20 14:58 | 1h14m | 190.3k | 43 | A | 4 | 2 | 2 |
-| 22 | [claude-fable-5-2](fable52-202611101101/index.html) | - | anthropic | claude-code | 2026-11-10 11:01 | 6m44s | 39.5k | 112 | A | 3 | 3 | 3 |
-| 23 | [claude-haiku-5-5](haiku55-202610081052/index.html) | - | anthropic | claude-code | 2026-10-08 10:52 | 6m27s | 60.5k | 240 | B | 4 | 1 | 3 |
-| 24 | [Inkling-2-Small](inkling2small-202611082011/index.html) | - | opencode | opencode | 2026-11-08 20:11 | 8m49s | 81.3k | 154 | B | 4 | 1 | 3 |
-| 25 | [Ornith-1.5-122B](ornith-202610241242/index.html) | 122B-A9B | llama.cpp | pi-agent | 2026-10-24 12:42 | 10m53s | 13.3k | 20 | B | 4 | 2 | 1 |
-| 26 | [Beam-1.0-501B-A23B (Beam stealth)](beam-202610201822/index.html) | 501B-A23B | opencode | opencode | 2026-10-20 18:22 | 5m34s | 45.4k | 136 | B | 4 | 1 | 3 |
-| 27 | [claude-opus-4-6](opus46-202611101357/index.html) | - | anthropic | claude-code | 2026-11-10 13:57 | 2m39s | 12.0k | 75 | B | 4 | 1 | 2 |
-| 28 | [Iceman (stealth)](iceman-202611081411/index.html) | - | opencode | opencode | 2026-11-08 14:11 | 3m37s | 14.1k | 65 | B | 4 | 1 | 0 |
-| 29 | [DeepSeek-V4-Flash](deepseekv4flash-202609050207/index.html) | 284B-A13B | llama.cpp | pi-agent | 2026-09-05 02:07 | 58m34s | 48.0k | 14 | B | 4 | 1 | 0 |
-| 30 | [gpt-5.5](gpt55-202609032230/index.html) | - | openai | codex | 2026-09-03 22:30 | 4m40s | 13.7k | 49 | B | 4 | 3 | 0 |
-| 31 | [Laguna-S-2.1](lagunas21-202610241706/index.html) | 118B-A8B | nous | hermes-agent | 2026-10-24 17:06 | 17m17s | 49.2k | 50 | B | 4 | 2 | 1 |
-| 32 | [Grok 4.7 (High Fast)](grok47-202609220234/index.html) | - | - | opencode | 2026-09-22 02:34 | 35m45s | - | - | B | 3 | 4 | 3 |
-| 33 | [MiMo-V2.6-Flash](mimo26flash-202610070119/index.html) | 309B-A15B | opencode | opencode | 2026-10-07 01:19 | 53m56s | 142.8k | 44 | B | 3 | 3 | 2 |
-| 34 | [gemma-4-26B-A4B-it](gemma4-202609022143/index.html) | 26B-A4B | llama.cpp | pi-agent | 2026-09-02 21:43 | 4m52s | 18.4k | 63 | B | 4 | 1 | 1 |
-| 35 | [ERNIE-5.5-Flash-Preview](ernie55flash-202611121041/index.html) | 280B-A14B | openrouter | pi-agent | 2026-11-12 10:41 | 10m37s | 99.4k | 188 | B | 3 | 2 | 2 |
-| 36 | [Hy4 preview](hy4preview-202609100110/index.html) | 770B-A49B | - | opencode | 2026-09-10 01:10 | 21m14s | - | - | B | 2 | 3 | 3 |
-| 37 | [DeepSeek-V4.1-Flash](deepseekv41flash-202609111136/index.html) | 552B-A16B | - | opencode | 2026-09-11 11:36 | - | - | - | B | 3 | 4 | 2 |
-| 38 | [claude-opus-4-7](opus47-202611101354/index.html) | - | anthropic | claude-code | 2026-11-10 13:54 | 5m01s | 25.6k | 85 | C | 3 | 0 | 2 |
-| 39 | [gpt-oss-120b](gptoss120b-202609051948/index.html) | 117B-A5B | llama.cpp | pi-agent | 2026-09-05 19:48 | 0m58s | 2.5k | 43 | C | 2 | 1 | 0 |
-| 40 | [Qwen3-Next-80B-A3B-Thinking](qwen3next-202609052353/index.html) | 80B-A3B | llama.cpp | pi-agent | 2026-09-05 23:53 | 3m31s | 10.3k | 49 | C | 2 | 0 | 0 |
-| 41 | [Qwen3.8-27B](qwen38-202609022255/index.html) | 27B | llama.cpp | pi-agent | 2026-09-02 22:55 | 2h54m | 116.7k | 12 | C | 1 | 4 | 4 |
-| 42 | [Muse Spark 1.3](musespark13-202609100052/index.html) | - | - | - | 2026-09-10 00:52 | 2m53s | - | - | C | 1 | 4 | 3 |
-| 43 | [gemini-3.8-flash-high](gemini38flash-202609082157/index.html) | - | google | antigravity-cli | 2026-09-08 21:57 | 22m45s | - | - | C | 1 | 4 | 2 |
-| 44 | [gpt-5.6-sol](gpt56sol-202609071213/index.html) | - | openai | codex | 2026-09-07 12:13 | 9m22s | - | - | C | 1 | 4 | 1 |
-| 45 | [gemini-3.7-flash-high](gemini37flash-202609082346/index.html) | - | google | antigravity-cli | 2026-09-08 23:46 | 7m16s | - | - | C | 1 | 3 | 3 |
-| 46 | [gemini-3.6-flash-high](gemini36flash-202609082352/index.html) | - | google | antigravity-cli | 2026-09-08 23:52 | 2m57s | - | - | C | 1 | 3 | 2 |
-| 47 | [LongCat-2.5](longcat25free-202611051306/index.html) | - | nous | pi-agent | 2026-11-05 13:06 | 20m17s | 82.8k | 68 | C | 1 | 3 | 1 |
-| 48 | [claude-sonnet-4-6](sonnet46-202611101426/index.html) | - | anthropic | claude-code | 2026-11-10 14:26 | 24m06s | 123.2k | 85 | C | 1 | 2 | 2 |
-| 49 | [gpt-5.6-terra](gpt56terra-202609032330/index.html) | - | openai | codex | 2026-09-03 23:30 | 2m19s | 6.3k | 45 | C | 1 | 2 | 1 |
-| 50 | [Muse Ember (Crouton-Alpha stealth)](crouton-alpha-202611041124/index.html) | - | openrouter | pi-agent | 2026-11-04 11:24 | 1m17s | 10.9k | 141 | C | 1 | 2 | 1 |
-| 51 | [Muse Ember (Crouton-Alpha stealth)](crouton-alpha-opencode-202611041138/index.html) | - | opencode | opencode | 2026-11-04 11:38 | 2m04s | 10.0k | 80 | C | 1 | 2 | 0 |
-| 52 | [LongCat-2.5-preview](longcat25preview-202610070104/index.html) | 1600B-A48B | opencode | opencode | 2026-10-07 01:04 | 11m18s | 29.6k | 44 | C | 1 | 1 | 1 |
-| 53 | [Flint v1.0 (40B)](flint-202610220857/index.html) | 40B-A2.5B | opencode | opencode | 2026-10-22 08:57 | 13m48s | 76.1k | 92 | C | 1 | 1 | 1 |
-| 54 | [Flint v1.0 (40B)](flint-202610220911/index.html) | 40B-A2.5B | openrouter | pi-agent | 2026-10-22 09:11 | 11m30s | 86.7k | 126 | C | 1 | 1 | 1 |
-| 55 | [Beam-1.0-501B-A23B](beam10-202610241810/index.html) | 501B-A23B | nous | hermes-agent | 2026-10-24 18:10 | 0m20s | 4.5k | 240 | C | 1 | 1 | 1 |
-| 56 | [Ornith-1.5-122B](ornith15-202610241824/index.html) | 122B-A9B | nous | hermes-agent | 2026-10-24 18:24 | 7m31s | 16.3k | 36 | C | 1 | 1 | 1 |
-| 57 | [claude-sonnet-4-5](sonnet45-202611101828/index.html) | - | anthropic | claude-code | 2026-11-10 18:28 | 2m33s | 12.1k | 79 | C | 1 | 1 | 1 |
-| 58 | [claude-opus-4-5](opus45-202611101401/index.html) | - | anthropic | claude-code | 2026-11-10 14:01 | 2m24s | 13.0k | 90 | C | 1 | 0 | 1 |
-| 59 | [gemma-4-31B-it](gemma431b-202610272237/index.html) | 31B | llama.cpp | pi-agent | 2026-10-27 22:37 | 15m24s | 14.3k | 16 | F | 4 | 0 | 1 |
-| 60 | [gpt-5.6-luna](gpt56luna-202609032300/index.html) | - | openai | codex | 2026-09-03 23:00 | 1m47s | 5.0k | 46 | F | 1 | 1 | 1 |
-| 61 | [GLM-4.7-Flash](glm47flash-202609052329/index.html) | 30B-A3B | llama.cpp | pi-agent | 2026-09-05 23:29 | 2m28s | 6.5k | 44 | F | 1 | 1 | 1 |
-| 62 | [Step-3.7-Flash](step37flash-202610241710/index.html) | 198B-A11B | nous | hermes-agent | 2026-10-24 17:10 | 2m14s | 15.7k | 118 | F | 1 | 1 | 1 |
-| 63 | [Qwen3-Coder-Next](qwen3codernext-202609052344/index.html) | 80B-A3B | llama.cpp | pi-agent | 2026-09-05 23:44 | 4m19s | 11.3k | 44 | F | 1 | NA | 1 |
-| 64 | [Devstral-2-123B-Instruct](devstral2-202609051948/index.html) | 123B | llama.cpp | pi-agent | 2026-09-05 19:48 | 25m33s | 4.3k | 3 | F | 1 | NA | 0 |
-| 65 | [gpt-5.4-mini](gpt54mini-202609032210/index.html) | - | openai | codex | 2026-09-03 22:10 | 7m06s | 28.4k | 67 | F | 1 | NA | NA |
-| 66 | [MiniMax-M3.1-Flash](minimaxm31flash-202611111154/index.html) | 428B-A23B | opencode | opencode | 2026-11-11 11:54 | 15m02s | 137.1k | 152 | F | 0 | 0 | 0 |
-| 67 | [fledge-alpha (max)](fledgealpha-202610062258/index.html) | - | opencode | opencode | 2026-10-06 22:58 | 4m43s | 15.7k | 55 | F | 0 | NA | 1 |
-| 68 | [GLM-4.5-Air](glm45air-202609052311/index.html) | 106B-A12B | llama.cpp | pi-agent | 2026-09-05 23:11 | 5m16s | 5.2k | 17 | F | 0 | NA | 0 |
-| 69 | [Qwen3.6-35B-A3B](qwen36-202609022233/index.html) | 35B-A3B | llama.cpp | pi-agent | 2026-09-02 22:33 | 4m32s | 15.0k | 55 | F | 0 | NA | NA |
-| 70 | [claude-haiku-4-5](haiku45-202609022307/index.html) | - | anthropic | claude-code | 2026-09-02 23:07 | 4m32s | 22.9k | 92 | F | 0 | NA | NA |
-| 71 | [minimax/minimax-m3:free](minimaxm3-202609032151/index.html) | 428B-A23B | openrouter | pi-agent | 2026-09-03 21:51 | 7m05s | 13.0k | 104 | F | 0 | NA | NA |
-| 72 | [Qwen3-Coder-30B-A3B-Instruct](qwen3coder-202609061228/index.html) | 30B-A3B | llama.cpp | pi-agent | 2026-09-06 12:28 | 1m10s | 4.8k | 69 | F | 0 | NA | NA |
-| 73 | [MiniMax-M2.7](minimaxm27-202609061312/index.html) | 230B-A10B | llama.cpp | pi-agent | 2026-09-06 13:12 | 8m49s | 9.1k | 17 | F | 0 | NA | NA |
-| 74 | [Nemotron-3-Super-120B-A12B](nemotron3super-202609092217/index.html) | 120B-A12B | llama.cpp | pi-agent | 2026-09-09 22:17 | 9m53s | 9.0k | 15 | F | 0 | NA | NA |
-| 75 | [DeepSeek-V4.1-Flash](deepseekv41flash-202609161830/index.html) ([fixed.html](deepseekv41flash-202609161830/fixed.html)) | 552B-A16B | deepseek | Deepseek Harness | 2026-09-16 18:30 | 56m11s | 293.2k | 282 | F | 0 | NA | NA |
-| 76 | [MiniMax-M3.1-Flash (Space Bunny)](spacebunny-202609240045/index.html) | 428B-A23B | - | - | 2026-09-24 00:45 | - | - | - | F | 0 | NA | NA |
-| 77 | [big-pickle](bigpickle-202610062305/index.html) | - | opencode | opencode | 2026-10-06 23:05 | 15m36s | 18.9k | 20 | F | 0 | NA | NA |
-| 78 | [Sarashina3 mini](sarashina3mini-202610141030/index.html) | - | sarashina | pi-agent | 2026-10-14 10:30 | 0m12s | 0.9k | 73 | F | 0 | NA | NA |
-| 79 | [Sarashina3 nano](sarashina3nano-202610141031/index.html) | - | sarashina | pi-agent | 2026-10-14 10:31 | 0m01s | 0.3k | 243 | F | 0 | NA | NA |
-| 80 | [Nemotron-3.5-Super-VL](nemotron35supervl-202610182358/index.html) | 120B-A12B | openrouter | pi-agent | 2026-10-18 23:58 | 11m18s | 8.8k | 67 | F | 0 | NA | NA |
-| 81 | [North Mini Code](northminicode-202610190006/index.html) | 30B-A3B | openrouter | pi-agent | 2026-10-19 00:06 | 1m02s | 9.2k | 149 | F | 0 | NA | NA |
-| 82 | [MiniMax-M3.1-Flash](minimaxm31flash-202610201027/index.html) | 428B-A23B | openrouter | pi-agent | 2026-10-20 10:27 | 16m48s | 66.3k | 157 | F | 0 | NA | NA |
-| 83 | [Solar Mini 4](solarmini4-202610241645/index.html) | 35B-A3B | nous | hermes-agent | 2026-10-24 16:45 | 51m07s | 280.5k | 108 | F | 0 | NA | NA |
-| 84 | [Laguna-XS-2.1](lagunaxs21-202610241729/index.html) | 33B-A3B | nous | hermes-agent | 2026-10-24 17:29 | 1m44s | 6.7k | 65 | F | 0 | NA | NA |
-| 85 | [Muse-Glimmer-30B](museglimmer-202610280451/index.html) | 30B | llama.cpp | pi-agent | 2026-10-28 04:51 | 4m23s | 6.3k | 24 | F | 0 | NA | NA |
-| 86 | [Step-3.7-Flash](step37flash-202610282328/index.html) | 198B-A11B | llama.cpp | pi-agent | 2026-10-28 23:28 | 9m10s | 10.5k | 19 | F | 0 | NA | NA |
-| 87 | [Nemotron-3.5-Bolt-74B-A9B](nemotronbolt-202610282335/index.html) | 74B-A9B | llama.cpp | pi-agent | 2026-10-28 23:35 | 6m23s | 16.0k | 42 | F | 0 | NA | NA |
-| 88 | [claude-opus-4-8](opus48-202611101348/index.html) | - | anthropic | claude-code | 2026-11-10 13:48 | 6m07s | 30.1k | 82 | F | 0 | NA | NA |
+| 17 | [Gemini 4 Hydrogen (High)](hydrogen-202611132022/index.html) | - | google | antigravity-cli | 2026-11-13 20:22 | 4m02s | 51.0k | - | A | 4 | 3 | 2 |
+| 18 | [claude-fable-5](fable5-202611101338/index.html) | - | anthropic | claude-code | 2026-11-10 13:38 | 11m04s | 54.5k | 82 | A | 4 | 3 | 3 |
+| 19 | [GLM-5.3-Flash](glm53flash-202610280446/index.html) | 321B-A17B | llama.cpp | pi-agent | 2026-10-28 04:46 | 3h18m | 87.3k | 12 | A | 4 | 3 | 2 |
+| 20 | [LongCat-2.5](longcat25free-202611111224/index.html) | 1600B-A48B | opencode | opencode | 2026-11-11 12:24 | 29m01s | 108.0k | 62 | A | 4 | 3 | 3 |
+| 21 | [claude-sonnet-5](sonnet5-202609022244/index.html) | - | anthropic | claude-code | 2026-09-02 22:44 | 17m20s | 87.8k | 100 | A | 4 | 2 | 3 |
+| 22 | [DeepSeek-V4.1-Flash (1017)](deepseekv411017-202610201458/index.html) | 552B-A16B | opencode | opencode | 2026-10-20 14:58 | 1h14m | 190.3k | 43 | A | 4 | 2 | 2 |
+| 23 | [claude-fable-5-2](fable52-202611101101/index.html) | - | anthropic | claude-code | 2026-11-10 11:01 | 6m44s | 39.5k | 112 | A | 3 | 3 | 3 |
+| 24 | [claude-haiku-5-5](haiku55-202610081052/index.html) | - | anthropic | claude-code | 2026-10-08 10:52 | 6m27s | 60.5k | 240 | B | 4 | 1 | 3 |
+| 25 | [Inkling-2-Small](inkling2small-202611082011/index.html) | - | opencode | opencode | 2026-11-08 20:11 | 8m49s | 81.3k | 154 | B | 4 | 1 | 3 |
+| 26 | [Ornith-1.5-122B](ornith-202610241242/index.html) | 122B-A9B | llama.cpp | pi-agent | 2026-10-24 12:42 | 10m53s | 13.3k | 20 | B | 4 | 2 | 1 |
+| 27 | [Beam-1.0-501B-A23B (Beam stealth)](beam-202610201822/index.html) | 501B-A23B | opencode | opencode | 2026-10-20 18:22 | 5m34s | 45.4k | 136 | B | 4 | 1 | 3 |
+| 28 | [claude-opus-4-6](opus46-202611101357/index.html) | - | anthropic | claude-code | 2026-11-10 13:57 | 2m39s | 12.0k | 75 | B | 4 | 1 | 2 |
+| 29 | [Iceman (stealth)](iceman-202611081411/index.html) | - | opencode | opencode | 2026-11-08 14:11 | 3m37s | 14.1k | 65 | B | 4 | 1 | 0 |
+| 30 | [DeepSeek-V4-Flash](deepseekv4flash-202609050207/index.html) | 284B-A13B | llama.cpp | pi-agent | 2026-09-05 02:07 | 58m34s | 48.0k | 14 | B | 4 | 1 | 0 |
+| 31 | [gpt-5.5](gpt55-202609032230/index.html) | - | openai | codex | 2026-09-03 22:30 | 4m40s | 13.7k | 49 | B | 4 | 3 | 0 |
+| 32 | [Laguna-S-2.1](lagunas21-202610241706/index.html) | 118B-A8B | nous | hermes-agent | 2026-10-24 17:06 | 17m17s | 49.2k | 50 | B | 4 | 2 | 1 |
+| 33 | [Grok 4.7 (High Fast)](grok47-202609220234/index.html) | - | - | opencode | 2026-09-22 02:34 | 35m45s | - | - | B | 3 | 4 | 3 |
+| 34 | [MiMo-V2.6-Flash](mimo26flash-202610070119/index.html) | 309B-A15B | opencode | opencode | 2026-10-07 01:19 | 53m56s | 142.8k | 44 | B | 3 | 3 | 2 |
+| 35 | [gemma-4-26B-A4B-it](gemma4-202609022143/index.html) | 26B-A4B | llama.cpp | pi-agent | 2026-09-02 21:43 | 4m52s | 18.4k | 63 | B | 4 | 1 | 1 |
+| 36 | [ERNIE-5.5-Flash-Preview](ernie55flash-202611121041/index.html) | 280B-A14B | openrouter | pi-agent | 2026-11-12 10:41 | 10m37s | 99.4k | 188 | B | 3 | 2 | 2 |
+| 37 | [Hy4 preview](hy4preview-202609100110/index.html) | 770B-A49B | - | opencode | 2026-09-10 01:10 | 21m14s | - | - | B | 2 | 3 | 3 |
+| 38 | [DeepSeek-V4.1-Flash](deepseekv41flash-202609111136/index.html) | 552B-A16B | - | opencode | 2026-09-11 11:36 | - | - | - | B | 3 | 4 | 2 |
+| 39 | [claude-opus-4-7](opus47-202611101354/index.html) | - | anthropic | claude-code | 2026-11-10 13:54 | 5m01s | 25.6k | 85 | C | 3 | 0 | 2 |
+| 40 | [gpt-oss-120b](gptoss120b-202609051948/index.html) | 117B-A5B | llama.cpp | pi-agent | 2026-09-05 19:48 | 0m58s | 2.5k | 43 | C | 2 | 1 | 0 |
+| 41 | [Qwen3-Next-80B-A3B-Thinking](qwen3next-202609052353/index.html) | 80B-A3B | llama.cpp | pi-agent | 2026-09-05 23:53 | 3m31s | 10.3k | 49 | C | 2 | 0 | 0 |
+| 42 | [Qwen3.8-27B](qwen38-202609022255/index.html) | 27B | llama.cpp | pi-agent | 2026-09-02 22:55 | 2h54m | 116.7k | 12 | C | 1 | 4 | 4 |
+| 43 | [Muse Spark 1.3](musespark13-202609100052/index.html) | - | - | - | 2026-09-10 00:52 | 2m53s | - | - | C | 1 | 4 | 3 |
+| 44 | [gemini-3.8-flash-high](gemini38flash-202609082157/index.html) | - | google | antigravity-cli | 2026-09-08 21:57 | 22m45s | - | - | C | 1 | 4 | 2 |
+| 45 | [gpt-5.6-sol](gpt56sol-202609071213/index.html) | - | openai | codex | 2026-09-07 12:13 | 9m22s | - | - | C | 1 | 4 | 1 |
+| 46 | [gemini-3.7-flash-high](gemini37flash-202609082346/index.html) | - | google | antigravity-cli | 2026-09-08 23:46 | 7m16s | - | - | C | 1 | 3 | 3 |
+| 47 | [gemini-3.6-flash-high](gemini36flash-202609082352/index.html) | - | google | antigravity-cli | 2026-09-08 23:52 | 2m57s | - | - | C | 1 | 3 | 2 |
+| 48 | [LongCat-2.5](longcat25free-202611051306/index.html) | - | nous | pi-agent | 2026-11-05 13:06 | 20m17s | 82.8k | 68 | C | 1 | 3 | 1 |
+| 49 | [claude-sonnet-4-6](sonnet46-202611101426/index.html) | - | anthropic | claude-code | 2026-11-10 14:26 | 24m06s | 123.2k | 85 | C | 1 | 2 | 2 |
+| 50 | [gpt-5.6-terra](gpt56terra-202609032330/index.html) | - | openai | codex | 2026-09-03 23:30 | 2m19s | 6.3k | 45 | C | 1 | 2 | 1 |
+| 51 | [Muse Ember (Crouton-Alpha stealth)](crouton-alpha-202611041124/index.html) | - | openrouter | pi-agent | 2026-11-04 11:24 | 1m17s | 10.9k | 141 | C | 1 | 2 | 1 |
+| 52 | [Muse Ember (Crouton-Alpha stealth)](crouton-alpha-opencode-202611041138/index.html) | - | opencode | opencode | 2026-11-04 11:38 | 2m04s | 10.0k | 80 | C | 1 | 2 | 0 |
+| 53 | [LongCat-2.5-preview](longcat25preview-202610070104/index.html) | 1600B-A48B | opencode | opencode | 2026-10-07 01:04 | 11m18s | 29.6k | 44 | C | 1 | 1 | 1 |
+| 54 | [Flint v1.0 (40B)](flint-202610220857/index.html) | 40B-A2.5B | opencode | opencode | 2026-10-22 08:57 | 13m48s | 76.1k | 92 | C | 1 | 1 | 1 |
+| 55 | [Flint v1.0 (40B)](flint-202610220911/index.html) | 40B-A2.5B | openrouter | pi-agent | 2026-10-22 09:11 | 11m30s | 86.7k | 126 | C | 1 | 1 | 1 |
+| 56 | [Beam-1.0-501B-A23B](beam10-202610241810/index.html) | 501B-A23B | nous | hermes-agent | 2026-10-24 18:10 | 0m20s | 4.5k | 240 | C | 1 | 1 | 1 |
+| 57 | [Ornith-1.5-122B](ornith15-202610241824/index.html) | 122B-A9B | nous | hermes-agent | 2026-10-24 18:24 | 7m31s | 16.3k | 36 | C | 1 | 1 | 1 |
+| 58 | [claude-sonnet-4-5](sonnet45-202611101828/index.html) | - | anthropic | claude-code | 2026-11-10 18:28 | 2m33s | 12.1k | 79 | C | 1 | 1 | 1 |
+| 59 | [claude-opus-4-5](opus45-202611101401/index.html) | - | anthropic | claude-code | 2026-11-10 14:01 | 2m24s | 13.0k | 90 | C | 1 | 0 | 1 |
+| 60 | [gemma-4-31B-it](gemma431b-202610272237/index.html) | 31B | llama.cpp | pi-agent | 2026-10-27 22:37 | 15m24s | 14.3k | 16 | F | 4 | 0 | 1 |
+| 61 | [gpt-5.6-luna](gpt56luna-202609032300/index.html) | - | openai | codex | 2026-09-03 23:00 | 1m47s | 5.0k | 46 | F | 1 | 1 | 1 |
+| 62 | [GLM-4.7-Flash](glm47flash-202609052329/index.html) | 30B-A3B | llama.cpp | pi-agent | 2026-09-05 23:29 | 2m28s | 6.5k | 44 | F | 1 | 1 | 1 |
+| 63 | [Step-3.7-Flash](step37flash-202610241710/index.html) | 198B-A11B | nous | hermes-agent | 2026-10-24 17:10 | 2m14s | 15.7k | 118 | F | 1 | 1 | 1 |
+| 64 | [Qwen3-Coder-Next](qwen3codernext-202609052344/index.html) | 80B-A3B | llama.cpp | pi-agent | 2026-09-05 23:44 | 4m19s | 11.3k | 44 | F | 1 | NA | 1 |
+| 65 | [Devstral-2-123B-Instruct](devstral2-202609051948/index.html) | 123B | llama.cpp | pi-agent | 2026-09-05 19:48 | 25m33s | 4.3k | 3 | F | 1 | NA | 0 |
+| 66 | [gpt-5.4-mini](gpt54mini-202609032210/index.html) | - | openai | codex | 2026-09-03 22:10 | 7m06s | 28.4k | 67 | F | 1 | NA | NA |
+| 67 | [MiniMax-M3.1-Flash](minimaxm31flash-202611111154/index.html) | 428B-A23B | opencode | opencode | 2026-11-11 11:54 | 15m02s | 137.1k | 152 | F | 0 | 0 | 0 |
+| 68 | [fledge-alpha (max)](fledgealpha-202610062258/index.html) | - | opencode | opencode | 2026-10-06 22:58 | 4m43s | 15.7k | 55 | F | 0 | NA | 1 |
+| 69 | [GLM-4.5-Air](glm45air-202609052311/index.html) | 106B-A12B | llama.cpp | pi-agent | 2026-09-05 23:11 | 5m16s | 5.2k | 17 | F | 0 | NA | 0 |
+| 70 | [Qwen3.6-35B-A3B](qwen36-202609022233/index.html) | 35B-A3B | llama.cpp | pi-agent | 2026-09-02 22:33 | 4m32s | 15.0k | 55 | F | 0 | NA | NA |
+| 71 | [claude-haiku-4-5](haiku45-202609022307/index.html) | - | anthropic | claude-code | 2026-09-02 23:07 | 4m32s | 22.9k | 92 | F | 0 | NA | NA |
+| 72 | [minimax/minimax-m3:free](minimaxm3-202609032151/index.html) | 428B-A23B | openrouter | pi-agent | 2026-09-03 21:51 | 7m05s | 13.0k | 104 | F | 0 | NA | NA |
+| 73 | [Qwen3-Coder-30B-A3B-Instruct](qwen3coder-202609061228/index.html) | 30B-A3B | llama.cpp | pi-agent | 2026-09-06 12:28 | 1m10s | 4.8k | 69 | F | 0 | NA | NA |
+| 74 | [MiniMax-M2.7](minimaxm27-202609061312/index.html) | 230B-A10B | llama.cpp | pi-agent | 2026-09-06 13:12 | 8m49s | 9.1k | 17 | F | 0 | NA | NA |
+| 75 | [Nemotron-3-Super-120B-A12B](nemotron3super-202609092217/index.html) | 120B-A12B | llama.cpp | pi-agent | 2026-09-09 22:17 | 9m53s | 9.0k | 15 | F | 0 | NA | NA |
+| 76 | [DeepSeek-V4.1-Flash](deepseekv41flash-202609161830/index.html) ([fixed.html](deepseekv41flash-202609161830/fixed.html)) | 552B-A16B | deepseek | Deepseek Harness | 2026-09-16 18:30 | 56m11s | 293.2k | 282 | F | 0 | NA | NA |
+| 77 | [MiniMax-M3.1-Flash (Space Bunny)](spacebunny-202609240045/index.html) | 428B-A23B | - | - | 2026-09-24 00:45 | - | - | - | F | 0 | NA | NA |
+| 78 | [big-pickle](bigpickle-202610062305/index.html) | - | opencode | opencode | 2026-10-06 23:05 | 15m36s | 18.9k | 20 | F | 0 | NA | NA |
+| 79 | [Sarashina3 mini](sarashina3mini-202610141030/index.html) | - | sarashina | pi-agent | 2026-10-14 10:30 | 0m12s | 0.9k | 73 | F | 0 | NA | NA |
+| 80 | [Sarashina3 nano](sarashina3nano-202610141031/index.html) | - | sarashina | pi-agent | 2026-10-14 10:31 | 0m01s | 0.3k | 243 | F | 0 | NA | NA |
+| 81 | [Nemotron-3.5-Super-VL](nemotron35supervl-202610182358/index.html) | 120B-A12B | openrouter | pi-agent | 2026-10-18 23:58 | 11m18s | 8.8k | 67 | F | 0 | NA | NA |
+| 82 | [North Mini Code](northminicode-202610190006/index.html) | 30B-A3B | openrouter | pi-agent | 2026-10-19 00:06 | 1m02s | 9.2k | 149 | F | 0 | NA | NA |
+| 83 | [MiniMax-M3.1-Flash](minimaxm31flash-202610201027/index.html) | 428B-A23B | openrouter | pi-agent | 2026-10-20 10:27 | 16m48s | 66.3k | 157 | F | 0 | NA | NA |
+| 84 | [Solar Mini 4](solarmini4-202610241645/index.html) | 35B-A3B | nous | hermes-agent | 2026-10-24 16:45 | 51m07s | 280.5k | 108 | F | 0 | NA | NA |
+| 85 | [Laguna-XS-2.1](lagunaxs21-202610241729/index.html) | 33B-A3B | nous | hermes-agent | 2026-10-24 17:29 | 1m44s | 6.7k | 65 | F | 0 | NA | NA |
+| 86 | [Muse-Glimmer-30B](museglimmer-202610280451/index.html) | 30B | llama.cpp | pi-agent | 2026-10-28 04:51 | 4m23s | 6.3k | 24 | F | 0 | NA | NA |
+| 87 | [Step-3.7-Flash](step37flash-202610282328/index.html) | 198B-A11B | llama.cpp | pi-agent | 2026-10-28 23:28 | 9m10s | 10.5k | 19 | F | 0 | NA | NA |
+| 88 | [Nemotron-3.5-Bolt-74B-A9B](nemotronbolt-202610282335/index.html) | 74B-A9B | llama.cpp | pi-agent | 2026-10-28 23:35 | 6m23s | 16.0k | 42 | F | 0 | NA | NA |
+| 89 | [claude-opus-4-8](opus48-202611101348/index.html) | - | anthropic | claude-code | 2026-11-10 13:48 | 6m07s | 30.1k | 82 | F | 0 | NA | NA |
 <!-- index:end -->
 
 Run `build_index.py` before committing / pushing.
