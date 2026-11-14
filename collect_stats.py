@@ -248,6 +248,10 @@ def first_prompt(kind, path):
                 p = d.get("payload") or {}
                 if d.get("type") == "event_msg" and p.get("type") == "user_message":
                     return p.get("message", "")
+                if d.get("type") == "response_item" and p.get("type") == "message" and p.get("role") == "user":
+                    t = _text(p.get("content"))
+                    if t and not t.startswith("<"):
+                        return t
         elif kind == "opencode":
             import sqlite3
             db, sid = path.split("::", 1)
