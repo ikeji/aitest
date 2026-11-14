@@ -105,10 +105,11 @@ qwen38-202609160535 > longcat25free-202611111224
 glm53flash-202610280446 > longcat25free-202611111224 > sonnet5
 opus55-202609231032 > carbon-202611111318 > pulse-alpha-opencode   # Medium 版。11/14 の High 版と区別するためフルネーム
 opus55-202610141029 > carbon-202611111318 > pulse-alpha-opencode   # Medium 版
-hydrogen > longcat25free-202611111224
-hydrogen > glm53flash-202610280446
-hydrogen > fable5
-qwen38-202609160535 > hydrogen
+hydrogen-202611132022 > longcat25free-202611111224   # High 版。11/14 の XHigh 版と区別するためフルネーム
+hydrogen-202611132022 > glm53flash-202610280446   # High 版
+hydrogen-202611132022 > fable5   # High 版
+qwen38-202609160535 > hydrogen-202611132022   # High 版
 deepseekv411017 > ling32flash
 opus55-202610141029 > carbon-202611141951 > carbon-202611111318   # High 版
+argon-202611051057 > hydrogen-202611142030 > opus55-202609231032   # XHigh 版
 ```
