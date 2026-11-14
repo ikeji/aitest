@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>派手エフェクト・テトリス</title>
+<style>
+  :root{
+    --bg:#070512; --panel:#120c26; --line:#2a1d52;
+    --txt:#e8e4ff; --dim:#8f86c0; --acc:#ff4fd8; --acc2:#43e8ff;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:
+      radial-gradient(1200px 800px at 20% -10%, #2a1350 0%, transparent 60%),
+      radial-gradient(1000px 700px at 110% 110%, #102a52 0%, transparent 60%),
+      var(--bg);
+    color:var(--txt);
+    font-family:"Segoe UI", "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+    display:flex; align-items:center; justify-content:center;
+    min-height:100vh; overflow:hidden;
+    -webkit-user-select:none; user-select:none;
+  }
+  #app{display:flex; gap:14px; align-items:flex-start;}
+  .side{width:150px; display:flex; flex-direction:column; gap:12px;}
+  .panel{
+    background:linear-gradient(180deg, rgba(30,20,60,.85), rgba(14,9,32,.9));
+    border:1px solid var(--line); border-radius:12px; padding:10px;
+    box-shadow:0 0 0 1px rgba(120,90,255,.08), 0 10px 30px rgba(0,0,0,.5);
+  }
+  .panel h2{
+    font-size:11px; letter-spacing:.18em; color:var(--dim);
+    text-transform:uppercase; margin-bottom:6px; font-weight:600;
+  }
+  .stat{font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.1;}
+  .stat.small{font-size:16px; color:#bdb4e8;}
+  #stage{position:relative; border-radius:14px; overflow:hidden;
+    box-shadow:0 0 0 1px rgba(140,100,255,.25), 0 0 40px rgba(120,60,255,.25), 0 20px 60px rgba(0,0,0,.6);}
+  #game{display:block; background:#0a0618;}
+  #fx{position:absolute; inset:0; pointer-events:none;}
+  #overlay{
+    position:absolute; inset:0; display:flex; flex-direction:column; gap:14px;
+    align-items:center; justify-content:center; text-align:center;
+    background:rgba(6,4,16,.82); backdrop-filter:blur(6px);
+    transition:opacity .25s ease; z-index:5;
+  }
+  #overlay.hidden{opacity:0; pointer-events:none;}
+  #overlay h1{font-size:30px; letter-spacing:.04em;
+    background:linear-gradient(90deg,var(--acc),var(--acc2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;}
+  #overlay p{color:var(--dim); font-size:13px; line-height:1.7; max-width:340px;}
+  #overlay .keys{font-size:11px; color:#6f66a0; line-height:1.9;}
+  kbd{background:#241a4a; border:1px solid #4a3a86; border-radius:4px; padding:1px 6px;
+    font-family:inherit; font-size:11px; color:#cfc6ff;}
+  button{
+    font:inherit; font-weight:700; font-size:15px; color:#0a0618; cursor:pointer;
+    background:linear-gradient(90deg,var(--acc),var(--acc2)); border:none; border-radius:999px;
+    padding:10px 26px; box-shadow:0 6px 20px rgba(255,79,216,.35);
+    transition:transform .1s ease;
+  }
+  button:hover{transform:translateY(-2px) scale(1.03);}
+  #mute{
+    position:fixed; top:10px; right:10px; z-index:10;
+    background:rgba(20,14,44,.7); color:var(--txt); border:1px solid var(--line);
+    border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer;
+  }
+  /* モバイル操作用ボタン */
+  #touch{display:none; position:fixed; bottom:10px; left:0; right:0;
+    justify-content:space-between; padding:0 14px; pointer-events:none; z-index:9;}
+  #touch .grp{display:flex; gap:10px; pointer-events:auto;}
+  #touch button{
+    width:56px; height:56px; border-radius:50%; padding:0; font-size:20px;
+    background:rgba(40,28,80,.6); color:var(--txt); border:1px solid #4a3a86;
+    box-shadow:none; backdrop-filter:blur(4px);
+  }
+  #touch button:active{background:rgba(120,80,220,.6);}
+  @media (pointer:coarse){ #touch{display:flex;} }
+  @media (max-width:760px){
+    .side{width:110px;} .stat{font-size:17px;}
+  }
+</style>
+</head>
+<body>
+<button id="mute" title="ミュート (M)">🔊</button>
+<div id="app">
+  <div class="side">
+    <div class="panel"><h2>Hold</h2><canvas id="holdCv" width="120" height="72"></canvas></div>
+    <div class="panel"><h2>Level</h2><div class="stat" id="level">1</div></div>
+    <div class="panel"><h2>Lines</h2><div class="stat" id="lines">0</div></div>
+    <div class="panel"><h2>Effect</h2><div class="stat small" id="fxName">SPARK</div></div>
+  </div>
+
+  <div id="stage">
+    <canvas id="game"></canvas>
+    <canvas id="fx"></canvas>
+    <div id="overlay">
+      <h1>派手エフェクト・テトリス</h1>
+      <p>ライン消去のたびに画面が爆発する。10 ラインごとにエフェクトが進化し、<br>T-Spin・TETRIS・コンボでさらに派手に！</p>
+      <button id="startBtn">▶ スタート</button>
+      <p class="keys">
+        <kbd>←→</kbd> 移動 &nbsp; <kbd>↓</kbd> ソフトドロップ &nbsp; <kbd>↑</kbd>/<kbd>X</kbd> 回転 &nbsp; <kbd>Z</kbd> 逆回転<br>
+        <kbd>Space</kbd> ハードドロップ &nbsp; <kbd>C</kbd> ホールド &nbsp; <kbd>P</kbd> 一時停止 &nbsp; <kbd>M</kbd> ミュート
+      </p>
+    </div>
+  </div>
+
+  <div class="side">
+    <div class="panel"><h2>Next</h2><canvas id="nextCv" width="120" height="200"></canvas></div>
+    <div class="panel"><h2>Score</h2><div class="stat" id="score">0</div></div>
+    <div class="panel"><h2>Time</h2><div class="stat small" id="time">0:00</div></div>
+  </div>
+</div>
+
+<div id="touch">
+  <div class="grp">
+    <button data-k="left">◀</button><button data-k="down">▼</button><button data-k="right">▶</button>
+  </div>
+  <div class="grp">
+    <button data-k="rot">⟳</button><button data-k="drop">⤓</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =========================================================
+   派手エフェクト・テトリス  (single file, no assets)
+   - Tetris Guideline 準拠: 7-bag, SRS(+kick), グリニョール無効,
+     ロックダウン(移動/回転リセット), ゴースト, Hold, Next 5
+   - エフェクトは 10 lines ごとに段階アップ (5 段階)
+   - 音效・BGM は Web Audio API で全コード合成
+   ========================================================= */
+
+/* ---------------- 定数 ---------------- */
+const COLS = 10, ROWS = 20, CELL = 30;
+const W = COLS * CELL, H = ROWS * CELL;
+const LOCK_DELAY = 0.5;          // ロックまでの猶予 (秒)
+const MAX_RESETS = 15;           // ロックリセット回数上限
+const CLEAR_ANIM = 0.28;         // 消去アニメ時間 (秒)
+
+const SHAPES = {
+  I: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+  O: [[1,1],[1,1]],
+  T: [[0,1,0],[1,1,1],[0,0,0]],
+  S: [[0,1,1],[1,1,0],[0,0,0]],
+  Z: [[1,1,0],[0,1,1],[0,0,0]],
+  J: [[1,0,0],[1,1,1],[0,0,0]],
+  L: [[0,0,1],[1,1,1],[0,0,0]],
+};
+const COLORS = {
+  I:"#3fd9ff", O:"#ffd23f", T:"#c05dff", S:"#4fe36a",
+  Z:"#ff4f6d", J:"#4f7bff", L:"#ff9b3f",
+};
+/* SRS キックテーブル (O は無し) */
+const KICKS = {
+  "0>1":[[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+  "1>0":[[0,0],[1,0],[1,-1],[0,2],[1,2]],
+  "1>2":[[0,0],[1,0],[1,-1],[0,2],[1,2]],
+  "2>1":[[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+  "2>3":[[0,0],[1,0],[1,1],[0,-2],[1,-2]],
+  "3>2":[[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+  "3>0":[[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+  "0>3":[[0,0],[1,0],[1,1],[0,-2],[1,-2]],
+};
+/* T-Spin 判定用: 3x3 の角 */
+const CORNERS = [[-1,-1],[1,-1],[-1,1],[1,1]];
+
+/* ---------------- DOM ---------------- */
+const $ = id => document.getElementById(id);
+const gameCv = $("game"), fxCv = $("fx");
+gameCv.width = W; gameCv.height = H;
+fxCv.width = W; fxCv.height = H;
+const g = gameCv.getContext("2d"), fx = fxCv.getContext("2d");
+g.imageSmoothingEnabled = false;
+
+const holdCv = $("holdCv"), nextCv = $("nextCv");
+const hg = holdCv.getContext("2d"), ng = nextCv.getContext("2d");
+
+const ui = {
+  score:$("score"), level:$("level"), lines:$("lines"), time:$("time"),
+  fxName:$("fxName"), overlay:$("overlay"), startBtn:$("startBtn"), mute:$("mute"),
+};
+
+/* ---------------- オーディオ (全合成) ---------------- */
+const Audio_ = {
+  ctx:null, master:null, sfxGain:null, musGain:null, noiseBuf:null,
+  muted:false, bgmTimer:null, step:0, nextTime:0,
+  init(){
+    if(this.ctx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    this.ctx = new AC();
+    this.master = this.ctx.createGain(); this.master.gain.value = 0.9;
+    const comp = this.ctx.createDynamicsCompressor();
+    this.master.connect(comp); comp.connect(this.ctx.destination);
+    this.sfxGain = this.ctx.createGain(); this.sfxGain.gain.value = 0.9; this.sfxGain.connect(this.master);
+    this.musGain = this.ctx.createGain(); this.musGain.gain.value = 0.5; this.musGain.connect(this.master);
+    // ホワイトノイズバッファ
+    const len = this.ctx.sampleRate * 1.2;
+    this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+    const d = this.noiseBuf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i] = Math.random()*2-1;
+  },
+  resume(){ if(this.ctx && this.ctx.state==="suspended") this.ctx.resume(); },
+  setMute(m){ this.muted=m; if(this.master) this.master.gain.value = m?0:0.9; },
+
+  tone({f=440,t=0,dur=0.15,type="square",vol=0.3,slide=0,dest}){
+    if(!this.ctx) return;
+    const now = this.ctx.currentTime + t;
+    const o = this.ctx.createOscillator(), gn = this.ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, now);
+    if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(20,f+slide), now+dur);
+    gn.gain.setValueAtTime(0.0001, now);
+    gn.gain.exponentialRampToValueAtTime(vol, now+0.008);
+    gn.gain.exponentialRampToValueAtTime(0.0001, now+dur);
+    o.connect(gn); gn.connect(dest||this.sfxGain);
+    o.start(now); o.stop(now+dur+0.05);
+  },
+  noise({t=0,dur=0.3,vol=0.4,filter=1200,q=1,type="bandpass",slide=0,dest}){
+    if(!this.ctx) return;
+    const now = this.ctx.currentTime + t;
+    const src = this.ctx.createBufferSource(); src.buffer=this.noiseBuf; src.loop=true;
+    const bp = this.ctx.createBiquadFilter(); bp.type=type; bp.frequency.setValueAtTime(filter,now); bp.Q.value=q;
+    if(slide) bp.frequency.exponentialRampToValueAtTime(Math.max(30,filter+slide), now+dur);
+    const gn = this.ctx.createGain();
+    gn.gain.setValueAtTime(0.0001, now);
+    gn.gain.exponentialRampToValueAtTime(vol, now+0.01);
+    gn.gain.exponentialRampToValueAtTime(0.0001, now+dur);
+    src.connect(bp); bp.connect(gn); gn.connect(dest||this.sfxGain);
+    src.start(now); src.stop(now+dur+0.05);
+  },
+
+  /* ---- SFX ---- */
+  sMove(){ this.tone({f:220,dur:0.03,type:"square",vol:0.06}); },
+  sRotate(){ this.tone({f:330,dur:0.045,type:"square",vol:0.09,slide:120}); },
+  sHold(){ this.tone({f:520,dur:0.08,type:"triangle",vol:0.16}); this.tone({f:780,t:0.06,dur:0.08,type:"triangle",vol:0.12}); },
+  sHard(){ this.noise({dur:0.12,vol:0.5,filter:900,slide:-700}); this.tone({f:90,dur:0.14,type:"sine",vol:0.5,slide:-40}); },
+  sLock(){ this.tone({f:140,dur:0.06,type:"sine",vol:0.25}); },
+  sClear(n){ // n = 同時消去ライン数
+    const base=[523,659,784,1047];
+    for(let i=0;i<Math.min(4,n+1);i++) this.tone({f:base[i],t:i*0.04,dur:0.22,type:"triangle",vol:0.28});
+    this.noise({dur:0.35,vol:0.35,filter:2400,slide:2000});
+  },
+  sTetris(){ [523,659,784,1047,1319].forEach((f,i)=>this.tone({f,t:i*0.05,dur:0.3,type:"sawtooth",vol:0.16}));
+    this.noise({dur:0.6,vol:0.4,filter:3000,slide:3000}); },
+  sTSpin(){ this.tone({f:880,dur:0.09,type:"square",vol:0.2,slide:440});
+    this.tone({f:1320,t:0.07,dur:0.12,type:"square",vol:0.18});
+    this.noise({dur:0.25,vol:0.3,filter:1800,slide:1500}); },
+  sCombo(c){ this.tone({f:600+c*60,dur:0.1,type:"triangle",vol:0.2,slide:200}); },
+  sLevel(){ [392,523,659,784].forEach((f,i)=>this.tone({f,t:i*0.07,dur:0.2,type:"square",vol:0.18})); },
+  sOver(){ [440,349,294,220].forEach((f,i)=>this.tone({f,t:i*0.18,dur:0.3,type:"sawtooth",vol:0.2})); },
+
+  /* ---- BGM (Korobeiniki 風 ループ, 全合成) ---- */
+  BGMs: [ // [midi, dur(beat)]  16分音符=0.25拍基調で簡略化
+    [76,.5],[71,.5],[72,.5],[76,.5],[72,.5],[71,.5],[69,1],[69,.5],[72,.5],[76,.5],[77,.5],[74,1.5],
+    [74,.5],[72,.5],[71,.5],[69,.5],[72,.5],[76,.5],[77,.5],[74,1],
+    [77,.5],[76,.5],[74,.5],[72,.5],[74,.5],[76,.5],[72,.5],[69,1],
+    [69,.5],[72,.5],[76,.5],[77,.5],[74,1.5],[74,.5],[72,.5],[71,.5],[69,.5],[72,.5],[76,.5],[77,.5],[74,1],
+  ],
+  bassLine: [45,45,52,45, 45,45,52,45, 45,45,52,45, 43,43,50,43],
+  startBGM(){
+    if(!this.ctx || this.bgmTimer) return;
+    this.step=0; this.nextTime=this.ctx.currentTime+0.05;
+    this._beat = Math.max(0.16, 0.24 - (level-1)*0.008);
+    this.bgmTimer = setInterval(()=>this._schedule(this._beat), 40);
+  },
+  _schedule(beat){
+    while(this.nextTime < this.ctx.currentTime + 0.25){
+      const i = this.step % this.BGMs.length;
+      const [m,d] = this.BGMs[i];
+      const f = 440*Math.pow(2,(m-69)/12);
+      this.tone({f, t:this.nextTime-this.ctx.currentTime, dur:d*beat*0.92, type:"square", vol:0.07, dest:this.musGain});
+      // バス
+      if(this.step%2===0){
+        const b = this.bassLine[((this.step/2)|0)%this.bassLine.length];
+        this.tone({f:440*Math.pow(2,(b-69)/12), t:this.nextTime-this.ctx.currentTime, dur:beat*1.6, type:"triangle", vol:0.14, dest:this.musGain});
+      }
+      // ハイハット
+      this.noise({t:this.nextTime-this.ctx.currentTime, dur:0.03, vol:0.035, filter:8000, type:"highpass", dest:this.musGain});
+      this.nextTime += (d*beat);
+      this.step++;
+    }
+  },
+  stopBGM(){ if(this.bgmTimer){clearInterval(this.bgmTimer); this.bgmTimer=null;} }
+};
+
+/* ---------------- ゲーム状態 ---------------- */
+let board, piece, bag=[], nextQ=[], holdType=null, canHold=true;
+let score, lines, level, combo, dropTimer, lockTimer, lockResets;
+let state="menu";           // menu | play | clearing | pause | over
+let clearRows=[], clearT=0;
+let effectTier=0, totalLinesEver=0;
+let elapsed=0, lastTs=0, softDrop=false, lastWasRotate=false;
+let shake={t:0,mag:0};
+let flash=0;
+let stats={tspins:0,tetrises:0};
+
+const FX_NAMES=["SPARK","BLOOM","STORM","NEON","SUPERNOVA"];
+
+function newBoard(){ return Array.from({length:ROWS},()=>Array(COLS).fill(0)); }
+
+function takeFromBag(){
+  if(bag.length===0){
+    bag=["I","O","T","S","Z","J","L"];
+    for(let i=bag.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [bag[i],bag[j]]=[bag[j],bag[i]]; }
+  }
+  return bag.pop();
+}
+function refillNext(){ while(nextQ.length<5) nextQ.push(takeFromBag()); }
+
+function rot(matrix, dir){ // dir=1 CW, -1 CCW
+  const N=matrix.length, r=Array.from({length:N},()=>Array(N).fill(0));
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    if(dir===1) r[x][N-1-y]=matrix[y][x]; else r[N-1-x][y]=matrix[y][x];
+  }
+  return r;
+}
+function spawn(type){
+  const m = SHAPES[type].map(r=>r.slice());
+  return { type, m, x: type==="O"?4:3, y: type==="I"?-1:0, rot:0 };
+}
+function cellsOf(p){
+  const out=[];
+  p.m.forEach((row,y)=>row.forEach((v,x)=>{ if(v) out.push([p.x+x, p.y+y]); }));
+  return out;
+}
+function collides(m, px, py){
+  for(let y=0;y<m.length;y++) for(let x=0;x<m[y].length;x++){
+    if(!m[y][x]) continue;
+    const bx=px+x, by=py+y;
+    if(bx<0||bx>=COLS||by>=ROWS) return true;
+    if(by>=0 && board[by][bx]) return true;
+  }
+  return false;
+}
+function ghostY(){
+  let gy=piece.y;
+  while(!collides(piece.m, piece.x, gy+1)) gy++;
+  return gy;
+}
+
+/* ---------------- 操作 ---------------- */
+const DAS=0.14, ARR=0.033;
+let dasDir=0, dasT=0, arrT=0;
+
+function tryMove(dx){
+  if(state!=="play") return;
+  if(!collides(piece.m, piece.x+dx, piece.y)){
+    piece.x+=dx; onAction(); lastWasRotate=false; Audio_.sMove();
+  }
+}
+function tryRotate(dir){
+  if(state!=="play") return;
+  if(piece.type==="O"){ Audio_.sRotate(); onAction(); return; }
+  lastWasRotate=true;
+  const from=piece.rot, to=(from+dir+4)%4;
+  const key=`${from}>${to}`;
+  const nm=rot(piece.m,dir);
+  for(const [kx,ky] of KICKS[key]){
+    if(!collides(nm, piece.x+kx, piece.y-ky)){
+      piece.m=nm; piece.x+=kx; piece.y-=ky; piece.rot=to;
+      onAction(); Audio_.sRotate();
+      // T-Spin 予備判定はロック時に行う
+      return;
+    }
+  }
+  Audio_.tone({f:120,dur:0.05,type:"square",vol:0.06});
+}
+function softDropOn(){ softDrop=true; }
+function softDropOff(){ softDrop=false; }
+function hardDrop(){
+  if(state!=="play") return;
+  const gy=ghostY();
+  score += (gy-piece.y)*2;
+  piece.y=gy;
+  Audio_.sHard();
+  addShake(4,0.12);
+  spawnDust(cellsOf(piece), COLORS[piece.type], 10);
+  lockPiece();
+}
+function holdPiece(){
+  if(state!=="play"||!canHold) return;
+  Audio_.sHold();
+  const cur=piece.type;
+  if(holdType){ piece=spawn(holdType); holdType=cur; }
+  else { holdType=cur; piece=spawn(nextQ.shift()); refillNext(); }
+  canHold=false; drawSide();
+}
+function onAction(){ if(lockTimer>0){ lockResets=Math.min(MAX_RESETS, lockResets+1); lockTimer=0; } }
+
+/* ---------------- ロック / 消去 ---------------- */
+function lockPiece(){
+  const cs=cellsOf(piece);
+  let topOut=false;
+  for(const [x,y] of cs){
+    if(y<0){ topOut=true; continue; }
+    board[y][x]=piece.type;
+  }
+  Audio_.sLock();
+
+  // T-Spin 判定: 直前に回転があり、T の3x3の角が3つ以上塞がっている
+  let tspin=false;
+  if(piece.type==="T" && lastWasRotate){
+    let corners=0;
+    for(const [cx,cy] of CORNERS){
+      const bx=piece.x+cx, by=piece.y+cy;
+      if(bx<0||bx>=COLS||by<0||by>=ROWS) corners++;
+      else if(board[by][bx]) corners++;
+    }
+    if(corners>=3) tspin=true;
+  }
+  lastWasRotate=false;
+
+  // 消去行検出
+  const full=[];
+  for(let y=0;y<ROWS;y++) if(board[y].every(v=>v)) full.push(y);
+
+  if(full.length){
+    state="clearing"; clearRows=full; clearT=CLEAR_ANIM;
+    handleClear(full, tspin, cs);
+  } else {
+    combo=-1;
+    if(tspin) { score+=100*level; } // mini 扱いなしの簡略
+    afterLock(topOut);
+  }
+}
+
+function handleClear(rows, tspin, cells){
+  const n=rows.length;
+  lines+=n; totalLinesEver+=n;
+  combo++;
+  let pts=0;
+  const base=[0,100,300,500,800];
+  pts=base[n]*level;
+  if(tspin){ pts*=2; stats.tspins++; }
+  if(n===4){ stats.tetrises++; }
+  if(combo>0) pts+=50*combo*level;
+  score+=pts;
+
+  // 効果音
+  if(tspin) Audio_.sTSpin();
+  if(n===4) Audio_.sTetris(); else Audio_.sClear(n);
+  if(combo>=1) Audio_.sCombo(combo);
+
+  // エフェクト
+  const cx=rows.reduce((a,r)=>a+r,0)/rows.length;
+  const tier=effectTier;
+  spawnLineBurst(rows, tier, n);
+  addShake(3+n*2+tier*2, 0.3+tier*0.08);
+  flash=Math.min(1, 0.35+n*0.12+tier*0.08);
+  floatText(rows[0], n===4?"TETRIS!":(tspin?"T-SPIN!":(combo>0?`COMBO x${combo+1}`:`+${pts}`)),
+            n===4?"#43e8ff":(tspin?"#ff4fd8":"#ffd23f"));
+
+  // 10 lines ごとにエフェクト段階アップ
+  const newTier=Math.min(4, Math.floor(totalLinesEver/10));
+  if(newTier>effectTier){
+    effectTier=newTier;
+    Audio_.sLevel();
+    floatText(ROWS/2, `EFFECT UP: ${FX_NAMES[effectTier]}`, "#ff4fd8", 1.6);
+    addShake(8,0.5); flash=1;
+    bigExplosion();
+  }
+  ui.fxName.textContent=FX_NAMES[effectTier];
+}
+
+function afterLock(topOut){
+  // レベルアップ (10 lines)
+  const nl=Math.floor(lines/10)+1;
+  if(nl>level){ level=nl; ui.level.textContent=level; Audio_.sLevel(); }
+  ui.lines.textContent=lines; ui.score.textContent=score; ui.level.textContent=level;
+
+  canHold=true;
+  refillNext();
+  piece=spawn(nextQ.shift()); refillNext();
+  lockTimer=0; lockResets=0; dropTimer=0;
+  drawSide();
+  if(topOut || collides(piece.m,piece.x,piece.y)){ gameOver(); return; }
+}
+
+function gameOver(){
+  state="over";
+  Audio_.sOver(); Audio_.stopBGM();
+  addShake(10,0.8); flash=1;
+  spawnLineBurst([0,1,2,3,4],4,5);
+  ui.overlay.classList.remove("hidden");
+  ui.overlay.querySelector("h1").textContent="GAME OVER";
+  ui.overlay.querySelector("p").innerHTML=`SCORE <b style="color:#ffd23f">${score}</b> ・ LINES ${lines} ・ T-Spin ${stats.tspins} ・ Tetris ${stats.tetrises}`;
+  ui.startBtn.textContent="↻ リトライ";
+}
+
+/* ---------------- パーティクル ---------------- */
+const parts=[], rings=[], floats=[];
+function spawnLineBurst(rows, tier, n){
+  for(const ry of rows){
+    for(let x=0;x<COLS;x++){
+      const c=COLORS[board[ry][x]]||"#fff";
+      const cnt=2+tier;
+      for(let i=0;i<cnt;i++){
+        parts.push({
+          x:x*CELL+CELL/2, y:ry*CELL+CELL/2,
+          vx:(Math.random()-0.5)*(300+tier*80),
+          vy:-(120+Math.random()*(260+tier*90)),
+          g:900, life:0.7+Math.random()*0.8, t:0,
+          size:2+Math.random()*4, color:c,
+          shape: tier>=2 && Math.random()<0.3 ? "spark":"rect",
+          rot:Math.random()*6.28, vr:(Math.random()-0.5)*14,
+        });
+      }
+    }
+  }
+  // 衝撃波リング
+  for(const ry of rows){
+    rings.push({x:W/2, y:ry*CELL+CELL/2, r:8, vr:500+tier*120, life:0.5, t:0, w:6, col:n===4?"#43e8ff":"#ff4fd8"});
+  }
+  if(tier>=3){ // 稲妻
+    for(let i=0;i<4;i++) rings.push({x:Math.random()*W, y:Math.random()*H, r:2, vr:900, life:0.35, t:0, w:2, col:"#fff", bolt:true});
+  }
+}
+function spawnDust(cells, color, cnt){
+  for(const [cx,cy] of cells){
+    for(let i=0;i<cnt/7+1;i++){
+      parts.push({x:cx*CELL+CELL/2,y:cy*CELL+CELL,vx:(Math.random()-0.5)*160,vy:-Math.random()*120,
+        g:700,life:0.4,t:0,size:2+Math.random()*2,color,shape:"rect",rot:0,vr:6});
+    }
+  }
+}
+function bigExplosion(){
+  for(let i=0;i<140;i++){
+    const a=Math.random()*Math.PI*2, sp=200+Math.random()*500;
+    parts.push({x:W/2,y:H/2,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,g:300,life:1.2,t:0,
+      size:3+Math.random()*5,color:`hsl(${(Math.random()*360)|0},90%,60%)`,shape:"spark",rot:0,vr:10});
+  }
+  rings.push({x:W/2,y:H/2,r:10,vr:1400,life:0.8,t:0,w:10,col:"#fff"});
+}
+function floatText(row, txt, col, scale=1){
+  floats.push({x:W/2, y:row*CELL, txt, col, t:0, life:1.1, scale});
+}
+
+function stepFx(dt){
+  for(let i=parts.length-1;i>=0;i--){
+    const p=parts[i]; p.t+=dt;
+    if(p.t>=p.life){ parts.splice(i,1); continue; }
+    p.vy+=p.g*dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.rot+=p.vr*dt;
+  }
+  for(let i=rings.length-1;i>=0;i--){
+    const r=rings[i]; r.t+=dt;
+    if(r.t>=r.life){ rings.splice(i,1); continue; }
+    r.r+=r.vr*dt;
+  }
+  for(let i=floats.length-1;i>=0;i--){
+    const f=floats[i]; f.t+=dt; f.y-=40*dt;
+    if(f.t>=f.life) floats.splice(i,1);
+  }
+  if(shake.t>0) shake.t-=dt;
+  if(flash>0) flash=Math.max(0,flash-dt*2.2);
+}
+function drawFx(){
+  fx.clearRect(0,0,W,H);
+  fx.save();
+  // 画面シェイク
+  if(shake.t>0){
+    const s=shake.mag*(shake.t/0.5);
+    fx.translate((Math.random()-0.5)*s,(Math.random()-0.5)*s);
+  }
+  for(const p of parts){
+    const a=1-p.t/p.life;
+    fx.globalAlpha=a;
+    fx.fillStyle=p.color; fx.strokeStyle=p.color;
+    if(p.shape==="spark"){
+      fx.lineWidth=1.5;
+      fx.beginPath();
+      fx.moveTo(p.x,p.y);
+      fx.lineTo(p.x-p.vx*0.03,p.y-p.vy*0.03);
+      fx.stroke();
+    } else {
+      fx.save(); fx.translate(p.x,p.y); fx.rotate(p.rot);
+      fx.fillRect(-p.size/2,-p.size/2,p.size,p.size);
+      fx.restore();
+    }
+  }
+  for(const r of rings){
+    const a=1-r.t/r.life;
+    fx.globalAlpha=a;
+    fx.strokeStyle=r.col; fx.lineWidth=r.w*a;
+    fx.beginPath();
+    if(r.bolt){ // 稲妻: ジグザグ
+      fx.moveTo(r.x-r.r, r.y);
+      for(let i=1;i<=6;i++) fx.lineTo(r.x-r.r+ (r.r*2*i/6), r.y+(Math.random()-0.5)*30);
+    } else fx.arc(r.x,r.y,r.r,0,6.283);
+    fx.stroke();
+  }
+  fx.globalAlpha=1;
+  for(const f of floats){
+    const a=Math.min(1,(f.life-f.t)*2);
+    fx.globalAlpha=a;
+    fx.font=`bold ${Math.round(20*f.scale)}px sans-serif`;
+    fx.textAlign="center";
+    fx.shadowColor=f.col; fx.shadowBlur=18;
+    fx.fillStyle=f.col;
+    fx.fillText(f.txt,f.x,f.y);
+    fx.shadowBlur=0;
+  }
+  fx.restore();
+  fx.globalAlpha=1;
+  if(flash>0){
+    fx.fillStyle=`rgba(255,255,255,${flash*0.55})`;
+    fx.fillRect(0,0,W,H);
+  }
+}
+function addShake(mag,dur){ shake={t:Math.max(shake.t,dur),mag}; }
+
+/* ---------------- 描画 ---------------- */
+function drawBlock(ctx2,x,y,size,color,alpha=1){
+  ctx2.globalAlpha=alpha;
+  ctx2.fillStyle=color;
+  ctx2.fillRect(x+1,y+1,size-2,size-2);
+  ctx2.fillStyle="rgba(255,255,255,.35)";
+  ctx2.fillRect(x+1,y+1,size-2,3);
+  ctx2.fillStyle="rgba(0,0,0,.3)";
+  ctx2.fillRect(x+1,y+size-4,size-2,3);
+  ctx2.globalAlpha=1;
+}
+function draw(){
+  g.clearRect(0,0,W,H);
+  // 背景グリッド
+  g.strokeStyle="rgba(120,90,220,.07)"; g.lineWidth=1;
+  for(let x=0;x<=COLS;x++){ g.beginPath(); g.moveTo(x*CELL,0); g.lineTo(x*CELL,H); g.stroke(); }
+  for(let y=0;y<=ROWS;y++){ g.beginPath(); g.moveTo(0,y*CELL); g.lineTo(W,y*CELL); g.stroke(); }
+
+  // 盤面
+  for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){
+    const v=board[y][x];
+    if(v) drawBlock(g,x*CELL,y*CELL,CELL,COLORS[v]);
+  }
+
+  // 消去アニメ中の行は点滅
+  if(state==="clearing"){
+    const a=0.4+0.6*Math.abs(Math.sin(clearT*30));
+    for(const ry of clearRows){
+      for(let x=0;x<COLS;x++){
+        g.fillStyle=`rgba(255,255,255,${a})`;
+        g.fillRect(x*CELL,ry*CELL,CELL,CELL);
+      }
+    }
+  }
+
+  if(piece && (state==="play"||state==="clearing")){
+    // ゴースト
+    const gy=ghostY();
+    for(const [cx,cy] of cellsOf({...piece,y:gy})){
+      if(cy>=0){ g.strokeStyle=COLORS[piece.type]; g.globalAlpha=0.35; g.lineWidth=2;
+        g.strokeRect(cx*CELL+2,cy*CELL+2,CELL-4,CELL-4); g.globalAlpha=1; }
+    }
+    // 現在ピース
+    for(const [cx,cy] of cellsOf(piece)){
+      if(cy>=0) drawBlock(g,cx*CELL,cy*CELL,CELL,COLORS[piece.type]);
+    }
+  }
+}
+function drawMini(ctx2,type,cx,cy,size){
+  const m=SHAPES[type];
+  const w=m[0].length*size, h=m.length*size;
+  const ox=cx-w/2, oy=cy-h/2;
+  m.forEach((row,y)=>row.forEach((v,x)=>{ if(v) drawBlock(ctx2,ox+x*size,oy+y*size,size,COLORS[type]); }));
+}
+function drawSide(){
+  hg.clearRect(0,0,holdCv.width,holdCv.height);
+  if(holdType) drawMini(hg,holdType,60,36,14);
+  ng.clearRect(0,0,nextCv.width,nextCv.height);
+  nextQ.slice(0,4).forEach((t,i)=>drawMini(ng,t,60,30+i*46,12));
+}
+
+/* ---------------- メインループ ---------------- */
+function gravityInterval(){ return Math.max(0.05, Math.pow(0.8-(level-1)*0.007, level-1)) * (softDrop?0.05:1); }
+
+function update(dt){
+  if(state==="clearing"){
+    clearT-=dt;
+    if(clearT<=0){
+      // 行を削除
+      for(const ry of clearRows){
+        board.splice(ry,1);
+        board.unshift(Array(COLS).fill(0));
+      }
+      clearRows=[]; state="play";
+      afterLock(false);
+    }
+    return;
+  }
+  if(state!=="play") return;
+  elapsed+=dt;
+  const mm=Math.floor(elapsed/60), ss=Math.floor(elapsed%60);
+  ui.time.textContent=`${mm}:${String(ss).padStart(2,"0")}`;
+
+  // DAS
+  if(dasDir!==0){
+    dasT+=dt;
+    if(dasT>DAS){ arrT+=dt; while(arrT>ARR){ arrT-=ARR; tryMove(dasDir); } }
+  }
+
+  // ソフトドロップ
+  const interval = softDrop?0.03:gravityInterval();
+  dropTimer+=dt;
+  while(dropTimer>=interval){
+    dropTimer-=interval;
+    if(!collides(piece.m,piece.x,piece.y+1)) piece.y++;
+    else break;
+  }
+  // ロックダウン
+  if(collides(piece.m,piece.x,piece.y+1)){
+    lockTimer+=dt;
+    if(lockTimer>=LOCK_DELAY || lockResets>=MAX_RESETS){ lockPiece(); }
+  } else { lockTimer=0; lockResets=0; }
+}
+
+function loop(ts){
+  const dt=Math.min(0.05,(ts-lastTs)/1000||0); lastTs=ts;
+  update(dt); stepFx(dt); draw(); drawFx();
+  requestAnimationFrame(loop);
+}
+
+/* ---------------- 入力 ---------------- */
+document.addEventListener("keydown",e=>{
+  if(["ArrowLeft","ArrowRight","ArrowDown","ArrowUp","Space"].includes(e.code)) e.preventDefault();
+  if(e.repeat) return;
+  Audio_.resume();
+  switch(e.code){
+    case "ArrowLeft":  dasDir=-1; dasT=0; arrT=0; tryMove(-1); break;
+    case "ArrowRight": dasDir=1;  dasT=0; arrT=0; tryMove(1); break;
+    case "ArrowDown":  softDropOn(); break;
+    case "ArrowUp": case "KeyX": lastWasRotate=true; tryRotate(1); break;
+    case "KeyZ": lastWasRotate=true; tryRotate(-1); break;
+    case "Space": hardDrop(); break;
+    case "KeyC": case "ShiftLeft": holdPiece(); break;
+    case "KeyP": togglePause(); break;
+    case "KeyM": toggleMute(); break;
+    case "Enter": if(state==="menu"||state==="over") startGame(); break;
+  }
+});
+document.addEventListener("keyup",e=>{
+  switch(e.code){
+    case "ArrowLeft": if(dasDir===-1) dasDir=0; break;
+    case "ArrowRight": if(dasDir===1) dasDir=0; break;
+    case "ArrowDown": softDropOff(); break;
+  }
+});
+
+function togglePause(){
+  if(state==="play"){ state="pause"; Audio_.stopBGM();
+    ui.overlay.classList.remove("hidden");
+    ui.overlay.querySelector("h1").textContent="PAUSE";
+    ui.overlay.querySelector("p").textContent="一時停止中です。続行するにはボタンを押してください。";
+    ui.startBtn.textContent="▶ 再開";
+  } else if(state==="pause"){ state="play"; ui.overlay.classList.add("hidden"); Audio_.startBGM(); }
+}
+function toggleMute(){
+  Audio_.setMute(!Audio_.muted);
+  ui.mute.textContent=Audio_.muted?"🔇":"🔊";
+}
+ui.mute.onclick=toggleMute;
+
+/* ---------------- タッチ操作 ---------------- */
+document.querySelectorAll("#touch button").forEach(b=>{
+  const k=b.dataset.k;
+  const down=e=>{ e.preventDefault(); Audio_.resume();
+    if(k==="left"){dasDir=-1;dasT=0;arrT=0;tryMove(-1);}
+    if(k==="right"){dasDir=1;dasT=0;arrT=0;tryMove(1);}
+    if(k==="down")softDropOn();
+    if(k==="rot")tryRotate(1);
+    if(k==="drop")hardDrop();
+  };
+  const up=e=>{ e.preventDefault();
+    if(k==="left"&&dasDir===-1)dasDir=0;
+    if(k==="right"&&dasDir===1)dasDir=0;
+    if(k==="down")softDropOff();
+  };
+  b.addEventListener("pointerdown",down);
+  b.addEventListener("pointerup",up);
+  b.addEventListener("pointerleave",up);
+});
+
+/* ---------------- 開始 ---------------- */
+function startGame(){
+  Audio_.init(); Audio_.resume();
+  board=newBoard(); bag=[]; nextQ=[]; refillNext();
+  holdType=null; canHold=true;
+  score=0; lines=0; level=1; combo=-1;
+  dropTimer=0; lockTimer=0; lockResets=0;
+  effectTier=0; totalLinesEver=0; elapsed=0;
+  parts.length=0; rings.length=0; floats.length=0;
+  stats={tspins:0,tetrises:0};
+  ui.score.textContent="0"; ui.level.textContent="1"; ui.lines.textContent="0";
+  ui.time.textContent="0:00"; ui.fxName.textContent=FX_NAMES[0];
+  piece=spawn(nextQ.shift()); refillNext();
+  lastWasRotate=false; state="play";
+  ui.overlay.classList.add("hidden");
+  ui.startBtn.textContent="▶ スタート";
+  drawSide();
+  Audio_.stopBGM(); Audio_.startBGM();
+}
+ui.startBtn.onclick=()=>{ if(state==="pause"){ togglePause(); } else startGame(); };
+
+/* ---------------- ブート ---------------- */
+board=newBoard(); refillNext(); piece=spawn(nextQ[0]);
+drawSide();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
