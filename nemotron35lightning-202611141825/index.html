@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>派手エフェクト・テトリス</title>
+  <style>
+    :root {
+      --cell-size: 24px;
+      --gap: 4px;
+      --base-speed: 500ms;
+      --min-speed: 50ms;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Hiragino Kaku Gothic ProN", "Arial", sans-serif;
+      background: #1a0a2e;
+      color: #e8d5f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: 
+        radial-gradient(ellipse at 30% 20%, rgba(255, 100, 180, 0.15) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 80%, rgba(100, 200, 255, 0.12) 0%, transparent 50%),
+        radial-gradient(ellipse at 20% 70%, rgba(255, 255, 100, 0.1) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 30%, rgba(255, 150, 255, 0.18) 0%, transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+      animation: backgroundGlow 20s ease infinite;
+    }
+
+    @keyframes backgroundGlow {
+      0%, 100% { transform: rotate(0deg) scale(1); }
+      50% { transform: rotate(90deg) scale(1.1); }
+    }
+
+    .game-container {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      background: linear-gradient(135deg, #ff6b9d 0%, #c44569 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-transform: uppercase;
+      letter-spacing: 4px;
+      text-shadow: none;
+    }
+
+    .canvas-wrapper {
+      position: relative;
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+
+    #tetris-canvas {
+      border: 4px solid #ff1493;
+      border-radius: 8px;
+      background: #1a0a2e;
+      box-shadow: 
+        0 0 30px rgba(255, 105, 180, 0.4),
+        inset 0 0 20px rgba(0, 0, 0, 0.5);
+    }
+
+    #next-canvas {
+      border: 4px solid #ff69b4;
+      border-radius: 8px;
+      background: #1a0a2e;
+      box-shadow: 
+        0 0 20px rgba(255, 105, 180, 0.3),
+        inset 0 0 10px rgba(0, 0, 0, 0.5);
+    }
+
+    .controls, .info {
+      background: linear-gradient(135deg, #1a0a2e 0%, #2d1b4e 100%);
+      padding: 20px 30px;
+      border-radius: 12px;
+      border: 2px solid #ff6b9d;
+      backdrop-filter: blur(10px);
+      min-width: 180px;
+    }
+
+    h2 {
+      margin-bottom: 15px;
+      color: #ff6b9d;
+      border-bottom: 1px solid #444;
+      padding-bottom: 8px;
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .control-row {
+      margin-bottom: 12px;
+    }
+
+    .control-row:last-child { margin-bottom: 0; }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 0.85rem;
+      color: #aaa;
+    }
+
+    select, input[type="range"] {
+      width: 100%;
+      padding: 6px 10px;
+      background: #2d1b4e;
+      border: 1px solid #555;
+      border-radius: 6px;
+      color: #e8d5f0;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    input[type="range"] {
+      margin-top: 4px;
+      accent-color: #ff6b9d;
+    }
+
+    .btn {
+      width: 100%;
+      margin-top: 8px;
+      padding: 10px;
+      background: linear-gradient(135deg, #ff6b9d 0%, #e84393 100%);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+
+    .btn:active {
+      transform: scale(0.96);
+      box-shadow: 0 0 10px rgba(255, 105, 180, 0.5);
+    }
+
+    .btn:focus { outline: 2px solid #c44569; outline-offset: 2px; }
+
+    .stat {
+      font-size: 0.9rem;
+      color: #ffd1e8;
+      margin-top: 8px;
+    }
+
+    .stat strong { color: #ff6b9d; }
+
+    #game-over {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.85);
+      padding: 30px 50px;
+      border-radius: 12px;
+      border: 2px solid #ff6b9d;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+      z-index: 100;
+    }
+
+    #game-over h2 {
+      color: #ff6b9d;
+      font-size: 1.5rem;
+    }
+
+    #game-over .btn {
+      width: auto;
+      padding: 12px 24px;
+    }
+
+    .mobile-controls {
+      display: none;
+      gap: 8px;
+    }
+
+    .mobile-btn {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #ff6b9d 0%, #e84393 100%);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.2rem;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+
+    .mobile-btn:active { transform: scale(0.9); }
+
+    @media (max-width: 600px) {
+      .mobile-controls {
+        display: flex;
+      }
+
+      .controls, .info {
+        display: none;
+      }
+
+      #tetris-canvas, #next-canvas {
+        width: 200px;
+        height: 400px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="game-container">
+    <h1>派手エフェクト・テトリス</h1>
+
+    <div class="canvas-wrapper">
+      <canvas id="tetris-canvas" width="600" height="600"></canvas>
+      <canvas id="next-canvas" width="180" height="180"></canvas>
+    </div>
+
+    <div class="controls">
+      <h2>操作</h2>
+      <div class="control-row">
+        <label>回転: 上矢印 / スペース</label>
+        <select id="rotate-key">
+          <option value="arrow">矢印キー</option>
+          <option value="space">スペース</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <label>移動: 左右矢印</label>
+        <select id="move-key">
+          <option value="arrow">矢印キー</option>
+          <option value="wasd">WASD</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <label>落下速度: </label>
+        <input type="range" id="speed" min="1" max="10" value="5">
+        <span id="speed-value">5</span>
+      </div>
+      <button class="btn" id="start-btn">スタート</button>
+    </div>
+
+    <div class="info">
+      <h2>情報</h2>
+      <div class="stat">スコア: <span id="score">0</span></div>
+      <div class="stat">レベル: <span id="level">1</span></div>
+      <div class="stat">ライン: <span id="lines">0</span></div>
+    </div>
+  </div>
+
+  <!-- モバイル制御 -->
+  <div class="mobile-controls">
+    <button class="mobile-btn" id="left-btn">←</button>
+    <button class="mobile-btn" id="rotate-btn">↺</button>
+    <button class="mobile-btn" id="right-btn">→</button>
+    <button class="mobile-btn" id="down-btn">↓</button>
+  </div>
+
+  <div id="game-over" role="dialog" aria-modal="true">
+    <h2>ゲームオーバー</h2>
+    <button class="btn" id="restart-btn">リスタート</button>
+  </div>
+
+  <script type="module">
+    import { TetrisGame } from './tetris.js';
+
+    // ゲーム開始時
+    document.getElementById('start-btn').addEventListener('click', () => {
+      const container = document.querySelector('.game-container');
+      container.style.display = 'none';
+      const game = new TetrisGame({
+        canvas: document.getElementById('tetris-canvas'),
+        nextCanvas: document.getElementById('next-canvas'),
+        onGameOver: () => {
+          document.getElementById('game-over').style.display = 'flex';
+        },
+        onScoreUpdate: (score) => {
+          document.getElementById('score').textContent = score;
+        },
+        onLevelUpdate: (level) => {
+          document.getElementById('level').textContent = level;
+        },
+        onLinesUpdate: (lines) => {
+          document.getElementById('lines').textContent = lines;
+        }
+      });
+      game.start();
+    });
+
+    // リスタート
+    document.getElementById('restart-btn').addEventListener('click', () => {
+      location.reload();
+    });
+
+    // キーボード操作
+    const rotateKey = document.getElementById('rotate-key');
+    const moveKey = document.getElementById('move-key');
+    const speedInput = document.getElementById('speed');
+    const speedValue = document.getElementById('speed-value');
+
+    speedInput.addEventListener('input', (e) => {
+      speedValue.textContent = e.target.value;
+    });
+
+    // モバイルボタン
+    document.getElementById('left-btn').addEventListener('click', () => game.moveLeft());
+    document.getElementById('right-btn').addEventListener('click', () => game.moveRight());
+    document.getElementById('rotate-btn').addEventListener('click', () => game.rotate());
+    document.getElementById('down-btn').addEventListener('click', () => game.drop());
+
+    // キーボードショートカット
+    const keyMap = {
+      ArrowLeft: () => game.moveLeft(),
+      ArrowRight: () => game.moveRight(),
+      ArrowUp: () => game.rotate(),
+      Space: () => game.hardDrop(),
+      KeyA: () => game.moveLeft(),
+      KeyD: () => game.moveRight(),
+      KeyW: () => game.rotate(),
+    };
+
+    document.addEventListener('keydown', (e) => {
+      if (keyMap[e.key]) keyMap[e.key]();
+    });
+  </script>
+</body>
+</html>

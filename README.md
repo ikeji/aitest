@@ -110,6 +110,7 @@ python3 build_index.py     # regenerate index.html and the table in README
 | 89 | [Step-3.7-Flash](step37flash-202610282328/index.html) | 198B-A11B | llama.cpp | pi-agent | 2026-10-28 23:28 | 9m10s | 10.5k | 19 | F | 0 | NA | NA |
 | 90 | [Nemotron-3.5-Bolt-74B-A9B](nemotronbolt-202610282335/index.html) | 74B-A9B | llama.cpp | pi-agent | 2026-10-28 23:35 | 6m23s | 16.0k | 42 | F | 0 | NA | NA |
 | 91 | [claude-opus-4-8](opus48-202611101348/index.html) | - | anthropic | claude-code | 2026-11-10 13:48 | 6m07s | 30.1k | 82 | F | 0 | NA | NA |
+| 92 | [Nemotron-3.5-Lightning](nemotron35lightning-202611141825/index.html) ([tetris.js](nemotron35lightning-202611141825/tetris.js)) | 30B-A3B | opencode | opencode | 2026-11-14 18:25 | 1m33s | 13.2k | 142 | F | 0 | NA | NA |
 <!-- index:end -->
 
 Run `build_index.py` before committing / pushing.

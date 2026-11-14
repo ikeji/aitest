@@ -87,6 +87,7 @@ gemma4 > step37flash-202610282328   # ローカル llama.cpp 版
 gemma4 > nemotronbolt
 gemma4 > opus48
 gemma4 > minimaxm31flash-202611111154   # opencode 版
+gemma4 > nemotron35lightning
 opus55-202609231032 > pulse-alpha-opencode
 opus55-202610141029 > pulse-alpha-opencode
 pulse-alpha-opencode > sonnet55
