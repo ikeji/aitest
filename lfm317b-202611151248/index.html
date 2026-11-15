@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>派手エフェクト・テトリス</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: #0a0a14;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: 'Segoe UI', sans-serif;
+    overflow: hidden;
+  }
+  .game-container {
+    position: relative;
+    border: 4px solid #2e86de;
+    border-radius: 8px;
+    box-shadow: 0 0 30px rgba(46,134,222,0.3), inset 0 0 20px rgba(0,0,0,0.5);
+    background: #111827;
+  }
+  canvas {
+    display: block;
+    background: #1f2937;
+  }
+  .info-panel {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #e2e8f0;
+    font-size: 13px;
+    text-align: center;
+    pointer-events: none;
+  }
+  h1 { color: #fbbf24; margin: 0 0 8px 0; font-weight: 500; }
+  button {
+    background: transparent;
+    border: 2px solid #f59e0b;
+    color: #f59e0b;
+    padding: 12px 28px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 16px;
+  }
+  button:hover { background: #fbbf24; color: #000; }
+  #score-board {
+    display: grid;
+    grid-template-columns: repeat(3, 60px);
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .score { text-align: center; }
+  .score span { display: block; font-size: 18px; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<div class="game-container">
+  <canvas id="board" width="300" height="600"></canvas>
+  <div class="info-panel">Score: <span id="score-display">0</span></div>
+  <button onclick="startGame()">New Game</button>
+</div>
+
+<script>
+(function() {
+  // ── DOM refs ──────────────────────────────────────────────
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  const scoreDisplay = document.getElementById('score-display');
+
+  // ── Constants ─────────────────────────────────────────────
+  const COLS = 10;
+  const ROWS = 20;
+  const BLOCK_SIZE = 30;          // px per tetromino cell
+  const GRID_W = COLS * BLOCK_SIZE;
+  const GRID_H = ROWS * BLOCK_SIZE;
+
+  // Piece definitions (4x4 source, rotated variants)
+  const PIECES = [
+    [[1,1,1,1]],   // I
+    [[1,1],[1,1]], // O
+    [[0,1,0],[1,1,1],[0,1,0]], // T
+    [[1,1,0],[0,1,1],[0,0,1]], // S
+    [[0,1,1],[1,1,0],[0,1,0]], // Z
+    [[1,0,0],[1,1,1],[0,0,1]], // L
+    [[0,0,1],[1,1,1],[1,0,0]], // J
+  ];
+
+  let board = [];       // 2D array [row][col] = 1 or 0
+  let currentPiece = null;
+  let currentActiveRow = 0;
+  let currentActiveCol = 0;
+  let nextPos = { x: 0, y: 0 };
+  let score = 0;
+  let linesCleared = 0;
+  let lastTime = 0;
+  let animationId = null;
+
+  // ── Helpers ───────────────────────────────────────────────
+  function createBoard() {
+    board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+  }
+
+  function placePiece(piece, x, y) {
+    const newBoard = piece.map(row => [...row]);
+    for (let r = 0; r < newBoard.length; r++) {
+      for (let c = 0; c < newBoard[r].length; c++) {
+        if (newBoard[r][c]) {
+          board[y + r][x + c] = 1;
+        }
+      }
+    }
+    return newBoard;
+  }
+
+  function removeLines() {
+    let removed = 0;
+    for (let r = 0; r < board.length; r++) {
+      if (board[r].every(cell => cell === 1)) {
+        removed++;
+        board.splice(r, 1);
+        board.unshift(Array(COLS).fill(0));
+      }
+    }
+    while (removed > 0) {
+      score += 200 * removed; // 1 line = 200 pts
+      removed--;
+      // Re-check after removal
+      for (let r = 0; r < board.length; r++) {
+        if (board[r].every(cell => cell === 1)) {
+          removed++;
+          board.splice(r, 1);
+          board.unshift(Array(COLS).fill(0));
+        }
+      }
+    }
+    return removed;
+  }
+
+  function spawnPiece() {
+    // Pick random piece index
+    const idx = Math.floor(Math.random() * PIECES.length);
+    const piece = PIECES[idx];
+    // Start at bottom-left corner, find valid position
+    let placed = false;
+    for (let attempt = 0; attempt < 30 && !placed; attempt++) {
+      // Try positions starting from row 0 upward
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          // Check if placing here would overlap existing blocks
+          let overlaps = false;
+          for (let pr = 0; pr < piece.length; pr++) {
+            for (let pc = 0; pc < piece[pr].length; pc++) {
+              if (piece[pr][pc] !== 0 &&
+                board[y + pr][x + pc] === 1) {
+                overlaps = true;
+                break;
+              }
+            }
+            if (overlaps) break;
+          }
+          if (!overlaps) {
+            // Valid spot — place piece
+            const newBoard = placePiece(piece, x, y);
+            board = newBoard;
+            currentPiece = piece;
+            currentActiveRow = y;
+            currentActiveCol = x;
+            nextPos = { x, y };
+            placed = true;
+            break;
+          }
+        }
+      }
+      if (placed) break;
+    }
+    if (!placed) {
+      // Game over — clear board
+      removeLines();
+      return;
+    }
+  }
+
+  function draw() {
+    // Clear canvas
+    ctx.fillStyle = '#1f2937';
+    ctx.fillRect(0, 0, GRID_W, GRID_H);
+
+    // Draw grid lines (subtle)
+    ctx.strokeStyle = '#1f2937';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= COLS; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * BLOCK_SIZE, 0);
+      ctx.lineTo(i * BLOCK_SIZE, GRID_H);
+      ctx.stroke();
+    }
+    for (let j = 0; j <= ROWS; j++) {
+      ctx.beginPath();
+      ctx.moveTo(0, j * BLOCK_SIZE);
+      ctx.lineTo(GRID_W, j * BLOCK_SIZE);
+      ctx.stroke();
+    }
+
+    // Draw current piece
+    if (currentPiece) {
+      const pieceMap = currentPiece.map(row => row.map(val => val));
+      for (let ry = 0; ry < pieceMap.length; ry++) {
+        for (let cx = 0; cx < pieceMap[ry].length; cx++) {
+          if (pieceMap[ry][cx]) {
+            const px = (currentActiveCol + cx) * BLOCK_SIZE;
+            const py = (currentActiveRow + ry) * BLOCK_SIZE;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(px + 1, py + 1, BLOCK_SIZE - 2, BLOCK_SIZE - 2);
+          }
+        }
+      }
+    }
+
+    // Draw board cells that are occupied
+    for (let r = 0; r < board.length; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (board[r][c] === 1) {
+          const px = c * BLOCK_SIZE;
+          const py = r * BLOCK_SIZE;
+          ctx.fillStyle = '#facc15'; // yellow for filled
+          ctx.fillRect(px + 1, py + 1, BLOCK_SIZE - 2, BLOCK_SIZE - 2);
+        }
+      }
+    }
+
+    // Draw falling piece indicator
+    if (currentPiece && currentActiveRow > 0) {
+      // Simple "T-spin" effect: rotate indicator arrow
+      const colors = ['#f472b6','#06b6d4','#22d3ee','#f43f5e','#fb923c','#00cec9','#ef4444'];
+      const idx = PIECES.findIndex(p => p.includes([...currentPiece])); // rough
+      // Just draw a small dot at fall position
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 14px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(currentPiece.length > 0 ? '?': '', (currentActiveCol + 1.5) * BLOCK_SIZE, (currentActiveRow + 1.5) * BLOCK_SIZE);
+    }
+  }
+
+  function update(scoreVal) {
+    scoreDisplay.textContent = scoreVal;
+  }
+
+  // ── Audio synthesis (Web Audio API) ───────────────────────
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  function playTone(freq, duration, type = 'square') {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    // Decay
+    gain.gain.exponentialRampFromValueAtTime(0.1, audioCtx.currentTime, duration);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + duration);
+  }
+
+  function playLineClear() {
+    // Burst of noise when lines cleared
+    for (let i = 0; i < 5; i++) {
+      setTimeout(() => playTone(440, 0.08, 'sine'), i * 120);
+    }
+  }
+
+  function playPieceLanded() {
+    // Satisfying chime on landing
+    playTone(660, 0.15, 'triangle');
+  }
+
+  function playSpin() {
+    // Spin up effect
+    playTone(800, 0.3, 'sawtooth');
+  }
+
+  // ── Main loop ─────────────────────────────────────────────
+  function startGame() {
+    createBoard();
+    score = 0;
+    linesCleared = 0;
+    scoreDisplay.textContent = '0';
+    currentPiece = null;
+    currentActiveRow = 0;
+    currentActiveCol = 0;
+    nextPos = { x: 0, y: 0 };
+    // Spawn initial piece
+    spawnPiece();
+    lastTime = performance.now();
+    requestAnimationFrame(animationLoop);
+  }
+
+  function animationLoop(timestamp) {
+    const dt = timestamp - lastTime;
+    lastTime = timestamp;
+
+    if (animationId) cancelAnimationFrame(animationId);
+
+    // Update
+    if (currentPiece) {
+      // Move down
+      currentActiveRow++;
+      // If reached top, reset and spawn new
+      if (currentActiveRow >= ROWS) {
+        currentActiveRow = 0;
+        // Remove any incomplete piece
+        if (currentPiece) {
+          // Place at top row
+          placePiece(currentPiece, 0, 0);
+        }
+        currentPiece = null;
+      }
+
+      // Check collision
+      let canMoveDown = false;
+      // Also check right placement
+      // For simplicity, just move down each frame
+      currentActiveRow++;
+      if (canMoveDown) {
+        // Actually we need to handle rotation logic...
+      }
+    }
+
+    // Since full Tetris logic is complex, simplify: 
+    // We'll do basic gravity and collision detection in a simpler way.
+    // Reset and re-spawn properly below.
+  }
+
+  // Simpler approach: full game loop with state machine
+  function gameLoop(timestamp) {
+    if (!currentPiece) return;
+
+    // Gravity step
+    currentActiveRow++;
+
+    // Collision check
+    let placed = false;
+    for (let attempt = 0; attempt < 30 && !placed; attempt++) {
+      // Find empty spot under current piece
+      let found = false;
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          // Check if target cell is empty AND not overlapping existing board
+          let ok = true;
+          for (let pr = 0; pr < currentPiece.length; pr++) {
+            for (let pc = 0; pc < currentPiece[pr].length; pc++) {
+              if (currentPiece[pr][pc] !== 0 &&
+                board[currentActiveRow + pr][(currentActiveCol + pc) % COLS] === 1) {
+                ok = false;
+                break;
+              }
+            }
+            if (!ok) break;
+          }
+          if (ok) {
+            // Place
+            const newBoard = placePiece(currentPiece, (currentActiveCol + x) % COLS, currentActiveRow + y);
+            board = newBoard;
+            currentPiece = currentPiece; // keep reference
+            currentActiveRow = currentActiveRow + y;
+            currentActiveCol = (currentActiveCol + x) % COLS;
+            found = true;
+            break;
+          }
+        }
+        if (found) break;
+      }
+      if (found) continue; // retry gravity
+    }
+
+    // If no placement found, game over
+    if (!placed) {
+      removeLines();
+      return;
+    }
+
+    // Landing
+    playPieceLanded();
+    update(score);
+    // Check line clear every 10 lines
+    if (linesCleared % 10 === 0) {
+      linesCleared++;
+      playLineClear();
+      score += 200 * linesCleared;
+      update(score);
+    }
+
+    // Auto-rotate spin effect (simple)
+    if (Math.random() < 0.3) {
+      playSpin();
+    }
+
+    requestAnimationFrame(gameLoop);
+  }
+
+  // Kick off
+  startGame();
+})();
+</script>
+</body>
+</html>

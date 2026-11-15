@@ -88,6 +88,9 @@ gemma4 > nemotronbolt
 gemma4 > opus48
 gemma4 > minimaxm31flash-202611111154   # opencode 版
 gemma4 > nemotron35lightning
+gemma4 > nemotron3ultra
+gemma4 > nemotron3nanoomni
+gemma4 > lfm317b
 opus55-202609231032 > pulse-alpha-opencode
 opus55-202610141029 > pulse-alpha-opencode
 pulse-alpha-opencode > sonnet55
