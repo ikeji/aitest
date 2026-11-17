@@ -115,4 +115,6 @@ qwen38-202609160535 > hydrogen-202611132022   # High 版
 deepseekv411017 > ling32flash
 opus55-202610141029 > carbon-202611141951 > carbon-202611111318   # High 版
 argon-202611051057 > hydrogen-202611142030 > opus55-202609231032   # XHigh 版
+glm53flash-202610280446 > hy4flash-202611171202   # opencode 版。12:13 の nous 版と区別するためフルネーム
+longcat25free-202611111224 > hy4flash-202611171202
 ```
