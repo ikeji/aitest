@@ -122,6 +122,7 @@ python3 build_index.py     # regenerate index.html and the table in README
 | 101 | [Nemotron-3.5-Lightning](nemotron35lightning-202611141825/index.html) ([tetris.js](nemotron35lightning-202611141825/tetris.js)) | 30B-A3B | opencode | opencode | 2026-11-14 18:25 | 1m33s | 13.2k | 142 | F | 0 | NA | NA |
 | 102 | [Nemotron-3-Nano-Omni](nemotron3nanoomni-202611151233/index.html) | 30B-A3B | openrouter | pi-agent | 2026-11-15 12:33 | 1m18s | 7.8k | 99 | F | 0 | NA | NA |
 | 103 | [LFM3-1.7B](lfm317b-202611151248/index.html) | 1.7B | openrouter | pi-agent | 2026-11-15 12:48 | 0m34s | 4.3k | 148 | F | 0 | NA | NA |
+| 104 | [Tidepool-Alpha (stealth)](tidepoolalpha-202611220814/index.html) | - | opencode | opencode | 2026-11-22 08:14 | 41m07s | 323.3k | 131 | F | 0 | NA | NA |
 <!-- index:end -->
 
 Run `build_index.py` before committing / pushing.

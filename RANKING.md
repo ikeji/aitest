@@ -91,6 +91,7 @@ gemma4 > nemotron35lightning
 gemma4 > nemotron3ultra
 gemma4 > nemotron3nanoomni
 gemma4 > lfm317b
+gemma4 > tidepoolalpha
 opus55-202609231032 > pulse-alpha-opencode
 opus55-202610141029 > pulse-alpha-opencode
 pulse-alpha-opencode > sonnet55
