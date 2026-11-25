@@ -119,4 +119,6 @@ argon-202611051057 > hydrogen-202611142030 > opus55-202609231032   # XHigh 版
 glm53flash-202610280446 > hy4flash-202611171202   # opencode 版。12:13 の nous 版と区別するためフルネーム
 longcat25free-202611111224 > hy4flash-202611171202
 fable51 > qwen4max-202611191214   # XHigh 版。09:19 の通常版と区別するためフルネーム
+argon-202611051057 > neon-202611242252 > hydrogen-202611142030   # Medium 版。23:10 の XHigh 版と区別するためフルネーム
+mimo26pro > neon-202611242310 > qwen38flashnext   # XHigh 版
 ```
