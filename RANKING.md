@@ -93,7 +93,6 @@ gemma4 > nemotron3nanoomni
 gemma4 > lfm317b
 gemma4 > tidepoolalpha
 opus55-202609231032 > pulse-alpha-opencode
-opus55-202610141029 > pulse-alpha-opencode
 pulse-alpha-opencode > sonnet55
 argon-202611051005 > pulse-alpha-opencode   # Medium 版。10:57 の High 版と区別するためフルネーム
 argon-202611051005 > opus55-202610141029   # Medium 版。10:57 の High 版と区別するためフルネーム
@@ -107,8 +106,7 @@ qwen38-202609160535 > fable5
 grok46 > fable5
 qwen38-202609160535 > longcat25free-202611111224
 glm53flash-202610280446 > longcat25free-202611111224 > sonnet5
-opus55-202609231032 > carbon-202611111318 > pulse-alpha-opencode   # Medium 版。11/14 の High 版と区別するためフルネーム
-opus55-202610141029 > carbon-202611111318 > pulse-alpha-opencode   # Medium 版
+opus55-202609231032 > carbon-202611111318   # Medium 版。11/14 の High 版と区別するためフルネーム
 hydrogen-202611132022 > longcat25free-202611111224   # High 版。11/14 の XHigh 版と区別するためフルネーム
 hydrogen-202611132022 > glm53flash-202610280446   # High 版
 hydrogen-202611132022 > fable5   # High 版
@@ -121,4 +119,5 @@ longcat25free-202611111224 > hy4flash-202611171202
 fable51 > qwen4max-202611191214   # XHigh 版。09:19 の通常版と区別するためフルネーム
 argon-202611051057 > neon-202611242252 > hydrogen-202611142030   # Medium 版。23:10 の XHigh 版と区別するためフルネーム
 mimo26pro > neon-202611242310 > qwen38flashnext   # XHigh 版
+pulse-alpha-opencode > qwen4max-202611191214 > opus55-202610141029
 ```

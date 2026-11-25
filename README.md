@@ -20,16 +20,16 @@ python3 build_index.py     # regenerate index.html and the table in README
 | # | model | params | provider | harness | date | time | out tokens | tps | tier | rules | effects | sound |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 1 | [claude-fable-5-1](fable51-202609022125/index.html) | - | anthropic | claude-code | 2026-09-02 21:25 | 27m53s | 122.4k | 82 | S | 4 | 4 | 4 |
-| 2 | [Qwen4-Max (XHigh)](qwen4max-202611191214/index.html) | 2400B-A71B | nous | pi-agent | 2026-11-19 12:14 | 28m36s | 89.6k | 52 | S | 4 | 4 | 4 |
-| 3 | [Gemini 4 Argon (Medium)](argon-202611051005/index.html) | - | google | antigravity-cli | 2026-11-05 10:05 | 7m02s | - | - | A | 4 | 4 | 3 |
-| 4 | [Gemini 4 Argon (High)](argon-202611051057/index.html) | - | google | antigravity-cli | 2026-11-05 10:57 | 24m48s | - | - | A | 4 | 4 | 3 |
-| 5 | [Gemini 4 Neon (Medium)](neon-202611242252/index.html) | - | google | antigravity-cli | 2026-11-24 22:52 | 10m35s | 43.2k | - | A | 4 | 4 | 3 |
-| 6 | [Gemini 4 Hydrogen (XHigh)](hydrogen-202611142030/index.html) | - | google | antigravity-cli | 2026-11-14 20:30 | 10m38s | 94.7k | - | A | 4 | 4 | 3 |
-| 7 | [claude-opus-5-5](opus55-202609231032/index.html) | - | anthropic | claude-code | 2026-09-23 10:32 | 14m30s | 88.6k | 116 | A | 4 | 4 | 3 |
-| 8 | [claude-opus-5-5](opus55-202610141029/index.html) | - | anthropic | claude-code | 2026-10-14 10:29 | 8m45s | 58.4k | 114 | A | 4 | 4 | 3 |
-| 9 | [Gemini 4 Carbon (High)](carbon-202611141951/index.html) | - | google | antigravity-cli | 2026-11-14 19:51 | 21m37s | 60.7k | - | A | 4 | 4 | 4 |
-| 10 | [Gemini 4 Carbon (Medium)](carbon-202611111318/index.html) | - | google | antigravity-cli | 2026-11-11 13:18 | 22m19s | 63.5k | - | A | 4 | 4 | 4 |
-| 11 | [Pulse-Alpha (stealth)](pulse-alpha-opencode-202611041204/index.html) | - | opencode | opencode | 2026-11-04 12:04 | 18m30s | 63.6k | 57 | A | 4 | 4 | 3 |
+| 2 | [Gemini 4 Argon (Medium)](argon-202611051005/index.html) | - | google | antigravity-cli | 2026-11-05 10:05 | 7m02s | - | - | A | 4 | 4 | 3 |
+| 3 | [Gemini 4 Argon (High)](argon-202611051057/index.html) | - | google | antigravity-cli | 2026-11-05 10:57 | 24m48s | - | - | A | 4 | 4 | 3 |
+| 4 | [Gemini 4 Neon (Medium)](neon-202611242252/index.html) | - | google | antigravity-cli | 2026-11-24 22:52 | 10m35s | 43.2k | - | A | 4 | 4 | 3 |
+| 5 | [Gemini 4 Hydrogen (XHigh)](hydrogen-202611142030/index.html) | - | google | antigravity-cli | 2026-11-14 20:30 | 10m38s | 94.7k | - | A | 4 | 4 | 3 |
+| 6 | [claude-opus-5-5](opus55-202609231032/index.html) | - | anthropic | claude-code | 2026-09-23 10:32 | 14m30s | 88.6k | 116 | A | 4 | 4 | 3 |
+| 7 | [Pulse-Alpha (stealth)](pulse-alpha-opencode-202611041204/index.html) | - | opencode | opencode | 2026-11-04 12:04 | 18m30s | 63.6k | 57 | A | 4 | 4 | 3 |
+| 8 | [Qwen4-Max (XHigh)](qwen4max-202611191214/index.html) | 2400B-A71B | nous | pi-agent | 2026-11-19 12:14 | 28m36s | 89.6k | 52 | A | 4 | 4 | 3 |
+| 9 | [claude-opus-5-5](opus55-202610141029/index.html) | - | anthropic | claude-code | 2026-10-14 10:29 | 8m45s | 58.4k | 114 | A | 4 | 4 | 3 |
+| 10 | [Gemini 4 Carbon (High)](carbon-202611141951/index.html) | - | google | antigravity-cli | 2026-11-14 19:51 | 21m37s | 60.7k | - | A | 4 | 4 | 4 |
+| 11 | [Gemini 4 Carbon (Medium)](carbon-202611111318/index.html) | - | google | antigravity-cli | 2026-11-11 13:18 | 22m19s | 63.5k | - | A | 4 | 4 | 4 |
 | 12 | [claude-sonnet-5-5](sonnet55-202609292328/index.html) | - | anthropic | claude-code | 2026-09-29 23:28 | 4m25s | 38.7k | 152 | A | 4 | 4 | 3 |
 | 13 | [MiMo-v2.6pro](mimo26pro-202609231046/index.html) | 1020B-A42B | - | opencode | 2026-09-23 10:46 | 36m14s | - | - | A | 4 | 4 | 3 |
 | 14 | [Gemini 4 Neon (XHigh)](neon-202611242310/index.html) | - | google | antigravity-cli | 2026-11-24 23:10 | 16m57s | 87.3k | - | A | 4 | 4 | 3 |
